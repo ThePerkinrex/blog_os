@@ -1,13 +1,16 @@
 [package]
-name = "blog_os"
+name = "os"         # or any other name
 version = "0.1.0"
 edition = "2024"
 
+[build-dependencies]
+bootloader = "0.11.12"
+blog_os = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
+
+
 [dependencies]
-bootloader = "0.9"
+# used for UEFI booting in QEMU
+ovmf-prebuilt = "0.1.0-alpha.1"
 
-
-[[bin]]
-name = "blog_os"
-test = false
-bench = false
+[workspace]
+members = ["kernel"]

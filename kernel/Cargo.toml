@@ -1,0 +1,14 @@
+[package]
+name = "blog_os"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bootloader_api = "0.11.12"
+bootloader-x86_64-common = "0.11.12"
+
+
+[[bin]]
+name = "blog_os"
+test = false
+bench = false
