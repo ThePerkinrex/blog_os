@@ -1,13 +1,18 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-use blog_os::println;
+use blog_os::{framebuffer, println};
 
 pub fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let fb = boot_info.framebuffer.as_mut().unwrap();
-    blog_os::framebuffer::init(fb);
-    println!("Hello");
-    println!("World!");
+    framebuffer::init(fb);
+
+    #[cfg(test)]
+    test_main();
+
     loop {}
 }
 
@@ -20,4 +25,12 @@ use core::panic::PanicInfo;
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
     loop {}
+}
+
+#[cfg(test)]
+pub fn test_runner(tests: &[&dyn Fn()]) {
+    println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
 }

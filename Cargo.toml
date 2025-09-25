@@ -5,7 +5,9 @@ edition = "2024"
 
 [build-dependencies]
 bootloader = "0.11.12"
-blog_os = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
+blog_os = { path = "kernel", artifact = ["bin:blog_os"], target = "x86_64-unknown-none" }
+# blog_os_test = { path = "kernel", artifact = "bin:blog_os_test", target = "x86_64-unknown-none" }
+
 
 
 [dependencies]

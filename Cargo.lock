@@ -60,6 +60,7 @@ dependencies = [
  "bootloader-x86_64-common",
  "bootloader_api",
  "spin",
+ "x86_64",
 ]
 
 [[package]]
