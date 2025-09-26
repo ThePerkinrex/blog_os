@@ -2,6 +2,7 @@
 name = "blog_os"
 version = "0.1.0"
 edition = "2024"
+default-run = "blog_os"
 
 [dependencies]
 bootloader_api = "0.11.12"
@@ -13,9 +14,4 @@ x86_64 = "0.15.2"
 [[bin]]
 name = "blog_os"
 test = false
-bench = false
-
-[[bin]]
-name = "blog_os_test"
-test = true
 bench = false

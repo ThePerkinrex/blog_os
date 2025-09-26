@@ -1,18 +1,19 @@
-[package]
-name = "os"         # or any other name
-version = "0.1.0"
-edition = "2024"
+# [package]
+# name = "os"         # or any other name
+# version = "0.1.0"
+# edition = "2024"
 
-[build-dependencies]
-bootloader = "0.11.12"
-blog_os = { path = "kernel", artifact = ["bin:blog_os"], target = "x86_64-unknown-none" }
-# blog_os_test = { path = "kernel", artifact = "bin:blog_os_test", target = "x86_64-unknown-none" }
+# [build-dependencies]
+# bootloader = "0.11.12"
+# blog_os = { path = "kernel", artifact = ["bin:blog_os"], target = "x86_64-unknown-none" }
+# # blog_os_test = { path = "kernel", artifact = "bin:blog_os_test", target = "x86_64-unknown-none" }
 
 
 
-[dependencies]
-# used for UEFI booting in QEMU
-ovmf-prebuilt = "0.1.0-alpha.1"
+# [dependencies]
+# # used for UEFI booting in QEMU
+# ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
-members = ["kernel"]
+members = ["kernel", "runner"]
+resolver = "3"
