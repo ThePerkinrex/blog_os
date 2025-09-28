@@ -1,23 +1,33 @@
 #![no_std]
 #![no_main]
 
-use blog_os::println;
+#![feature(custom_test_frameworks)]
+#![test_runner(blog_os::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
+use blog_os::{println, print};
+
+
+#[cfg(not(test))]
 pub fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let fb = boot_info.framebuffer.as_mut().unwrap();
     blog_os::framebuffer::init(fb);
-    println!("Hello");
-    println!("World!");
+    println!("Not test");
+
+
+
     loop {}
 }
+
+#[cfg(test)]
+pub fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+    let fb = boot_info.framebuffer.as_mut().unwrap();
+    blog_os::framebuffer::init(fb);
+    test_main();
+
+    loop {}
+}
+
 
 bootloader_api::entry_point!(kernel_main);
 
-use core::panic::PanicInfo;
-
-/// This function is called on panic.
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
-    loop {}
-}

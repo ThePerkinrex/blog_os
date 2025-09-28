@@ -13,5 +13,5 @@ x86_64 = "0.15.2"
 
 [[bin]]
 name = "blog_os"
-test = false
+test = true
 bench = false

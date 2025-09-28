@@ -42,6 +42,10 @@ fn main() {
     let uefi = !args.no_uefi;
     let target = args.target.or_else(get_env_target_dir).or_else(get_manifest_target_dir).unwrap_or_else(|| PathBuf::from("target")).canonicalize().unwrap();
 
+    for (var, val) in std::env::vars() {
+        println!("ENV: {var}={val}");
+    }
+
 
     // choose whether to start the UEFI or BIOS image
 
