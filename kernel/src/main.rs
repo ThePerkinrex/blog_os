@@ -21,6 +21,7 @@ pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! 
     #[cfg(test)]
     kernel_test();
 
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
