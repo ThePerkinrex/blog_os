@@ -351,6 +351,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu-common"
+version = "0.1.0"
+
+[[package]]
 name = "quote"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,6 +382,7 @@ dependencies = [
  "bootloader",
  "clap",
  "ovmf-prebuilt",
+ "qemu-common",
  "serde",
  "serde_json",
 ]

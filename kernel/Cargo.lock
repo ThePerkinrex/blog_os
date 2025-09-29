@@ -32,6 +32,7 @@ version = "0.1.0"
 dependencies = [
  "bootloader-x86_64-common",
  "bootloader_api",
+ "qemu-common",
  "spin",
  "x86_64",
 ]
@@ -117,6 +118,10 @@ checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
 dependencies = [
  "unicode-ident",
 ]
+
+[[package]]
+name = "qemu-common"
+version = "0.1.0"
 
 [[package]]
 name = "quote"

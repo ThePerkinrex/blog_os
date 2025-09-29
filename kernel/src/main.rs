@@ -1,41 +1,40 @@
 #![no_std]
 #![no_main]
-
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 mod io;
 
+pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
+    if let Some(fb) = boot_info.framebuffer.as_mut() {
+        io::framebuffer::init(fb);
+    }
+    io::serial::init();
+}
 
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    #[cfg(test)]
-    kernel_test(boot_info);
-    #[cfg(not(test))]
-    kernel_main(boot_info);
-    
-}
+    setup(boot_info);
 
-pub fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    let fb = boot_info.framebuffer.as_mut().unwrap();
-    framebuffer::init(fb);
+    #[cfg(not(test))]
+    kernel_main();
+    #[cfg(test)]
+    kernel_test();
 
     loop {}
 }
 
+pub fn kernel_main() {
+    println!("HELLO");
+}
 
 #[cfg(test)]
-pub fn kernel_test(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    let fb = boot_info.framebuffer.as_mut().unwrap();
-    framebuffer::init(fb);
+pub fn kernel_test() {
+    println!("TESTING");
     test_main();
-
-    loop {}
 }
 
-
-bootloader_api::entry_point!(kernel_main);
-
+bootloader_api::entry_point!(kernel_entrypoint);
 
 #[cfg(test)]
 pub fn test_runner(tests: &[&dyn Fn()]) {
@@ -43,20 +42,46 @@ pub fn test_runner(tests: &[&dyn Fn()]) {
     for test in tests {
         test();
     }
+    io::qemu::exit_qemu(QemuExitCode::Success);
 }
 
 #[test_case]
 fn trivial_assertion() {
     print!("trivial assertion... ");
-    assert_eq!(1, 1);
+    assert_eq!(1, 12);
     println!("[ok]");
 }
 
 use core::panic::PanicInfo;
 
+use qemu_common::QemuExitCode;
+
 /// This function is called on panic.
 #[panic_handler]
+#[cfg(not(test))]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
+    use core::fmt::Write;
+
+    if writeln!(io::writer(), "{info}").is_err() {
+        io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
+    }
+    loop {}
+}
+
+#[panic_handler]
+#[cfg(test)]
+fn panic(info: &PanicInfo) -> ! {
+    use core::fmt::Write;
+
+    use crate::io::qemu::exit_qemu;
+
+    if writeln!(io::writer(), "[failed]\n").is_err() {
+        io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
+    }
+
+    if writeln!(io::writer(), "Error: {info}\n").is_err() {
+        io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
+    }
+    exit_qemu(QemuExitCode::Failed);
     loop {}
 }

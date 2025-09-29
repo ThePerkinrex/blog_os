@@ -81,6 +81,11 @@ test: $(KERNEL_DEPS) $(RUNNER)
 clean:
 	@cd $(RUNNER_BASE) && cargo clean
 	@cd $(KERNEL_BASE) && cargo clean
+
+.PHONY: fmt
+fmt:
+	@cd $(RUNNER_BASE) && cargo fmt
+	@cd $(KERNEL_BASE) && cargo fmt
 	
 
 .PHONY: build-debug
