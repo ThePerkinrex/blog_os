@@ -37,20 +37,35 @@ pub fn kernel_test() {
 
 bootloader_api::entry_point!(kernel_entrypoint);
 
+
+pub trait Testable {
+    fn run(&self) -> ();
+}
+
+impl<T> Testable for T
+where
+    T: Fn(),
+{
+    fn run(&self) {
+        print!("{}...\t", core::any::type_name::<T>());
+        self();
+        println!("[ok]");
+    }
+}
+
+
 #[cfg(test)]
-pub fn test_runner(tests: &[&dyn Fn()]) {
+pub fn test_runner(tests: &[&dyn Testable]) {
     println!("Running {} tests", tests.len());
     for test in tests {
-        test();
+        test.run();
     }
     io::qemu::exit_qemu(QemuExitCode::Success);
 }
 
 #[test_case]
 fn trivial_assertion() {
-    print!("trivial assertion... ");
     assert_eq!(1, 12);
-    println!("[ok]");
 }
 
 use core::panic::PanicInfo;
