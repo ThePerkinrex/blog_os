@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
-#![reexport_test_harness_main = "test_main"]
+#![reexport_test_harness_main = "kernel_test"]
 
 mod io;
 
@@ -27,12 +27,6 @@ pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! 
 
 pub fn kernel_main() {
     println!("HELLO");
-}
-
-#[cfg(test)]
-pub fn kernel_test() {
-    println!("TESTING");
-    test_main();
 }
 
 bootloader_api::entry_point!(kernel_entrypoint);
