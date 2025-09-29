@@ -15,3 +15,7 @@ qemu-common = {path = "../qemu-common"}
 name = "blog_os"
 test = true
 bench = false
+
+[lib]
+test = true
+bench = false

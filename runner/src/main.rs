@@ -139,15 +139,30 @@ fn main() {
 
         let status = child.wait().unwrap();
         let exit_code = match status.code() {
-            None => {println!("No exit code"); 10},
-            Some(0) => {println!("qemu closed"); 0},
-            Some(x) if x as u32 == ((QemuExitCode::Success as u32) << 1 | 1) => {println!("SUCCESS"); 0},
-            Some(x) if x as u32 == ((QemuExitCode::Failed as u32) << 1 | 1) => {println!("FAILED"); 1},
+            None => {
+                println!("No exit code");
+                10
+            }
+            Some(0) => {
+                println!("qemu closed");
+                0
+            }
+            Some(x) if x as u32 == ((QemuExitCode::Success as u32) << 1 | 1) => {
+                println!("SUCCESS");
+                0
+            }
+            Some(x) if x as u32 == ((QemuExitCode::Failed as u32) << 1 | 1) => {
+                println!("FAILED");
+                1
+            }
             Some(x) if x as u32 == ((QemuExitCode::PanicWriterFailed as u32) << 1 | 1) => {
                 println!("Panicked and the writer failed");
                 2
             }
-            Some(x) => {println!("Unknown exit code: {x} 0x{x:x}"); 3},
+            Some(x) => {
+                println!("Unknown exit code: {x} 0x{x:x}");
+                3
+            }
         };
 
         std::process::exit(exit_code);
