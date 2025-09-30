@@ -20,7 +20,6 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
 
 pub fn kernel_main() {
     println!("HELLO");
-    x86_64::instructions::interrupts::int3(); // new
     println!("DID NOT CRASH!");
 }
 
