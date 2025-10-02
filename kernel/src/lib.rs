@@ -16,6 +16,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         io::framebuffer::init(fb);
     }
     io::serial::init();
+    interrupts::init_pics();
 }
 
 pub fn kernel_main() {
@@ -58,7 +59,7 @@ use qemu_common::QemuExitCode;
 pub fn panic_handler(info: &PanicInfo) -> ! {
     use core::fmt::Write;
 
-    if writeln!(io::writer(), "{info}").is_err() {
+    if io::writer(|mut w| writeln!(w, "{info}")).is_err() {
         io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
     }
     loop {}
@@ -69,11 +70,11 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 
     use crate::io::qemu::exit_qemu;
 
-    if writeln!(io::writer(), "[failed]\n").is_err() {
+    if io::writer(|mut w| writeln!(w, "[failed]\n")).is_err() {
         io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
     }
 
-    if writeln!(io::writer(), "Error: {info}\n").is_err() {
+    if io::writer(|mut w| writeln!(w, "Error: {info}\n")).is_err() {
         io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
     }
     exit_qemu(QemuExitCode::Failed);

@@ -17,7 +17,6 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
 
         let stack_start = VirtAddr::from_ptr(&raw const STACK);
         
-
         stack_start + STACK_SIZE // stack_end
     };
     tss

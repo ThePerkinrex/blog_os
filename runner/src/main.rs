@@ -3,6 +3,7 @@ use std::{
     process::{Command, Stdio},
 };
 
+use bootloader::BootConfig;
 use clap::Parser;
 use qemu_common::QemuExitCode;
 use serde::Deserialize;

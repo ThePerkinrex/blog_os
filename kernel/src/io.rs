@@ -1,4 +1,4 @@
-use core::fmt::Write;
+use core::{fmt::Write, ops::DerefMut};
 
 use bootloader_x86_64_common::{framebuffer::FrameBufferWriter, serial::SerialPort};
 use spin::{Mutex, MutexGuard};
@@ -102,26 +102,31 @@ impl WriteStack {
     }
 }
 
-impl core::fmt::Write for WriteStack {
+pub struct StackWriter<'a>(&'a mut WriteStack);
+
+impl<'a> core::fmt::Write for StackWriter<'a> {
     fn write_char(&mut self, c: char) -> core::fmt::Result {
-        self.write_fn(|w| w.write_char(c))
+        self.0.write_fn(|w| w.write_char(c))
     }
 
     fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        self.write_fn(|w| w.write_fmt(args))
+        self.0.write_fn(|w| w.write_fmt(args))
     }
 
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write_fn(|w| w.write_str(s))
+        self.0.write_fn(|w| w.write_str(s))
     }
 }
 
 static STACK: Mutex<WriteStack> = Mutex::new(WriteStack::new());
 
 pub fn print(args: core::fmt::Arguments) {
-    STACK.lock().write_fmt(args).expect("write");
+    writer(|mut w| w.write_fmt(args).expect("write"));
 }
 
-pub fn writer<'a>() -> MutexGuard<'a, impl Write + 'a> {
-    STACK.lock()
+pub fn writer<T, F: FnOnce(StackWriter<'_>) -> T>(f: F) -> T {
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        let mut lock = STACK.lock();
+        f(StackWriter(lock.deref_mut()))
+    })
 }
