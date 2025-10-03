@@ -77,6 +77,7 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     let mut idt = InterruptDescriptorTable::new();
     idt.breakpoint.set_handler_fn(breakpoint_handler);
     idt.page_fault.set_handler_fn(page_fault_handler);
+    idt.general_protection_fault.set_handler_fn(general_protection_fault_handler);
     unsafe {
         idt.double_fault
             .set_handler_fn(double_fault_handler)
@@ -92,8 +93,7 @@ pub fn init_idt() {
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    // println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
-    x86_64::instructions::nop();
+    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn double_fault_handler(
@@ -107,7 +107,51 @@ extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
-    panic!("EXCEPTION: PAGE FAULT ({error_code:?})\n{:#?}", stack_frame);
+    println!("EXCEPTION: PAGE FAULT ({error_code:?})\n{:#?}", stack_frame);
+}
+
+#[repr(u8)]
+#[derive(Debug)]
+enum SelectorTableCode {
+    GDT = 0b00,
+    IDT = 0b01,
+    LDT = 0b10,
+    IDT2 = 0b11,
+}
+
+#[derive(Debug)]
+struct SelectorErrorCode {
+    idx: u16,
+    tbl: SelectorTableCode,
+    external: u8
+}
+
+impl SelectorErrorCode {
+    fn new(code: u64) -> Self {
+        let external = (code & 0b1) as u8;
+        let tbl_code = ((code >> 1) & 0b11) as u8;
+        let tbl = match tbl_code {
+            0b00 => SelectorTableCode::GDT,
+            0b01 => SelectorTableCode::IDT,
+            0b10 => SelectorTableCode::LDT,
+            0b11 => SelectorTableCode::IDT2,
+            _ => unreachable!()
+        };
+        let idx = ((code >> 3) & 0b1_1111_1111_1111) as u16;
+        Self {
+            external,
+            idx,
+            tbl
+        }
+    }
+}
+
+extern "x86-interrupt" fn general_protection_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) {
+    let code = if error_code == 0 {None} else {Some(SelectorErrorCode::new(error_code))};
+    panic!("EXCEPTION: GENERAL PROTECTION FAULT ({code:?})\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(
