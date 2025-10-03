@@ -16,12 +16,21 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         io::framebuffer::init(fb);
     }
     io::serial::init();
-    interrupts::init_pics();
+    // interrupts::init_pics();
+}
+
+fn bare_int3() {
+    x86_64::instructions::interrupts::int3();
 }
 
 pub fn kernel_main() {
+    bare_int3();
     println!("HELLO");
     println!("DID NOT CRASH!");
+    loop {
+        x86_64::instructions::hlt();
+        println!("INterrupt");
+    }
 }
 
 pub trait Testable {

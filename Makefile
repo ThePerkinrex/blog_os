@@ -73,6 +73,10 @@ $(KERNEL_RELEASE): $(KERNEL_DEPS)
 run: $(KERNEL_DEPS) $(RUNNER)
 	@cd $(KERNEL_BASE) && cargo run
 
+.PHONY: run-gdb
+run-gdb: $(KERNEL_DEPS) $(RUNNER)
+	@cd $(KERNEL_BASE) && GDB_LISTEN=true cargo run
+
 .PHONY: test
 test: $(KERNEL_DEPS) $(RUNNER)
 	@cd $(KERNEL_BASE) && cargo test --lib && cargo test --bin blog_os

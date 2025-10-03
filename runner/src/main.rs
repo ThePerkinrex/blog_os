@@ -1,6 +1,6 @@
 use std::{
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{Command, Stdio}, thread, time::Duration,
 };
 
 use bootloader::BootConfig;
@@ -18,6 +18,8 @@ struct Args {
     #[arg(long)]
     target: Option<PathBuf>,
     kernel: PathBuf,
+    #[arg(env = "GDB_LISTEN", long)]
+    gdb: bool
 }
 
 fn get_env_target_dir() -> Option<PathBuf> {
@@ -83,6 +85,7 @@ fn main() {
     };
 
     println!(" build: {}", args.build);
+    println!("   gdb: {}", args.gdb);
     println!("  uefi: {uefi}");
     println!("target: {}", target.display());
     println!("kernel: {}", kernel.display());
@@ -111,6 +114,10 @@ fn main() {
         println!("Running qemu");
 
         let mut cmd = std::process::Command::new("qemu-system-x86_64");
+        if args.gdb {
+            cmd.arg("-s").arg("-S");
+        }
+
         if uefi {
             cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
         }
@@ -135,6 +142,20 @@ fn main() {
         println!("Running {cmd:?}");
 
         let mut child = cmd.spawn().unwrap();
+
+        if args.gdb {
+            thread::sleep(Duration::from_secs(1));
+            let mut cmd = Command::new("gdb");
+            cmd.arg("-ex").arg("target remote localhost:1234");
+            cmd.arg("-ex").arg(format!("add-symbol-file \"{}\" -o 0x8000000000", kernel.display()));
+            cmd.arg("-ex").arg("set  disassemble-next-line on");
+            // cmd.arg("-ex").arg("display /-16i $pc");
+            // cmd.arg("-ex").arg("display /16i $pc");
+
+            let mut gdb = cmd.spawn().unwrap();
+            gdb.wait().unwrap();
+            child.kill().unwrap();
+        }
 
         // TODO add test run timeout
 
