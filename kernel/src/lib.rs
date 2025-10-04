@@ -126,6 +126,11 @@ pub fn kernel_main(setup_info: SetupInfo) -> ! {
     hlt_loop()
 }
 
+pub extern "C" fn test_return() -> ! {
+    println!("REturned here");
+    hlt_loop();
+}
+
 #[cfg(test)]
 pub fn kernel_test() -> ! {
     test_main();

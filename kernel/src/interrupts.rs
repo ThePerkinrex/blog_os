@@ -2,10 +2,10 @@ use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
     instructions::port::Port,
-    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
+    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}, VirtAddr,
 };
 
-use crate::{gdt, hlt_loop, print, println};
+use crate::{gdt, hlt_loop, print, println, test_return};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -174,7 +174,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     }
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn keyboard_interrupt_handler(mut stack_frame: InterruptStackFrame) {
     use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
     use spin::Mutex;
     use x86_64::instructions::port::Port;
@@ -204,6 +204,11 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
     }
+    let addr = VirtAddr::from_ptr(test_return as *const ());
+
+    println!("Addr: {addr:?}");
+
+    unsafe {stack_frame.as_mut().update(|x| x.instruction_pointer = addr);}
 }
 
 // pub struct WithoutInterruptGuard<T> {
