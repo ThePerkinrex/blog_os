@@ -1,6 +1,8 @@
 use std::{
     path::PathBuf,
-    process::{Command, Stdio}, thread, time::Duration,
+    process::{Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 use bootloader::BootConfig;
@@ -19,7 +21,7 @@ struct Args {
     target: Option<PathBuf>,
     kernel: PathBuf,
     #[arg(env = "GDB_LISTEN", long)]
-    gdb: bool
+    gdb: bool,
 }
 
 fn get_env_target_dir() -> Option<PathBuf> {
@@ -147,7 +149,10 @@ fn main() {
             thread::sleep(Duration::from_secs(1));
             let mut cmd = Command::new("gdb");
             cmd.arg("-ex").arg("target remote localhost:1234");
-            cmd.arg("-ex").arg(format!("add-symbol-file \"{}\" -o 0x8000000000", kernel.display()));
+            cmd.arg("-ex").arg(format!(
+                "add-symbol-file \"{}\" -o 0x8000000000",
+                kernel.display()
+            ));
             cmd.arg("-ex").arg("set  disassemble-next-line on");
             // cmd.arg("-ex").arg("display /-16i $pc");
             // cmd.arg("-ex").arg("display /16i $pc");

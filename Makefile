@@ -79,7 +79,12 @@ run-gdb: $(KERNEL_DEPS) $(RUNNER)
 
 .PHONY: test
 test: $(KERNEL_DEPS) $(RUNNER)
-	@cd $(KERNEL_BASE) && cargo test --lib && cargo test --bin blog_os
+	@cd $(KERNEL_BASE) && cargo test --lib
+
+
+.PHONY: test
+test-bin: $(KERNEL_DEPS) $(RUNNER)
+	@cd $(KERNEL_BASE) && cargo test --bin blog_os
 
 .PHONY: clean
 clean:

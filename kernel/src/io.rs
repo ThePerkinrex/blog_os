@@ -1,7 +1,7 @@
 use core::{fmt::Write, ops::DerefMut};
 
 use bootloader_x86_64_common::{framebuffer::FrameBufferWriter, serial::SerialPort};
-use spin::{Mutex, MutexGuard};
+use spin::Mutex;
 
 pub mod framebuffer;
 pub mod qemu;

@@ -1,12 +1,11 @@
-use core::ops::{Deref, DerefMut};
-
 use pic8259::ChainedPics;
 use spin::Lazy;
-use x86_64::{instructions::port::Port, structures::{idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}, port::PortWrite}};
+use x86_64::{
+    instructions::port::Port,
+    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
+};
 
-use crate::{gdt, println, print};
-
-
+use crate::{gdt, hlt_loop, print, println};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -16,55 +15,58 @@ pub static PICS: spin::Mutex<ChainedPics> =
 
 pub fn init_pics() {
     // init_timer(1);
-    unsafe {PICS.lock().initialize();}
+    unsafe {
+        PICS.lock().initialize();
+    }
 
     // The Master PIC's Interrupt Mask Register (IMR) is at port 0x21.
     let mut master_mask_port = Port::<u8>::new(0x21);
-    
+
     unsafe {
         // Read the current mask
         let current_mask = master_mask_port.read();
-        
+
         // Clear the lowest bit (IRQ 0/Timer)
         // 0b11111110 (0xFE) ensures only IRQ 0 is unmasked, keeping others as they were.
-        master_mask_port.write(current_mask & 0b11111110);
+        master_mask_port.write(current_mask & 0b11111100);
     }
 
     x86_64::instructions::interrupts::enable();
 }
 // Function to initialize the PIT to generate interrupts at a specific frequency
-pub fn init_timer(frequency_hz: u32) {
-    // The PIT base frequency is 1,193,182 Hz
-    const PIT_BASE_FREQ: u32 = 1193182;
-    
-    // Calculate divisor
-    let divisor: u16 = (PIT_BASE_FREQ / frequency_hz) as u16;
+// pub fn init_timer(frequency_hz: u32) {
+//     // The PIT base frequency is 1,193,182 Hz
+//     const PIT_BASE_FREQ: u32 = 1193182;
 
-    // PIT Ports
-    const PIT_CMD_PORT: u16 = 0x43;
-    const PIT_DATA_PORT: u16 = 0x40; // Channel 0 (Timer)
+//     // Calculate divisor
+//     let divisor: u16 = (PIT_BASE_FREQ / frequency_hz) as u16;
 
-    // Command: Channel 0, LOBYTE/HIBYTE, Mode 3 (Square Wave Generator)
-    const COMMAND: u8 = 0b00110110; 
+//     // PIT Ports
+//     const PIT_CMD_PORT: u16 = 0x43;
+//     const PIT_DATA_PORT: u16 = 0x40; // Channel 0 (Timer)
 
-    // Create mutable port instances
-    let mut cmd_port = Port::<u8>::new(PIT_CMD_PORT);
-    let mut data_port = Port::<u8>::new(PIT_DATA_PORT);
+//     // Command: Channel 0, LOBYTE/HIBYTE, Mode 3 (Square Wave Generator)
+//     const COMMAND: u8 = 0b00110110;
 
-    unsafe {
-        // 1. Send the command byte
-        cmd_port.write(COMMAND);
-        
-        // 2. Send divisor (Low byte then High byte)
-        data_port.write((divisor & 0xFF) as u8);
-        data_port.write((divisor >> 8) as u8);
-    }
-}
+//     // Create mutable port instances
+//     let mut cmd_port = Port::<u8>::new(PIT_CMD_PORT);
+//     let mut data_port = Port::<u8>::new(PIT_DATA_PORT);
+
+//     unsafe {
+//         // 1. Send the command byte
+//         cmd_port.write(COMMAND);
+
+//         // 2. Send divisor (Low byte then High byte)
+//         data_port.write((divisor & 0xFF) as u8);
+//         data_port.write((divisor >> 8) as u8);
+//     }
+// }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
+    Keyboard,
 }
 
 impl InterruptIndex {
@@ -77,14 +79,15 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     let mut idt = InterruptDescriptorTable::new();
     idt.breakpoint.set_handler_fn(breakpoint_handler);
     idt.page_fault.set_handler_fn(page_fault_handler);
-    idt.general_protection_fault.set_handler_fn(general_protection_fault_handler);
+    idt.general_protection_fault
+        .set_handler_fn(general_protection_fault_handler);
     unsafe {
         idt.double_fault
             .set_handler_fn(double_fault_handler)
             .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX); // new
     }
-    idt[InterruptIndex::Timer.as_u8()]
-            .set_handler_fn(timer_interrupt_handler);
+    idt[InterruptIndex::Timer.as_u8()].set_handler_fn(timer_interrupt_handler);
+    idt[InterruptIndex::Keyboard.as_u8()].set_handler_fn(keyboard_interrupt_handler);
     idt
 });
 
@@ -107,7 +110,13 @@ extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
-    println!("EXCEPTION: PAGE FAULT ({error_code:?})\n{:#?}", stack_frame);
+    use x86_64::registers::control::Cr2;
+
+    println!("EXCEPTION: PAGE FAULT");
+    println!("Accessed Address: {:?}", Cr2::read());
+    println!("Error Code: {:?}", error_code);
+    println!("{:#?}", stack_frame);
+    hlt_loop();
 }
 
 #[repr(u8)]
@@ -123,7 +132,7 @@ enum SelectorTableCode {
 struct SelectorErrorCode {
     idx: u16,
     tbl: SelectorTableCode,
-    external: u8
+    external: u8,
 }
 
 impl SelectorErrorCode {
@@ -135,14 +144,10 @@ impl SelectorErrorCode {
             0b01 => SelectorTableCode::IDT,
             0b10 => SelectorTableCode::LDT,
             0b11 => SelectorTableCode::IDT2,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         let idx = ((code >> 3) & 0b1_1111_1111_1111) as u16;
-        Self {
-            external,
-            idx,
-            tbl
-        }
+        Self { external, idx, tbl }
     }
 }
 
@@ -150,17 +155,54 @@ extern "x86-interrupt" fn general_protection_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: u64,
 ) {
-    let code = if error_code == 0 {None} else {Some(SelectorErrorCode::new(error_code))};
-    panic!("EXCEPTION: GENERAL PROTECTION FAULT ({code:?})\n{:#?}", stack_frame);
+    let code = if error_code == 0 {
+        None
+    } else {
+        Some(SelectorErrorCode::new(error_code))
+    };
+    panic!(
+        "EXCEPTION: GENERAL PROTECTION FAULT ({code:?})\n{:#?}",
+        stack_frame
+    );
 }
 
-extern "x86-interrupt" fn timer_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
-    println!(".");
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    print!(".");
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
+    }
+}
+
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
+    use spin::Mutex;
+    use x86_64::instructions::port::Port;
+
+    static KEYBOARD: Lazy<Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>>> = Lazy::new(|| {
+        Mutex::new(Keyboard::new(
+            ScancodeSet1::new(),
+            layouts::Us104Key,
+            HandleControl::Ignore,
+        ))
+    });
+
+    let mut keyboard = KEYBOARD.lock();
+    let mut port = Port::new(0x60);
+
+    let scancode: u8 = unsafe { port.read() };
+    if let Ok(Some(key_event)) = keyboard.add_byte(scancode)
+        && let Some(key) = keyboard.process_keyevent(key_event)
+    {
+        match key {
+            DecodedKey::Unicode(character) => print!("{}", character),
+            DecodedKey::RawKey(key) => print!("{:?}", key),
+        }
+    }
+
+    unsafe {
+        PICS.lock()
+            .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
     }
 }
 

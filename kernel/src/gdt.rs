@@ -1,9 +1,11 @@
 use spin::Lazy;
 use x86_64::{
-    registers::segmentation::{DS, ES, FS, GS, SS}, structures::{
+    VirtAddr,
+    registers::segmentation::{DS, ES, FS, GS, SS},
+    structures::{
         gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
         tss::TaskStateSegment,
-    }, VirtAddr
+    },
 };
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
@@ -15,7 +17,7 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
         static mut STACK: [u8; STACK_SIZE as usize] = [0; STACK_SIZE as usize];
 
         let stack_start = VirtAddr::from_ptr(&raw const STACK);
-        
+
         stack_start + STACK_SIZE // stack_end
     };
     tss
