@@ -12,16 +12,19 @@ use core::panic::PanicInfo;
 use alloc::boxed::Box;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use qemu_common::QemuExitCode;
-use x86_64::{structures::paging::{OffsetPageTable, Translate}, VirtAddr};
+use x86_64::{
+    VirtAddr,
+    structures::paging::{OffsetPageTable, Translate},
+};
 
 use crate::memory::BootInfoFrameAllocator;
 
+pub mod allocator;
+pub mod config;
 pub mod gdt;
 pub mod interrupts;
 pub mod io;
-pub mod config;
 pub mod memory;
-pub mod allocator;
 pub mod multitask;
 
 pub struct SetupInfo {
@@ -67,7 +70,7 @@ pub struct SetupInfo {
     pub kernel_image_offset: u64,
     // The kernel page tables
     pub page_table: OffsetPageTable<'static>,
-    pub frame_allocator: BootInfoFrameAllocator 
+    pub frame_allocator: BootInfoFrameAllocator,
 }
 
 pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
@@ -79,11 +82,16 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
     io::serial::init();
     interrupts::init_pics();
 
-    let physical_memory_offset = VirtAddr::new(*boot_info.physical_memory_offset.as_ref().expect("Physical memory mapped"));
+    let physical_memory_offset = VirtAddr::new(
+        *boot_info
+            .physical_memory_offset
+            .as_ref()
+            .expect("Physical memory mapped"),
+    );
     let mut page_table = unsafe { memory::init(physical_memory_offset) };
-    let mut frame_allocator = unsafe {BootInfoFrameAllocator::init(&boot_info.memory_regions)};
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
     allocator::init_heap(&mut page_table, &mut frame_allocator).expect("initialized heap");
-    SetupInfo { 
+    SetupInfo {
         kernel_addr: boot_info.kernel_addr,
         api_version: boot_info.api_version,
         // memory_regions: &boot_info.memory_regions,
@@ -96,8 +104,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
         kernel_len: boot_info.kernel_len,
         kernel_image_offset: boot_info.kernel_image_offset,
         page_table,
-        frame_allocator
-        
+        frame_allocator,
     }
 }
 
@@ -110,7 +117,7 @@ pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
         // some code page
         0x201008,
         // some stack page
-        0x0100_0020_1a10
+        0x0100_0020_1a10,
     ];
 
     for &address in &addresses {
@@ -130,15 +137,16 @@ pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
     println!("Switching");
     multitask::task_switch_safe();
     println!("Returned");
+    println!("Going back");
+    multitask::task_switch_safe();
     hlt_loop()
 }
 
-pub extern "C" fn other_task() -> ! {
+pub extern "C" fn other_task() {
     println!("STarted other task");
     println!("Switching back");
     multitask::task_switch_safe();
     println!("Should not be here");
-    hlt_loop()
 }
 
 pub extern "C" fn test_return() -> ! {
@@ -180,7 +188,6 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     }
     io::qemu::exit_qemu(QemuExitCode::Success);
 }
-
 
 pub fn panic_handler(info: &PanicInfo) -> ! {
     use core::fmt::Write;

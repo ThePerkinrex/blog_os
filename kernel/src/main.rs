@@ -37,4 +37,7 @@ fn panic(info: &PanicInfo) -> ! {
     panic_handler(info)
 }
 
-bootloader_api::entry_point!(kernel_entrypoint, config = &blog_os::config::BOOTLOADER_CONFIG);
+bootloader_api::entry_point!(
+    kernel_entrypoint,
+    config = &blog_os::config::BOOTLOADER_CONFIG
+);

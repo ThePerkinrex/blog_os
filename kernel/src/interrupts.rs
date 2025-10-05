@@ -1,8 +1,9 @@
 use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
+    VirtAddr,
     instructions::port::Port,
-    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode}, VirtAddr,
+    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
 use crate::{gdt, hlt_loop, print, println, test_return};
@@ -208,7 +209,11 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(mut stack_frame: InterruptS
 
     println!("Addr: {addr:?}");
 
-    unsafe {stack_frame.as_mut().update(|x| x.instruction_pointer = addr);}
+    unsafe {
+        stack_frame
+            .as_mut()
+            .update(|x| x.instruction_pointer = addr);
+    }
 }
 
 // pub struct WithoutInterruptGuard<T> {
