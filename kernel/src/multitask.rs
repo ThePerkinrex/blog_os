@@ -1,5 +1,5 @@
 use core::{
-    arch::{asm, naked_asm},
+    arch::naked_asm,
     ptr,
 };
 
