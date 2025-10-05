@@ -22,6 +22,7 @@ pub mod io;
 pub mod config;
 pub mod memory;
 pub mod allocator;
+pub mod multitask;
 
 pub struct SetupInfo {
     /// The version of the `bootloader_api` crate. Must match the `bootloader` version.
@@ -100,7 +101,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
     }
 }
 
-pub fn kernel_main(setup_info: SetupInfo) -> ! {
+pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
     println!("HELLO");
 
     let addresses = [
@@ -122,7 +123,21 @@ pub fn kernel_main(setup_info: SetupInfo) -> ! {
     let x = Box::new(41);
     println!("heap_value at {x:p}");
 
+    println!("Adding new task to list");
+    multitask::create_task(other_task, &mut setup_info);
+
     println!("DID NOT CRASH!");
+    println!("Switching");
+    multitask::task_switch_safe();
+    println!("Returned");
+    hlt_loop()
+}
+
+pub extern "C" fn other_task() -> ! {
+    println!("STarted other task");
+    println!("Switching back");
+    multitask::task_switch_safe();
+    println!("Should not be here");
     hlt_loop()
 }
 
