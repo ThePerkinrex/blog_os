@@ -37,9 +37,7 @@ pub fn init_heap<const CAP: usize>(
     let span = Span::from_base_size(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
 
     unsafe {
-        ALLOCATOR
-            .lock()
-            .claim(span).expect("Claim heap");
+        ALLOCATOR.lock().claim(span).expect("Claim heap");
     }
 
     Ok(())

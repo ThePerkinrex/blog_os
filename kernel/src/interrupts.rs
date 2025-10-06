@@ -123,16 +123,19 @@ extern "x86-interrupt" fn page_fault_handler(
 #[repr(u8)]
 #[derive(Debug)]
 enum SelectorTableCode {
-    GDT = 0b00,
-    IDT = 0b01,
-    LDT = 0b10,
-    IDT2 = 0b11,
+    Gdt = 0b00,
+    Idt = 0b01,
+    Ldt = 0b10,
+    Idt2 = 0b11,
 }
 
 #[derive(Debug)]
 struct SelectorErrorCode {
+    #[allow(unused)]
     idx: u16,
+    #[allow(unused)]
     tbl: SelectorTableCode,
+    #[allow(unused)]
     external: u8,
 }
 
@@ -141,10 +144,10 @@ impl SelectorErrorCode {
         let external = (code & 0b1) as u8;
         let tbl_code = ((code >> 1) & 0b11) as u8;
         let tbl = match tbl_code {
-            0b00 => SelectorTableCode::GDT,
-            0b01 => SelectorTableCode::IDT,
-            0b10 => SelectorTableCode::LDT,
-            0b11 => SelectorTableCode::IDT2,
+            0b00 => SelectorTableCode::Gdt,
+            0b01 => SelectorTableCode::Idt,
+            0b10 => SelectorTableCode::Ldt,
+            0b11 => SelectorTableCode::Idt2,
             _ => unreachable!(),
         };
         let idx = ((code >> 3) & 0b1_1111_1111_1111) as u16;

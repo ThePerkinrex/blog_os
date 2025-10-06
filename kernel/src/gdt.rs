@@ -29,22 +29,28 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
 
 static GDT: Lazy<(GlobalDescriptorTable, Selectors)> = Lazy::new(|| {
     let mut gdt = GlobalDescriptorTable::new();
-    let code_selector = gdt.append(Descriptor::kernel_code_segment());
-    let data_selector = gdt.append(Descriptor::kernel_data_segment());
+    let kernel_code_selector = gdt.append(Descriptor::kernel_code_segment());
+    let kernel_data_selector = gdt.append(Descriptor::kernel_data_segment());
+    let user_code_selector = gdt.append(Descriptor::user_code_segment());
+    let user_data_selector = gdt.append(Descriptor::user_data_segment());
     let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
     (
         gdt,
         Selectors {
-            code_selector,
-            data_selector,
+            kernel_code_selector,
+            kernel_data_selector,
+            user_code_selector,
+            user_data_selector,
             tss_selector,
         },
     )
 });
 
-struct Selectors {
-    code_selector: SegmentSelector,
-    data_selector: SegmentSelector,
+pub struct Selectors {
+    pub kernel_code_selector: SegmentSelector,
+    pub kernel_data_selector: SegmentSelector,
+    pub user_code_selector: SegmentSelector,
+    pub user_data_selector: SegmentSelector,
     tss_selector: SegmentSelector,
 }
 
@@ -53,15 +59,19 @@ pub fn init() {
     use x86_64::instructions::tables::load_tss;
     GDT.0.load();
     unsafe {
-        CS::set_reg(GDT.1.code_selector);
+        CS::set_reg(GDT.1.kernel_code_selector);
         load_tss(GDT.1.tss_selector);
 
-        DS::set_reg(GDT.1.data_selector);
-        ES::set_reg(GDT.1.data_selector);
-        FS::set_reg(GDT.1.data_selector);
-        GS::set_reg(GDT.1.data_selector);
-        SS::set_reg(GDT.1.data_selector);
+        DS::set_reg(GDT.1.kernel_data_selector);
+        ES::set_reg(GDT.1.kernel_data_selector);
+        FS::set_reg(GDT.1.kernel_data_selector);
+        GS::set_reg(GDT.1.kernel_data_selector);
+        SS::set_reg(GDT.1.kernel_data_selector);
     }
+}
+
+pub fn selectors() -> &'static Selectors {
+    &GDT.1
 }
 
 pub fn set_tss_guarded_stacks(esp0: Stack, ist_df: Stack) {
