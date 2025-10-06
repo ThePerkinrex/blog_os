@@ -6,7 +6,9 @@ use bootloader_api::info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
 use x86_64::PhysAddr;
 use x86_64::{VirtAddr, structures::paging::PageTable};
 
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, OffsetPageTable, PhysFrame, Size4KiB};
+use x86_64::structures::paging::{
+    FrameAllocator, FrameDeallocator, OffsetPageTable, PhysFrame, Size4KiB,
+};
 
 pub mod pages;
 
@@ -62,7 +64,7 @@ type UnusedFramesIter = core::iter::Map<
 pub struct BootInfoFrameAllocator {
     unused_unalloc: UnusedFramesIter,
     // Only initialized once the heap is up
-    dealloc: Option<VecDeque<PhysFrame>>
+    dealloc: Option<VecDeque<PhysFrame>>,
 }
 
 impl BootInfoFrameAllocator {
@@ -75,17 +77,23 @@ impl BootInfoFrameAllocator {
     pub unsafe fn init(memory_map: &'static MemoryRegions) -> Self {
         // get usable regions from memory map
         let regions: Iter<'static, MemoryRegion> = memory_map.iter();
-        let usable_regions = regions.filter::<fn(&&MemoryRegion) -> bool>(|r| r.kind == MemoryRegionKind::Usable);
+        let usable_regions =
+            regions.filter::<fn(&&MemoryRegion) -> bool>(|r| r.kind == MemoryRegionKind::Usable);
         // map each region to its address range
-        let addr_ranges = usable_regions.map::<_, fn(&MemoryRegion) -> Range<u64>>(|r| r.start..r.end);
+        let addr_ranges =
+            usable_regions.map::<_, fn(&MemoryRegion) -> Range<u64>>(|r| r.start..r.end);
         // transform to an iterator of frame start addresses
-        let frame_addresses = addr_ranges.flat_map::<_, fn(Range<u64>) -> core::iter::StepBy<Range<u64>>>(|r| r.step_by(4096));
+        let frame_addresses = addr_ranges
+            .flat_map::<_, fn(Range<u64>) -> core::iter::StepBy<Range<u64>>>(|r| r.step_by(4096));
         // create `PhysFrame` types from the start addresses
-        let unused_unalloc: UnusedFramesIter = frame_addresses.map::<_, fn(u64) -> PhysFrame>(|addr| PhysFrame::containing_address(PhysAddr::new(addr)));
+        let unused_unalloc: UnusedFramesIter =
+            frame_addresses.map::<_, fn(u64) -> PhysFrame>(|addr| {
+                PhysFrame::containing_address(PhysAddr::new(addr))
+            });
 
         Self {
             unused_unalloc,
-            dealloc: None
+            dealloc: None,
         }
     }
 }
@@ -112,7 +120,10 @@ impl BootInfoFrameAllocator {
 
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        self.dealloc.as_mut().and_then(VecDeque::pop_front).or_else(|| self.unused_unalloc.next())
+        self.dealloc
+            .as_mut()
+            .and_then(VecDeque::pop_front)
+            .or_else(|| self.unused_unalloc.next())
     }
 }
 

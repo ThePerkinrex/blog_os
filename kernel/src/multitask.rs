@@ -302,7 +302,13 @@ extern "C" fn task_dealloc() {
                 if let Some(stack) = dealloc_task_lock.stack.take() {
                     let mut info = KERNEL_INFO.get().unwrap().lock();
                     let info = info.deref_mut();
-                    unsafe { info.stack_alloc.free_stack(stack, &mut info.page_table, &mut info.frame_allocator);}
+                    unsafe {
+                        info.stack_alloc.free_stack(
+                            stack,
+                            &mut info.page_table,
+                            &mut info.frame_allocator,
+                        );
+                    }
                 }
             } else {
                 println!("Nothing to clean up");

@@ -142,7 +142,7 @@ impl StackAlloc {
         mapper: &mut M,
         frame_dealloc: &mut F,
     ) {
-		println!("Cleaning up stack: {stack:?} at idx {}", stack.idx);
+        println!("Cleaning up stack: {stack:?} at idx {}", stack.idx);
         let pages = stack.pages;
         for p in pages {
             let (frame, flush) = mapper.unmap(p).expect("page should be mapped");
