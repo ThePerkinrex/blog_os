@@ -1,6 +1,7 @@
 use spin::Lazy;
 use x86_64::{
     VirtAddr,
+    instructions::interrupts,
     registers::segmentation::{DS, ES, FS, GS, SS},
     structures::{
         gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
@@ -8,12 +9,15 @@ use x86_64::{
     },
 };
 
+use crate::stack::Stack;
+
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
+
     tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-        const STACK_SIZE: u64 = 4096 * 5;
+        const STACK_SIZE: u64 = 4096; // Really small stack, just for init
         static mut STACK: [u8; STACK_SIZE as usize] = [0; STACK_SIZE as usize];
 
         let stack_start = VirtAddr::from_ptr(&raw const STACK);
@@ -58,4 +62,14 @@ pub fn init() {
         GS::set_reg(GDT.1.data_selector);
         SS::set_reg(GDT.1.data_selector);
     }
+}
+
+pub fn set_tss_guarded_stacks(esp0: Stack, ist_df: Stack) {
+    interrupts::disable();
+
+    let tss_mut = unsafe { TSS.as_mut_ptr().as_mut() }.unwrap();
+    tss_mut.privilege_stack_table[0] = esp0.top();
+    tss_mut.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = ist_df.top();
+
+    interrupts::enable();
 }

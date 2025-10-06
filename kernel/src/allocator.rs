@@ -1,4 +1,5 @@
-use linked_list_allocator::LockedHeap;
+use spin::Mutex;
+use talc::{ErrOnOom, Span, Talc, Talck};
 use x86_64::structures::paging::{
     FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
 };
@@ -33,17 +34,19 @@ pub fn init_heap<const CAP: usize>(
         unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
     }
 
+    let span = Span::from_base_size(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
+
     unsafe {
         ALLOCATOR
             .lock()
-            .init(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
+            .claim(span).expect("Claim heap");
     }
 
     Ok(())
 }
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Talck<Mutex<()>, ErrOnOom> = Talc::new(ErrOnOom).lock();
 
 #[cfg(test)]
 mod test {

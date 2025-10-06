@@ -112,7 +112,17 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         &mut virt_region_allocator,
     )
     .expect("initialized heap");
-    let stack_alloc = StackAlloc::new(&mut virt_region_allocator);
+    let mut stack_alloc = StackAlloc::new(&mut virt_region_allocator);
+
+    let esp0 = stack_alloc
+        .create_stack(&mut page_table, &mut frame_allocator)
+        .unwrap();
+    let ist_df = stack_alloc
+        .create_stack(&mut page_table, &mut frame_allocator)
+        .unwrap();
+
+    gdt::set_tss_guarded_stacks(esp0, ist_df);
+
     let setup_info = SetupInfo {
         kernel_addr: boot_info.kernel_addr,
         api_version: boot_info.api_version,
