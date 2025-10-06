@@ -1,41 +1,52 @@
-use core::{
-    arch::naked_asm,
-    ptr,
-};
+use core::{arch::naked_asm, ops::DerefMut, ptr};
 
 use alloc::{
+    collections::BTreeSet,
     sync::{Arc, Weak},
-    vec::Vec,
 };
-use spin::{Lazy, Mutex};
+use spin::{Lazy, Mutex, Once};
 use x86_64::{
     VirtAddr,
     instructions::interrupts,
     registers::control::{Cr3, Cr3Flags},
-    structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame},
+    structures::paging::PhysFrame,
 };
 
-use crate::{SetupInfo, hlt_loop, println};
+use crate::{KERNEL_INFO, println, stack::Stack, util::PtrOrdArc};
 
 #[derive(Debug)]
 struct TaskControlBlock {
     stack_pointer: VirtAddr,
     cr3: (PhysFrame, Cr3Flags),
-    next_task: Weak<Mutex<TaskControlBlock>>, // state?
+    next_task: Weak<Mutex<TaskControlBlock>>,
+    stack: Option<Stack>,
+    dealloc: Option<PtrOrdArc<Mutex<TaskControlBlock>>>,
+    fn_name: &'static str,
 }
 
-static TASKS: Lazy<Mutex<Vec<Arc<Mutex<TaskControlBlock>>>>> = Lazy::new(|| {
-    Mutex::new(alloc::vec![Arc::new_cyclic(|w| Mutex::new(
-        TaskControlBlock {
-            stack_pointer: VirtAddr::zero(),
-            cr3: Cr3::read(),
-            next_task: w.clone()
-        }
-    ))])
+static TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::new(|| {
+    #[allow(clippy::mutable_key_type)]
+    let mut set = BTreeSet::new();
+    set.insert(
+        Arc::new_cyclic(|w| {
+            Mutex::new(TaskControlBlock {
+                stack_pointer: VirtAddr::zero(),
+                cr3: Cr3::read(),
+                next_task: w.clone(),
+                stack: None,
+                dealloc: None,
+                fn_name: "starting task",
+            })
+        })
+        .into(),
+    );
+    Mutex::new(set)
 });
 
-static CURRENT_TASK: Lazy<Mutex<Arc<Mutex<TaskControlBlock>>>> =
-    Lazy::new(|| Mutex::new(TASKS.lock()[0].clone()));
+// static ENDING_TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
+
+static CURRENT_TASK: Lazy<Mutex<PtrOrdArc<Mutex<TaskControlBlock>>>> =
+    Lazy::new(|| Mutex::new(TASKS.lock().first().unwrap().clone()));
 
 /// # Safety
 /// Interrupts must be disabled when calling this function
@@ -46,11 +57,17 @@ unsafe fn task_switch() {
     let mut current_tcb = current_arc.lock();
 
     // 2) Find the next task (upgrade Weak -> Arc)
-    let next_arc = current_tcb
+    let next_arc: PtrOrdArc<_> = current_tcb
         .next_task
         .upgrade()
-        .expect("next task has been dropped");
+        .expect("next task has been dropped")
+        .into();
     let next_tcb = next_arc.lock();
+
+    println!(
+        "Switching from {} to {}",
+        current_tcb.fn_name, next_tcb.fn_name
+    );
 
     // 3) update global CURRENT_TASK to the next task (so future calls observe it)
     *current_arc_guard = next_arc.clone();
@@ -120,47 +137,54 @@ pub fn task_switch_safe() {
     });
 }
 
-extern "C" fn task_exit() -> ! {
-    println!("Not endind task ended");
-    // Dealloc task
-    // If a task returns, just halt for now
-    hlt_loop()
-}
-
-pub fn create_task(entry: extern "C" fn(), setup: &mut SetupInfo) {
+fn create_cyclic_task(
+    entry: extern "C" fn(),
+    name: &'static str,
+) -> PtrOrdArc<spin::mutex::Mutex<TaskControlBlock>> {
     let _ = TASKS.is_locked(); // Force lazy init
     let _ = CURRENT_TASK.is_locked(); // Force lazy init
     println!("Locks: {} {}", TASKS.is_locked(), CURRENT_TASK.is_locked());
-    // === 1) Allocate a stack ===
-    const STACK_PAGES: usize = 2;
-    let page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
-    // Pick a virtual address for the stack (for now, hardcode or use a kernel region allocator)
-    let stack_top = VirtAddr::new_truncate(0xFFFF_FF00_0000_0000);
-    let stack_bottom = stack_top - STACK_PAGES as u64 * 4096;
+    let stack = {
+        let mut setup = KERNEL_INFO.get().unwrap().lock();
+        let setup = setup.deref_mut();
+        setup
+            .stack_alloc
+            .create_stack(&mut setup.page_table, &mut setup.frame_allocator)
+            .expect("A stack")
+    };
+    // // === 1) Allocate a stack ===
+    // const STACK_PAGES: usize = 2;
+    // let page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
-    let mapper = &mut setup.page_table;
-    let frame_alloc = &mut setup.frame_allocator;
+    // // Pick a virtual address for the stack (for now, hardcode or use a kernel region allocator)
+    // let stack_top = VirtAddr::new_truncate(0xFFFF_FF00_0000_0000);
+    // let stack_bottom = stack_top - STACK_PAGES as u64 * 4096;
 
-    for page in Page::range(
-        Page::containing_address(stack_bottom),
-        Page::containing_address(stack_top),
-    ) {
-        let frame = frame_alloc.allocate_frame().expect("no frames");
-        unsafe {
-            mapper
-                .map_to(page, frame, page_flags, frame_alloc)
-                .expect("map_to failed")
-                .flush();
-        }
-    }
+    // let mapper = &mut setup.page_table;
+    // let frame_alloc = &mut setup.frame_allocator;
 
-    println!("Created stack (top: {stack_top:p}; bottom: {stack_bottom:p})");
+    // let pages = Page::range(
+    //     Page::containing_address(stack_bottom),
+    //     Page::containing_address(stack_top),
+    // );
+
+    // for page in pages {
+    //     let frame = frame_alloc.allocate_frame().expect("no frames");
+    //     unsafe {
+    //         mapper
+    //             .map_to(page, frame, page_flags, frame_alloc)
+    //             .expect("map_to failed")
+    //             .flush();
+    //     }
+    // }
+
+    // println!("Created stack (top: {stack_top:p}; bottom: {stack_bottom:p})");
 
     // === 2) Prepare initial stack frame ===
     //
     // After task_switch, rsp will point to this frame and the function will `ret` into `entry`.
-    let mut stack_ptr = stack_top.as_mut_ptr::<*const ()>(); // is aligned
+    let mut stack_ptr = stack.top().as_mut_ptr::<*const ()>(); // is aligned
 
     // reserve space
     let words = [
@@ -184,14 +208,21 @@ pub fn create_task(entry: extern "C" fn(), setup: &mut SetupInfo) {
     }
     println!("Allocated stack (sp {stack_ptr:p})");
 
-    let tcb = Arc::new_cyclic(|weak_self| {
+    Arc::new_cyclic(|weak_self| {
         Mutex::new(TaskControlBlock {
             stack_pointer: VirtAddr::from_ptr(stack_ptr),
             cr3: Cr3::read(),
             next_task: Weak::clone(weak_self),
+            stack: Some(stack),
+            dealloc: None,
+            fn_name: name,
         })
-    });
-    println!("Created tcb pointing to itself");
+    })
+    .into()
+}
+
+pub fn create_task(entry: extern "C" fn(), name: &'static str) {
+    let tcb = create_cyclic_task(entry, name);
 
     // === 3) Add to task list after current ===
     {
@@ -199,7 +230,7 @@ pub fn create_task(entry: extern "C" fn(), setup: &mut SetupInfo) {
         println!("Locked tasks");
         let current = CURRENT_TASK.lock();
         println!("Locked current task");
-        tasks.push(tcb.clone());
+        tasks.insert(tcb.clone());
 
         println!("Pushed tcb");
 
@@ -212,4 +243,73 @@ pub fn create_task(entry: extern "C" fn(), setup: &mut SetupInfo) {
     }
 
     println!("Finished");
+}
+
+static TASK_DEALLOC: Once<PtrOrdArc<Mutex<TaskControlBlock>>> = Once::new();
+
+pub fn init() {
+    let dealloc = create_cyclic_task(task_dealloc, "dealloc");
+    let mut tasks = TASKS.lock();
+    tasks.insert(dealloc.clone());
+    TASK_DEALLOC.call_once(|| dealloc);
+}
+
+/// Switches to another task (and another stack) to deallloc the current task's pages
+extern "C" fn task_exit() -> ! {
+    println!("Ending task");
+    let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
+    let current = CURRENT_TASK.lock();
+    let old_next = {
+        let mut current = current.lock();
+        let old_next = current.next_task.clone();
+        current.next_task = Arc::downgrade(dealloc);
+        old_next
+    };
+    {
+        let mut dealloc = dealloc.lock();
+        dealloc.next_task = old_next;
+        dealloc.dealloc = Some(current.clone());
+    }
+    drop(current);
+    println!("Switching to dealloc");
+    task_switch_safe();
+    unreachable!();
+}
+
+extern "C" fn task_dealloc() {
+    loop {
+        if let Some(dealloc_ptr) = TASK_DEALLOC.get() {
+            let mut dealloc_ptr_lock = dealloc_ptr.lock();
+            if let Some(dealloc_task_ptr) = dealloc_ptr_lock.dealloc.take() {
+                let mut dealloc_task_lock = dealloc_task_ptr.lock();
+                println!("Cleaning up {}", dealloc_task_lock.fn_name);
+                let mut tasks = TASKS.lock();
+                tasks.remove(&dealloc_task_ptr);
+                println!("Removed task from list");
+                for t in tasks.iter() {
+                    if t != dealloc_ptr {
+                        let mut lock = t.lock();
+                        if lock.next_task.ptr_eq(&Arc::downgrade(&dealloc_task_ptr)) {
+                            println!(
+                                "{} pointed to this task, rerouting to my dealloc next",
+                                lock.fn_name
+                            );
+                            lock.next_task = dealloc_ptr_lock.next_task.clone();
+                        }
+                    }
+                }
+
+                if let Some(stack) = dealloc_task_lock.stack.take() {
+                    let mut info = KERNEL_INFO.get().unwrap().lock();
+                    let info = info.deref_mut();
+                    unsafe { info.stack_alloc.free_stack(stack, &mut info.page_table, &mut info.frame_allocator);}
+                }
+            } else {
+                println!("Nothing to clean up");
+            }
+        } else {
+            println!("Dealloc not initialized");
+        }
+        task_switch_safe();
+    }
 }

@@ -22,9 +22,9 @@ pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! 
 #[cfg(not(test))]
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     use blog_os::kernel_main;
-    let s = setup(boot_info);
+    setup(boot_info);
 
-    kernel_main(s)
+    kernel_main()
 }
 
 // #[test_case]

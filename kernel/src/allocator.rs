@@ -1,19 +1,23 @@
 use linked_list_allocator::LockedHeap;
-use x86_64::{
-    VirtAddr,
-    structures::paging::{
-        FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB, mapper::MapToError,
-    },
+use x86_64::structures::paging::{
+    FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
 };
 
-pub const HEAP_START: u64 = 0x_4444_4444_0000;
-pub const HEAP_SIZE: u64 = 100 * 1024; // 100 KiB
+use crate::memory::pages::VirtRegionAllocator;
 
-pub fn init_heap(
+// pub const HEAP_START: u64 = 0x_4444_4444_0000;
+pub const HEAP_PAGES: u64 = 20;
+pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 100 KiB
+
+pub fn init_heap<const CAP: usize>(
     mapper: &mut impl Mapper<Size4KiB>,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>,
+    virt_region_allocator: &mut VirtRegionAllocator<CAP, Size4KiB>,
 ) -> Result<(), MapToError<Size4KiB>> {
-    let heap_start = VirtAddr::new(HEAP_START);
+    let heap_start = virt_region_allocator
+        .alloc_pages(HEAP_PAGES as usize)
+        .expect("Heap region");
+    // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
     let page_range = {
         let heap_end = heap_start + HEAP_SIZE - 1u64;
         let heap_start_page = Page::containing_address(heap_start);

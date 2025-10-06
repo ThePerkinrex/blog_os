@@ -1,0 +1,160 @@
+use x86_64::{
+    VirtAddr,
+    structures::paging::{
+        FrameAllocator, FrameDeallocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB,
+        Translate, mapper::CleanUp, page::PageRangeInclusive,
+    },
+};
+
+use crate::{memory::pages::VirtRegionAllocator, println};
+
+const STACK_PAGES: usize = 4; // 4KiB * 4 = 16KiB stacks
+
+type SlabBitmapBase = u64;
+
+const SLAB_BITMAP_ENTRIES: usize = 4;
+const ENTRY_BITS: usize = SlabBitmapBase::BITS as usize;
+const SLAB_STACKS: usize = ENTRY_BITS * SLAB_BITMAP_ENTRIES; // 64 * 4 = 256
+const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 16KiB = 4MiB
+
+// const KERNEL_STACK_REGION_START: VirtAddr = VirtAddr::new_truncate(0xFFFF_FE00_0000_0000);
+
+pub struct Stack {
+    idx: usize,
+    pages: PageRangeInclusive, // start: VirtAddr,
+                               // end: VirtAddr
+}
+
+impl core::fmt::Debug for Stack {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Stack")
+            .field("bottom", &self.bottom())
+            .field("top", &self.top())
+            .finish()
+    }
+}
+
+impl Stack {
+    pub const fn bottom(&self) -> VirtAddr {
+        self.pages.start.start_address()
+    }
+
+    pub fn top(&self) -> VirtAddr {
+        self.pages.end.start_address() + self.pages.end.size()
+    }
+}
+
+pub struct StackAlloc {
+    stack_info: [SlabBitmapBase; SLAB_BITMAP_ENTRIES],
+    region_start: VirtAddr,
+}
+
+impl StackAlloc {
+    pub fn new<const CAP: usize, S: PageSize>(
+        region_alloc: &mut VirtRegionAllocator<CAP, S>,
+    ) -> Self {
+        let region_start = region_alloc
+            .alloc_pages(SLAB_PAGES)
+            .expect("Available space for all entries");
+        Self {
+            stack_info: [0; SLAB_BITMAP_ENTRIES],
+            region_start,
+        }
+    }
+
+    /// Create a new kernel stack and map its pages (leaving a guard page at the top).
+    /// Returns a `Stack` descriptor on success.
+    pub fn create_stack<M: Mapper<Size4KiB> + Translate, F: FrameAllocator<Size4KiB>>(
+        &mut self,
+        mapper: &mut M,
+        frame_alloc: &mut F,
+    ) -> Option<Stack> {
+        let stack_idx = self.get_free_stack()?;
+        self.set_stack_status(stack_idx, true);
+
+        // Compute page offset within the slab region.
+        let page_off = stack_idx * STACK_PAGES;
+        let stack_bottom = self.region_start + (page_off as u64) * Size4KiB::SIZE;
+        let stack_top = stack_bottom + (STACK_PAGES as u64) * Size4KiB::SIZE;
+
+        // Leave the *bottom* page unmapped as a guard page
+        let guard_end = stack_bottom + Size4KiB::SIZE;
+        let start_page = Page::containing_address(guard_end);
+        let end_page = Page::containing_address(stack_top - 1); // top-1 ensures inclusive mapping up to last real byte
+
+        let page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+
+        let pages = Page::range_inclusive(start_page, end_page);
+
+        for page in pages {
+            // If the page is already mapped, this likely indicates a bug / overlap; bail out.
+            if mapper.translate_addr(page.start_address()).is_some() {
+                // Rollback: unmap pages we already mapped for this stack and mark free again.
+                // For simplicity, here we panic — in production you might want a safer rollback.
+                panic!(
+                    "Attempt to map stack page that is already mapped: {:#x}",
+                    page.start_address().as_u64()
+                );
+            }
+
+            let frame = frame_alloc
+                .allocate_frame()
+                .expect("frame allocation failed while creating stack");
+            unsafe {
+                mapper
+                    .map_to(page, frame, page_flags, frame_alloc)
+                    .expect("map_to failed")
+                    .flush();
+            }
+        }
+
+        // Return a Stack descriptor. You can expand this later (store VirtAddr top/bottom).
+        Some(Stack {
+            idx: stack_idx,
+            pages,
+        })
+    }
+
+    const fn get_stack_status(&self, idx: usize) -> bool {
+        let array_idx = idx / ENTRY_BITS;
+        let entry = self.stack_info[array_idx];
+        (entry >> (idx % ENTRY_BITS) & 1) == 1
+    }
+
+    const fn set_stack_status(&mut self, idx: usize, in_use: bool) {
+        let array_idx = idx / ENTRY_BITS;
+        if in_use {
+            self.stack_info[array_idx] |= 1 << (idx % ENTRY_BITS);
+        } else {
+            self.stack_info[array_idx] &= !(1 << (idx % ENTRY_BITS));
+        }
+    }
+
+    fn get_free_stack(&self) -> Option<usize> {
+        (0..SLAB_STACKS).find(|&idx| !self.get_stack_status(idx))
+    }
+
+    /// # Safety
+    /// The stack shouldn't be used, and the pages used up by it should be unmappable
+    pub unsafe fn free_stack<M: Mapper<Size4KiB> + CleanUp, F: FrameDeallocator<Size4KiB>>(
+        &mut self,
+        stack: Stack,
+        mapper: &mut M,
+        frame_dealloc: &mut F,
+    ) {
+		println!("Cleaning up stack: {stack:?} at idx {}", stack.idx);
+        let pages = stack.pages;
+        for p in pages {
+            let (frame, flush) = mapper.unmap(p).expect("page should be mapped");
+            flush.flush();
+            unsafe {
+                frame_dealloc.deallocate_frame(frame);
+            }
+        }
+        unsafe {
+            mapper.clean_up_addr_range(pages, frame_dealloc);
+        }
+
+        self.set_stack_status(stack.idx, false); // Allow this range to be used again
+    }
+}

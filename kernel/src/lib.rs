@@ -12,12 +12,16 @@ use core::panic::PanicInfo;
 use alloc::boxed::Box;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use qemu_common::QemuExitCode;
+use spin::{Mutex, Once};
 use x86_64::{
     VirtAddr,
     structures::paging::{OffsetPageTable, Translate},
 };
 
-use crate::memory::BootInfoFrameAllocator;
+use crate::{
+    memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
+    stack::StackAlloc,
+};
 
 pub mod allocator;
 pub mod config;
@@ -26,6 +30,8 @@ pub mod interrupts;
 pub mod io;
 pub mod memory;
 pub mod multitask;
+pub mod stack;
+pub mod util;
 
 pub struct SetupInfo {
     /// The version of the `bootloader_api` crate. Must match the `bootloader` version.
@@ -71,9 +77,14 @@ pub struct SetupInfo {
     // The kernel page tables
     pub page_table: OffsetPageTable<'static>,
     pub frame_allocator: BootInfoFrameAllocator,
+    pub virt_region_allocator: VirtRegionAllocator<1>,
+    pub stack_alloc: StackAlloc,
 }
 
-pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
+static KERNEL_INFO: Once<Mutex<SetupInfo>> = Once::new();
+
+pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
+    let layout = memory::pages::discover_layout(boot_info);
     gdt::init();
     interrupts::init_idt();
     if let Some(fb) = boot_info.framebuffer.as_mut() {
@@ -82,16 +93,27 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
     io::serial::init();
     interrupts::init_pics();
 
+    println!("Minimum init done. Setting up memory");
+
     let physical_memory_offset = VirtAddr::new(
         *boot_info
             .physical_memory_offset
             .as_ref()
             .expect("Physical memory mapped"),
     );
-    let mut page_table = unsafe { memory::init(physical_memory_offset) };
+    let mut page_table = unsafe { memory::init_page_tables(physical_memory_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
-    allocator::init_heap(&mut page_table, &mut frame_allocator).expect("initialized heap");
-    SetupInfo {
+    println!("Initializing region allocator");
+    let mut virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
+    println!("Initializing heap");
+    allocator::init_heap(
+        &mut page_table,
+        &mut frame_allocator,
+        &mut virt_region_allocator,
+    )
+    .expect("initialized heap");
+    let stack_alloc = StackAlloc::new(&mut virt_region_allocator);
+    let setup_info = SetupInfo {
         kernel_addr: boot_info.kernel_addr,
         api_version: boot_info.api_version,
         // memory_regions: &boot_info.memory_regions,
@@ -105,10 +127,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) -> SetupInfo {
         kernel_image_offset: boot_info.kernel_image_offset,
         page_table,
         frame_allocator,
-    }
+        virt_region_allocator,
+        stack_alloc,
+    };
+    KERNEL_INFO.call_once(|| Mutex::new(setup_info));
+    multitask::init();
 }
 
-pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
+pub fn kernel_main() -> ! {
     println!("HELLO");
 
     let addresses = [
@@ -121,6 +147,7 @@ pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
     ];
 
     for &address in &addresses {
+        let setup_info = KERNEL_INFO.get().unwrap().lock();
         let virt = VirtAddr::new(address);
         // new: use the `mapper.translate_addr` method
         let phys = setup_info.page_table.translate_addr(virt);
@@ -131,7 +158,7 @@ pub fn kernel_main(mut setup_info: SetupInfo) -> ! {
     println!("heap_value at {x:p}");
 
     println!("Adding new task to list");
-    multitask::create_task(other_task, &mut setup_info);
+    multitask::create_task(other_task, "other_task");
 
     println!("DID NOT CRASH!");
     println!("Switching");
