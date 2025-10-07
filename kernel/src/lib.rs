@@ -20,16 +20,19 @@ use x86_64::{
 
 use crate::{
     memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
+    priviledge::test_jmp_to_usermode,
     stack::StackAlloc,
 };
 
 pub mod allocator;
 pub mod config;
+pub mod elf;
 pub mod gdt;
 pub mod interrupts;
 pub mod io;
 pub mod memory;
 pub mod multitask;
+pub mod priviledge;
 pub mod stack;
 pub mod util;
 
@@ -176,6 +179,10 @@ pub fn kernel_main() -> ! {
     println!("Returned");
     println!("Going back");
     multitask::task_switch_safe();
+    // println!("JUmping to user mode");
+    // test_jmp_to_usermode();
+    let prog = elf::load_example_elf();
+    test_jmp_to_usermode(prog);
     hlt_loop()
 }
 

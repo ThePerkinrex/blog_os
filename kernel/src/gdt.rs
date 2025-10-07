@@ -9,7 +9,7 @@ use x86_64::{
     },
 };
 
-use crate::stack::Stack;
+use crate::stack::SlabStack;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -60,13 +60,12 @@ pub fn init() {
     GDT.0.load();
     unsafe {
         CS::set_reg(GDT.1.kernel_code_selector);
-        load_tss(GDT.1.tss_selector);
-
         DS::set_reg(GDT.1.kernel_data_selector);
         ES::set_reg(GDT.1.kernel_data_selector);
         FS::set_reg(GDT.1.kernel_data_selector);
         GS::set_reg(GDT.1.kernel_data_selector);
         SS::set_reg(GDT.1.kernel_data_selector);
+        load_tss(GDT.1.tss_selector);
     }
 }
 
@@ -74,7 +73,7 @@ pub fn selectors() -> &'static Selectors {
     &GDT.1
 }
 
-pub fn set_tss_guarded_stacks(esp0: Stack, ist_df: Stack) {
+pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
     interrupts::disable();
 
     let tss_mut = unsafe { TSS.as_mut_ptr().as_mut() }.unwrap();

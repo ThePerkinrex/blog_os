@@ -1,0 +1,11 @@
+[package]
+name = "test_prog"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[[bin]]
+name="test_prog"
+test=false
+bench=false

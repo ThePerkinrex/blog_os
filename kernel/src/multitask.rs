@@ -12,14 +12,14 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::{KERNEL_INFO, println, stack::Stack, util::PtrOrdArc};
+use crate::{KERNEL_INFO, println, stack::SlabStack, util::PtrOrdArc};
 
 #[derive(Debug)]
 struct TaskControlBlock {
     stack_pointer: VirtAddr,
     cr3: (PhysFrame, Cr3Flags),
     next_task: Weak<Mutex<TaskControlBlock>>,
-    stack: Option<Stack>,
+    stack: Option<SlabStack>,
     dealloc: Option<PtrOrdArc<Mutex<TaskControlBlock>>>,
     fn_name: &'static str,
 }
