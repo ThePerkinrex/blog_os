@@ -2,10 +2,9 @@ use core::ops::DerefMut;
 
 use x86_64::{VirtAddr, instructions::interrupts, structures::gdt::SegmentSelector};
 
-use crate::{elf::LoadedProgram, gdt::selectors, hlt_loop, println, KERNEL_INFO};
+use crate::{KERNEL_INFO, elf::LoadedProgram, gdt::selectors, hlt_loop, println};
 
 pub fn test_jmp_to_usermode(prog: LoadedProgram) {
-
     let selectors = selectors();
 
     unsafe {
