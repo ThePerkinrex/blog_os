@@ -89,11 +89,16 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     }
     idt[InterruptIndex::Timer.as_u8()].set_handler_fn(timer_interrupt_handler);
     idt[InterruptIndex::Keyboard.as_u8()].set_handler_fn(keyboard_interrupt_handler);
+    idt[0x80].set_handler_fn(int_80_handler).set_privilege_level(x86_64::PrivilegeLevel::Ring3);
     idt
 });
 
 pub fn init_idt() {
     IDT.load();
+}
+
+extern "x86-interrupt" fn int_80_handler(stack_frame: InterruptStackFrame) {
+    println!("EXCEPTION: int 0x80\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
@@ -176,6 +181,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
+    // println!("Finished timer, waiting");
+    // hlt_loop();
 }
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(mut stack_frame: InterruptStackFrame) {

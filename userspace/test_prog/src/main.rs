@@ -3,13 +3,18 @@
 
 use core::panic::PanicInfo;
 
+fn exit() -> ! {
+    loop {}
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn main() -> ! {
-    loop{}
+    
+    exit()
 }
 
 // Required panic handler
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+    exit()
 }

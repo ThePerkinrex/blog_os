@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["blog_std","test_prog"]

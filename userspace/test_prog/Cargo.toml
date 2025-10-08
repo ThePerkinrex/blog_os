@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+blog_std = {path = "../blog_std"}
 
 [[bin]]
 name="test_prog"

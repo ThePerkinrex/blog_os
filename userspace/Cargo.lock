@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "blog_std"
+version = "0.1.0"
+
+[[package]]
 name = "test_prog"
 version = "0.1.0"
+dependencies = [
+ "blog_std",
+]
