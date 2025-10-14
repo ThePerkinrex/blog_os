@@ -11,6 +11,8 @@ use crate::{gdt, hlt_loop, print, println, test_return};
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
+mod syscalls;
+
 pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
@@ -97,8 +99,29 @@ pub fn init_idt() {
     IDT.load();
 }
 
+#[unsafe(no_mangle)]
 extern "x86-interrupt" fn int_80_handler(stack_frame: InterruptStackFrame) {
-    println!("EXCEPTION: int 0x80\n{:#?}", stack_frame);
+    let code: u64;
+    let arg1: u64;
+    let arg2: u64;
+    let arg3: u64;
+    let arg4: u64;
+    let arg5: u64;
+    let arg6: u64;
+    unsafe {
+        core::arch::asm!(
+            "",
+            out("rdi") arg1,
+            out("rsi") arg2,
+            out("rdx") arg3,
+            out("r10") arg4,
+            out("r8") arg5,
+            out("r9") arg6,
+            out("rax") code
+        )
+    }
+    let res = syscalls::syscall_handle(code, arg1, arg2, arg3, arg4, arg5, arg6);
+    println!("Syscall res: {res}")
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {

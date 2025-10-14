@@ -3,7 +3,10 @@
 RUNNER_BASE := runner
 KERNEL_BASE := kernel
 
+EXE_EXT=""
+
 ifeq ($(OS),Windows_NT)
+	EXE_EXT := .exe
     # Windows settings
     RUNNER := $(RUNNER_BASE)\target\release\runner.exe
     # Use backslash for Windows paths in dependencies for consistency
@@ -45,6 +48,14 @@ KERNEL_MANIFESTS := $(KERNEL_BASE)/Cargo.toml
 # The main list of dependencies for the runner executable
 KERNEL_DEPS := $(KERNEL_SOURCES) $(KERNEL_MANIFESTS)
 
+MAKE_UTILS_BASE := make-utils
+MAKE_UTILS_SRC_DIR := $(MAKE_UTILS_BASE)/src
+MAKE_UTILS_SOURCES := $(wildcard $(MAKE_UTILS_SRC_DIR)/*.rs) $(wildcard $(MAKE_UTILS_SRC_DIR)/**/*.rs)
+MAKE_UTILS_MANIFESTS := $(MAKE_UTILS_BASE)/Cargo.toml
+MAKE_UTILS_DEPS := $(MAKE_UTILS_SOURCES) $(MAKE_UTILS_MANIFESTS)
+MAKE_UTILS := $(MAKE_UTILS_BASE)/target/release/make-utils$(EXE_EXT)
+
+COPY := $(MAKE_UTILS) cp
 
 # ---
 
@@ -68,6 +79,8 @@ $(KERNEL_RELEASE): $(KERNEL_DEPS)
 	@echo Detected changes in kernel dependencies. Recompiling...
 	@cd $(KERNEL_BASE) && cargo build --release
 
+$(MAKE_UTILS): $(MAKE_UTILS_DEPS)
+	@cd $(MAKE_UTILS_BASE) && cargo build --release
 
 .PHONY: run
 run: $(KERNEL_DEPS) $(RUNNER)
@@ -95,6 +108,8 @@ clean:
 fmt:
 	@cd $(RUNNER_BASE) && cargo fmt
 	@cd $(KERNEL_BASE) && cargo fmt
+
+
 	
 
 .PHONY: build-debug
@@ -103,5 +118,10 @@ build-debug: $(KERNEL_DEBUG) $(RUNNER)
 .PHONY: build-release
 build-release: $(KERNEL_RELEASE) $(RUNNER)
 	@$(RUNNER) --target $(KERNEL_BASE)/target --build $(KERNEL_RELEASE)
+
+.PHONY: copy-test-prog
+copy-test-prog: $(MAKE_UTILS)
+	cd userspace && cargo build -p test_prog
+	$(COPY) userspace/target/x86_64-unknown-none/debug/test_prog kernel/src/progs/
 
 
