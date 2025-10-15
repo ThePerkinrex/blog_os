@@ -1,13 +1,23 @@
+extend = "../env.toml"
+
 [env]
 CARGO_MAKE_WORKSPACE_EMULATION = false
 
-[tasks.run]
+[tasks.build-base]
 command = "cargo"
-args = ["run"]
-dependencies = [{ name = "build", path = "../runner" }]
+args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
 toolchain = "nightly"
 
+[tasks.build]
+dependencies = ["build-base", { name = "build", path = "../runner" }]
+command = "../runner/target/release/runner${EXECUTABLE_EXTENSION}"
+args = ["--target", "target/", "--build", "target/x86_64-unknown-none/${CARGO_BUILD_DEST}/blog_os_kernel"]
 
+
+[tasks.run]
+extend = "build-base"
+args = ["run"]
+dependencies = [{ name = "build", path = "../runner" }]
 
 [tasks.test-lib]
 extend = "run"
@@ -21,11 +31,8 @@ args = ["test", "--bin", "blog_os_kernel"]
 [tasks.test]
 dependencies = ["test-bin", "test-lib"]
 
-[tasks.hello-world]
-workspace = false
-script = [
-    "echo start...",
-    "echo \"Hello World From Script\"",
-    "echo end...",
-    "read"
-]
+
+[tasks.docs]
+command = "cargo"
+args = ["doc"]
+toolchain = "nightly"

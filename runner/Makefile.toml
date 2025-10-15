@@ -7,3 +7,7 @@ command = "cargo"
 args = ["build", "--release"]
 toolchain = "nightly"
 
+[tasks.docs]
+command = "cargo"
+args = ["doc"]
+toolchain = "nightly"

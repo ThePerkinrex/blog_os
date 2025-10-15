@@ -1,0 +1,26 @@
+
+extend = "../env.toml"
+
+[env]
+CARGO_MAKE_WORKSPACE_EMULATION = false
+LIBS = ["blog_std"]
+BINARIES = {script = '''
+members_set = set %{CARGO_MAKE_CRATE_WORKSPACE_MEMBERS}
+binaries = set_remove ${members_set} %{blog_std}
+echo ${binaries}
+'''}
+
+[tasks.build]
+workspace = false
+command = "cargo"
+args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
+toolchain = "nightly"
+
+
+[tasks.bin]
+workspace = false
+dependencies = ["build"]
+script = '''
+echo ${LIBS}
+echo ${BINARIES}
+'''

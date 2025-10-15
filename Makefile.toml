@@ -1,3 +1,5 @@
+extend = "env.toml"
+
 [env]
 CARGO_MAKE_WORKSPACE_EMULATION = true
 # a list of crate members. since we do not have a Cargo.toml, we will need to specify this in here.
@@ -15,4 +17,8 @@ GDB_LISTEN=true
 workspace = false
 description = "Run the kernel"
 dependencies = [{name = "run", path = "kernel/"}]
+
+[tasks.bin]
+workspace = false
+dependencies = [{name = "bin", path = "userspace/"}]
 
