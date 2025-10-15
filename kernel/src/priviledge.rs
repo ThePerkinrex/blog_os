@@ -1,8 +1,6 @@
-use core::ops::DerefMut;
-
 use x86_64::{VirtAddr, instructions::interrupts, structures::gdt::SegmentSelector};
 
-use crate::{KERNEL_INFO, elf::LoadedProgram, gdt::selectors, hlt_loop, println};
+use crate::{elf::LoadedProgram, gdt::selectors};
 
 pub fn test_jmp_to_usermode(prog: LoadedProgram) {
     let selectors = selectors();

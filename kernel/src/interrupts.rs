@@ -1,3 +1,5 @@
+use core::arch::naked_asm;
+
 use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
@@ -91,7 +93,9 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     }
     idt[InterruptIndex::Timer.as_u8()].set_handler_fn(timer_interrupt_handler);
     idt[InterruptIndex::Keyboard.as_u8()].set_handler_fn(keyboard_interrupt_handler);
-    idt[0x80].set_handler_fn(int_80_handler).set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+    idt[0x80]
+        .set_handler_fn(naked_int_80_handler)
+        .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
     idt
 });
 
@@ -99,8 +103,41 @@ pub fn init_idt() {
     IDT.load();
 }
 
-#[unsafe(no_mangle)]
-extern "x86-interrupt" fn int_80_handler(stack_frame: InterruptStackFrame) {
+#[unsafe(naked)]
+extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame) {
+    core::arch::naked_asm!(
+        "
+        // Save caller-saved registers except RAX (we want to keep handler's return value)
+        push rcx
+        push rdx
+        push rsi
+        push rdi
+        push r8
+        push r9
+        push r10
+        push r11
+
+        // Call test_handler()
+        call {handler}
+
+        // Restore registers (reverse order)
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rdi
+        pop rsi
+        pop rdx
+        pop rcx
+
+        // Return from interrupt — RAX still holds the return value from test_handler()
+        iretq
+        ",
+        handler = sym int_80_handler,
+    );
+}
+
+extern "C" fn int_80_handler() -> u64 {
     let code: u64;
     let arg1: u64;
     let arg2: u64;
@@ -117,12 +154,39 @@ extern "x86-interrupt" fn int_80_handler(stack_frame: InterruptStackFrame) {
             out("r10") arg4,
             out("r8") arg5,
             out("r9") arg6,
-            out("rax") code
+            out("rax") code,
+            options(nostack, preserves_flags, nomem)
         )
     }
-    let res = syscalls::syscall_handle(code, arg1, arg2, arg3, arg4, arg5, arg6);
-    println!("Syscall res: {res}")
+    syscalls::syscall_handle(code, arg1, arg2, arg3, arg4, arg5, arg6)
 }
+
+// extern "x86-interrupt" fn int_80_handler(stack_frame: InterruptStackFrame) {
+//     let code: u64;
+//     let arg1: u64;
+//     let arg2: u64;
+//     let arg3: u64;
+//     let arg4: u64;
+//     let arg5: u64;
+//     let arg6: u64;
+//     unsafe {
+//         core::arch::asm!(
+//             "",
+//             out("rdi") arg1,
+//             out("rsi") arg2,
+//             out("rdx") arg3,
+//             out("r10") arg4,
+//             out("r8") arg5,
+//             out("r9") arg6,
+//             out("rax") code,
+//             options(nostack, preserves_flags, nomem)
+
+//         )
+//     }
+//     let res = syscalls::syscall_handle(code, arg1, arg2, arg3, arg4, arg5, arg6);
+//     println!("Syscall res: {res}");
+
+// }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
