@@ -1,0 +1,31 @@
+[env]
+CARGO_MAKE_WORKSPACE_EMULATION = false
+
+[tasks.run]
+command = "cargo"
+args = ["run"]
+dependencies = [{ name = "build", path = "../runner" }]
+toolchain = "nightly"
+
+
+
+[tasks.test-lib]
+extend = "run"
+args = ["test", "--lib"]
+
+[tasks.test-bin]
+extend = "run"
+args = ["test", "--bin", "blog_os_kernel"]
+
+
+[tasks.test]
+dependencies = ["test-bin", "test-lib"]
+
+[tasks.hello-world]
+workspace = false
+script = [
+    "echo start...",
+    "echo \"Hello World From Script\"",
+    "echo end...",
+    "read"
+]

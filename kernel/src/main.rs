@@ -2,16 +2,16 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(custom_test_frameworks)]
-#![test_runner(blog_os::test_runner)]
+#![test_runner(blog_os_kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
 
-use blog_os::{panic_handler, setup};
+use blog_os_kernel::{panic_handler, setup};
 
 #[cfg(test)]
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    use blog_os::hlt_loop;
+    use blog_os_kernel::hlt_loop;
 
     setup(boot_info);
 
@@ -21,7 +21,7 @@ pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! 
 
 #[cfg(not(test))]
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    use blog_os::kernel_main;
+    use blog_os_kernel::kernel_main;
     setup(boot_info);
 
     kernel_main()
@@ -39,5 +39,5 @@ fn panic(info: &PanicInfo) -> ! {
 
 bootloader_api::entry_point!(
     kernel_entrypoint,
-    config = &blog_os::config::BOOTLOADER_CONFIG
+    config = &blog_os_kernel::config::BOOTLOADER_CONFIG
 );

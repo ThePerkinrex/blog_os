@@ -1,4 +1,3 @@
-
 macro_rules! generate_syscall {
     ($name:ident, $(($reg_str:tt, $reg:ident),)*) => {
         /// # Safety

@@ -1,8 +1,8 @@
 [package]
-name = "blog_os"
+name = "blog_os_kernel"
 version = "0.1.0"
 edition = "2024"
-default-run = "blog_os"
+default-run = "blog_os_kernel"
 
 [dependencies]
 bootloader_api = "0.11.12"
@@ -18,7 +18,7 @@ object = { version = "0.37.3", default-features = false, features = ["read_core"
 bitflags = "2.9.4"
 
 [[bin]]
-name = "blog_os"
+name = "blog_os_kernel"
 test = true
 bench = false
 

@@ -1,0 +1,9 @@
+[env]
+CARGO_MAKE_WORKSPACE_EMULATION = false
+
+[tasks.build]
+description = "Build the runner executable"
+command = "cargo"
+args = ["build", "--release"]
+toolchain = "nightly"
+

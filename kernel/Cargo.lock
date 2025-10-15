@@ -27,7 +27,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
 
 [[package]]
-name = "blog_os"
+name = "blog_os_kernel"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.9.4",

@@ -1,4 +1,5 @@
 use std::{
+    io::{IsTerminal, Read},
     path::PathBuf,
     process::{Command, Stdio},
     thread,
@@ -156,6 +157,17 @@ fn main() {
             cmd.arg("-ex").arg("set  disassemble-next-line on");
             // cmd.arg("-ex").arg("display /-16i $pc");
             // cmd.arg("-ex").arg("display /16i $pc");
+
+            cmd.stdin(Stdio::inherit());
+
+            cmd.stdout(Stdio::inherit());
+
+            let is_terminal = std::io::stdin().is_terminal();
+            println!("stdin is terminal: {is_terminal}");
+
+            // let mut line = String::new();
+            // let read = std::io::stdin().read_line(&mut line).unwrap();
+            // println!("Read ({read}): {line:?}");
 
             let mut gdb = cmd.spawn().unwrap();
             gdb.wait().unwrap();
