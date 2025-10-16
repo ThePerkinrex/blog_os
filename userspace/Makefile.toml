@@ -1,16 +1,41 @@
 
 extend = "../env.toml"
 
+env_scripts = [
+'''
+#!@duckscript
+members_split = split ${CARGO_MAKE_CRATE_WORKSPACE_MEMBERS} ,
+libs_split = split ${LIBS} ,
+
+members_set = set_from_array ${members_split}
+release ${members_split}
+for lib in ${libs_split}
+	set_remove ${members_set} ${lib}
+end
+members_arr = set_to_array ${members_set}
+release ${members_set}
+binaries = array_join ${members_arr} " "
+# binaries_comma = array_join ${members_arr} ","
+
+set_env BINARIES ${binaries}
+
+targets = array
+for b in ${members_arr}
+	array_push ${targets} ${TARGET}/${b}
+end
+
+targets_j = array_join ${targets} ";"
+
+set_env TARGETS ${targets_j}
+''']
+
 [env]
 CARGO_MAKE_WORKSPACE_EMULATION = false
 LIBS = ["blog_std"]
-BINARIES = {script = '''
-members_set = set %{CARGO_MAKE_CRATE_WORKSPACE_MEMBERS}
-binaries = set_remove ${members_set} %{blog_std}
-echo ${binaries}
-'''}
+TARGET = "./target/x86_64-unknown-none/${CARGO_BUILD_DEST}"
 
 [tasks.build]
+condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
 workspace = false
 command = "cargo"
 args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
@@ -18,9 +43,15 @@ toolchain = "nightly"
 
 
 [tasks.bin]
+condition = { files_modified = { input = ["${TARGET}/*"], output = ["./bin/*"]}}
 workspace = false
 dependencies = ["build"]
+script_runner = "@duckscript"
 script = '''
-echo ${LIBS}
-echo ${BINARIES}
+mkdir ./bin
+binaries = array %{BINARIES}
+for bin in ${binaries}
+	cp ${TARGET}/${bin} ./bin/${bin}
+	echo Copied ${bin}
+end
 '''
