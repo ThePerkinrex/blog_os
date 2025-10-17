@@ -1,0 +1,19 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+
+		{
+			"type": "lldb-dap",
+			"request": "attach",
+			"name": "Debug",
+			"program": "${workspaceFolder}/kernel/target/x86_64-unknown-none/debug/blog_os_kernel",
+			"sourcePath": "${workspaceFolder}/kernel/",
+  			"attachCommands": ["gdb-remote 1234"],
+			"preLaunchTask": "Run QEMU (background)",
+			"preRunCommands": ["target modules load --file ${workspaceFolder}/kernel/target/x86_64-unknown-none/debug/blog_os_kernel --slide 0x8000000000"],
+		}
+	]
+}

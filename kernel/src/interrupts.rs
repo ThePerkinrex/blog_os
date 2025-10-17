@@ -158,6 +158,7 @@ extern "C" fn int_80_handler() -> u64 {
             options(nostack, preserves_flags, nomem)
         )
     }
+    // Move to task kernel stack
     syscalls::syscall_handle(code, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 

@@ -4,21 +4,23 @@ extend = "env.toml"
 CARGO_MAKE_WORKSPACE_EMULATION = true
 # a list of crate members. since we do not have a Cargo.toml, we will need to specify this in here.
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
-    "kernel",
-    "qemu-common",
+	"kernel",
+	"qemu-common",
 	"runner",
-	"userspace"
+	"userspace",
 ]
 
 [env.gdb]
-GDB_LISTEN=true
+GDB_LISTEN = true
 
 [tasks.run]
 workspace = false
 description = "Run the kernel"
-dependencies = [{name = "run", path = "kernel/"}]
+dependencies = [{ name = "run", path = "kernel/" }]
 
-[tasks.bin]
+
+[tasks.run-gdb-server]
 workspace = false
-dependencies = [{name = "bin", path = "userspace/"}]
-
+dependencies = [{ name = "build", path = "kernel/" }, { name = "build", path = "runner/" }]
+command = "./runner/target/release/runner"
+args = ["--target", "./kernel/target", "--gdb", "--no-start-gdb", "./kernel/target/x86_64-unknown-none/${CARGO_BUILD_DEST}/blog_os_kernel"]

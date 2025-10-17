@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run QEMU (background)",
+      "type": "shell",
+      "command": "cargo make run-gdb-server",
+      "isBackground": true,
+	    "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": {
+        "pattern": [
+          {
+            "regexp": ".",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        ],
+        // Wait until QEMU prints "Waiting for gdb connection" (or similar)
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*build: false",
+          "endsPattern": "Running \"qemu.*"
+        }
+      }
+    }
+  ]
+}

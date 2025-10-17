@@ -9,7 +9,7 @@ use x86_64::{
     },
 };
 
-use crate::stack::SlabStack;
+use crate::{println, stack::SlabStack};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -75,6 +75,10 @@ pub fn selectors() -> &'static Selectors {
 
 pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
     interrupts::disable();
+
+    println!("Setting guarded stacks for TSS");
+    println!(" - ESP0 = {:p}", esp0.top());
+    println!(" - IST_DF = {:p}", ist_df.top());
 
     let tss_mut = unsafe { TSS.as_mut_ptr().as_mut() }.unwrap();
     tss_mut.privilege_stack_table[0] = esp0.top();

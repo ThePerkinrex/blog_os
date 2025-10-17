@@ -42,8 +42,7 @@ args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
 toolchain = "nightly"
 
 
-[tasks.bin]
-condition = { files_modified = { input = ["${TARGET}/*"], output = ["./bin/*"]}}
+[tasks.copy-bin]
 workspace = false
 dependencies = ["build"]
 script_runner = "@duckscript"
@@ -55,3 +54,8 @@ for bin in ${binaries}
 	echo Copied ${bin}
 end
 '''
+
+[tasks.bin]
+condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
+workspace = false
+run_task = [{name = "build"}, {name = "copy-bin"}]

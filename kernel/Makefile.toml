@@ -3,10 +3,17 @@ extend = "../env.toml"
 [env]
 CARGO_MAKE_WORKSPACE_EMULATION = false
 
+[tasks.copy-bin]
+condition = { files_modified = { input = ["../userspace/bin/*"], output = ["./src/progs/*"]}}
+dependencies = [{name = "bin", path = "../userspace"}]
+script = "cp ../userspace/bin/* ./src/progs/"
+# args = ["../userspace/bin/*", "./src/progs/"]
+
 [tasks.build-base]
 command = "cargo"
 args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
 toolchain = "nightly"
+dependencies = ["copy-bin"]
 
 [tasks.build]
 dependencies = ["build-base", { name = "build", path = "../runner" }]
@@ -17,7 +24,7 @@ args = ["--target", "target/", "--build", "target/x86_64-unknown-none/${CARGO_BU
 [tasks.run]
 extend = "build-base"
 args = ["run"]
-dependencies = [{ name = "build", path = "../runner" }]
+dependencies = ["copy-bin", { name = "build", path = "../runner" }]
 
 [tasks.test-lib]
 extend = "run"

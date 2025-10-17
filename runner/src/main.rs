@@ -23,6 +23,8 @@ struct Args {
     kernel: PathBuf,
     #[arg(env = "GDB_LISTEN", long)]
     gdb: bool,
+    #[arg(env = "NO_START_GDB", long)]
+    no_start_gdb: bool,
 }
 
 fn get_env_target_dir() -> Option<PathBuf> {
@@ -146,7 +148,7 @@ fn main() {
 
         let mut child = cmd.spawn().unwrap();
 
-        if args.gdb {
+        if args.gdb && !args.no_start_gdb {
             thread::sleep(Duration::from_secs(1));
             let mut cmd = Command::new("gdb");
             cmd.arg("-ex").arg("target remote localhost:1234");
