@@ -1,10 +1,14 @@
 use core::{arch::naked_asm, ops::DerefMut, ptr};
 
 use alloc::{
+    borrow::Cow,
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
-use spin::{Lazy, Mutex, Once};
+use spin::{
+    Lazy, Once,
+    lock_api::{Mutex, MutexGuard},
+};
 use x86_64::{
     VirtAddr,
     instructions::interrupts,
@@ -12,7 +16,7 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::{KERNEL_INFO, println, stack::SlabStack, util::PtrOrdArc};
+use crate::{KERNEL_INFO, println, process::ProcessInfo, stack::SlabStack, util::PtrOrdArc};
 
 #[derive(Debug)]
 struct TaskControlBlock {
@@ -21,7 +25,8 @@ struct TaskControlBlock {
     next_task: Weak<Mutex<TaskControlBlock>>,
     stack: Option<SlabStack>,
     dealloc: Option<PtrOrdArc<Mutex<TaskControlBlock>>>,
-    fn_name: &'static str,
+    fn_name: Cow<'static, str>,
+    process_info: Option<ProcessInfo>,
 }
 
 static TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::new(|| {
@@ -35,7 +40,8 @@ static TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::
                 next_task: w.clone(),
                 stack: None,
                 dealloc: None,
-                fn_name: "starting task",
+                fn_name: "init".into(),
+                process_info: None,
             })
         })
         .into(),
@@ -137,10 +143,10 @@ pub fn task_switch_safe() {
     });
 }
 
-fn create_cyclic_task(
+fn create_cyclic_task<S: Into<Cow<'static, str>>>(
     entry: extern "C" fn(),
-    name: &'static str,
-) -> PtrOrdArc<spin::mutex::Mutex<TaskControlBlock>> {
+    name: S,
+) -> PtrOrdArc<Mutex<TaskControlBlock>> {
     let _ = TASKS.is_locked(); // Force lazy init
     let _ = CURRENT_TASK.is_locked(); // Force lazy init
     println!("Locks: {} {}", TASKS.is_locked(), CURRENT_TASK.is_locked());
@@ -215,7 +221,8 @@ fn create_cyclic_task(
             next_task: Weak::clone(weak_self),
             stack: Some(stack),
             dealloc: None,
-            fn_name: name,
+            fn_name: name.into(),
+            process_info: None,
         })
     })
     .into()
@@ -318,4 +325,19 @@ extern "C" fn task_dealloc() {
         }
         task_switch_safe();
     }
+}
+
+pub fn set_current_process_info(process_info: ProcessInfo) {
+    CURRENT_TASK.lock().lock().process_info = Some(process_info)
+}
+
+#[allow(clippy::significant_drop_tightening)]
+pub fn change_current_process_info(f: impl Fn(&mut Option<ProcessInfo>)) {
+    let lock = CURRENT_TASK.lock();
+    let p = &mut lock.lock().process_info;
+    f(p)
+}
+
+pub fn get_current_process_info() -> Option<ProcessInfo> {
+    CURRENT_TASK.lock().lock().process_info.clone()
 }

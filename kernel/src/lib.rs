@@ -33,6 +33,7 @@ pub mod io;
 pub mod memory;
 pub mod multitask;
 pub mod priviledge;
+pub mod process;
 pub mod stack;
 pub mod util;
 

@@ -96,7 +96,7 @@ pub fn load_example_elf() -> LoadedProgram {
     let elf = SystemElf::parse(&aligned).expect("Correct ELF");
     // TODO check if its executable
 
-    // TODO veriufy general header
+    // TODO verify general header
 
     println!("ELF type: {:x}", elf.elf_header().e_type(LittleEndian));
 
