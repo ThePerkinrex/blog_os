@@ -19,9 +19,7 @@ use x86_64::{
 };
 
 use crate::{
-    memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
-    priviledge::jmp_to_usermode,
-    stack::StackAlloc,
+    memory::{pages::VirtRegionAllocator, BootInfoFrameAllocator}, priviledge::jmp_to_usermode, process::ProcessInfo, stack::StackAlloc
 };
 
 pub mod allocator;
@@ -190,7 +188,8 @@ pub fn kernel_main() -> ! {
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
     let prog = elf::load_example_elf();
-    jmp_to_usermode(prog);
+    let proc = ProcessInfo::new(prog);
+    proc.start();
     hlt_loop()
 }
 

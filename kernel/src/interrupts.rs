@@ -8,7 +8,7 @@ use x86_64::{
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
-use crate::{gdt, hlt_loop, print, println, test_return};
+use crate::{gdt, hlt_loop, print, println, process::get_process_kernel_stack_top, test_return};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -103,11 +103,16 @@ pub fn init_idt() {
     IDT.load();
 }
 
+const SAVED_REG_COUNT: u64 = 11; // RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
+const SAVED_BYTES: u64 = SAVED_REG_COUNT * core::mem::size_of::<u64>() as u64;
+const IRET_FRAME_BYTES: u64 = 5 * core::mem::size_of::<u64>() as u64; // SS, RSP, RFLAGS, CS, RIP
+const TOTAL_FRAME_BYTES: u64 = SAVED_BYTES + IRET_FRAME_BYTES; // 15 * 8 = 120 bytes (0x78)
+
 #[unsafe(naked)]
 extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame) {
     core::arch::naked_asm!(
         "
-        // Save caller-saved registers except RAX (we want to keep handler's return value)
+        // Save caller-saved registers
         push rcx
         push rdx
         push rsi
@@ -116,11 +121,42 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         push r9
         push r10
         push r11
+        push r12
+        push r13
+        push rax // ESP0 stack now holds 11 registers and the 5-QWord IRET frame
+
+        // 2. Call Rust helper to get the new Task Kernel Stack Top
+        //    The return value (the new stack top) will be in RAX.
+        call {get_stack_top}
+        
+        // RAX now holds the Task Kernel Stack Top address. 
+        // We'll use R12 as the scratch register for the new RSP.
+        mov r12, rax
+
+        // 3. Perform the stack switch and copy.
+        //    Calculate the new stack pointer (R12 - total frame size)
+        sub r12, {frame_size}
+        
+        // Copy preparation: RDI=dest, RSI=source, RCX=count
+        mov rdi, r12          // Destination: new RSP after switch (bottom of data)
+        mov rsi, rsp          // Source: current RSP (bottom of data)
+        mov rcx, {qword_count} // Total QWords to copy (13 QWords)
+        
+        // Set the new stack pointer *before* copying
+        mov rsp, r12          // **Stack Switch occurs here!**
+
+        // Perform the copy (13 QWords = 104 bytes)
+        rep movsq             // Copy the entire stack frame and saved regs to the new stack
+
+        // The stack is now the Task Kernel Stack and perfectly aligned.
+        pop rax
 
         // Call test_handler()
         call {handler}
 
         // Restore registers (reverse order)
+        pop r13
+        pop r12
         pop r11
         pop r10
         pop r9
@@ -134,6 +170,9 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         iretq
         ",
         handler = sym int_80_handler,
+        get_stack_top = sym get_process_kernel_stack_top,
+        frame_size = const TOTAL_FRAME_BYTES,
+        qword_count = const (TOTAL_FRAME_BYTES / 8),
     );
 }
 

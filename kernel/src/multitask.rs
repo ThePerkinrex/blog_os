@@ -330,7 +330,7 @@ pub fn set_current_process_info(process_info: ProcessInfo) {
 }
 
 #[allow(clippy::significant_drop_tightening)]
-pub fn change_current_process_info(f: impl Fn(&mut Option<ProcessInfo>)) {
+pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U) -> U {
     let lock = CURRENT_TASK.lock();
     let p = &mut lock.lock().process_info;
     f(p)

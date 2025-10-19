@@ -2,7 +2,7 @@ use x86_64::{VirtAddr, instructions::interrupts, structures::gdt::SegmentSelecto
 
 use crate::{elf::LoadedProgram, gdt::selectors};
 
-pub fn jmp_to_usermode(prog: LoadedProgram) {
+pub fn jmp_to_usermode(prog: &LoadedProgram) {
     let selectors = selectors();
 
     unsafe {
