@@ -3,7 +3,15 @@ use core::ops::DerefMut;
 use alloc::sync::Arc;
 use x86_64::VirtAddr;
 
-use crate::{elf::LoadedProgram, gdt::get_esp0_stack_top, multitask::{change_current_process_info, get_current_process_info, set_current_process_info}, println, priviledge::jmp_to_usermode, stack::SlabStack, KERNEL_INFO};
+use crate::{
+    KERNEL_INFO,
+    elf::LoadedProgram,
+    gdt::get_esp0_stack_top,
+    multitask::{change_current_process_info, get_current_process_info, set_current_process_info},
+    println,
+    priviledge::jmp_to_usermode,
+    stack::SlabStack,
+};
 
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
@@ -40,7 +48,6 @@ impl ProcessInfo {
 }
 
 pub extern "C" fn get_process_kernel_stack_top() -> u64 {
-    change_current_process_info(|pi| {
-        pi.as_mut().expect("A process").get_kernel_stack().top()
-    }).as_u64()
+    change_current_process_info(|pi| pi.as_mut().expect("A process").get_kernel_stack().top())
+        .as_u64()
 }

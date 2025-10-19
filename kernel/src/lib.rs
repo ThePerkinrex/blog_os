@@ -19,7 +19,10 @@ use x86_64::{
 };
 
 use crate::{
-    memory::{pages::VirtRegionAllocator, BootInfoFrameAllocator}, priviledge::jmp_to_usermode, process::ProcessInfo, stack::StackAlloc
+    memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
+    priviledge::jmp_to_usermode,
+    process::ProcessInfo,
+    stack::StackAlloc,
 };
 
 pub mod allocator;
