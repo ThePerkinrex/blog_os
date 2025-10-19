@@ -3,7 +3,7 @@ use core::{
     ops::{Deref, Index, IndexMut},
 };
 
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 
 #[derive(Debug)]
 pub struct PtrOrdArc<T>(Arc<T>);
@@ -146,5 +146,21 @@ impl<const CAP: usize, T> IndexMut<usize> for NoHeapVec<CAP, T> {
         let len = self.len;
         self.get_mut(index)
             .map_or_else(|| panic!("Index out of range {index} >= {}", len), |x| x)
+    }
+}
+
+pub enum MaybeBoxed<'a, T: ?Sized, B: Deref<Target = T> = Box<T>> {
+    Borrowed(&'a T),
+    Boxed(B),
+}
+
+impl<'a, T: ?Sized, B: Deref<Target = T>> Deref for MaybeBoxed<'a, T, B> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            MaybeBoxed::Borrowed(a) => a,
+            MaybeBoxed::Boxed(b) => b,
+        }
     }
 }

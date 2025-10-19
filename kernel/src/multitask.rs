@@ -151,14 +151,12 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
     let _ = CURRENT_TASK.is_locked(); // Force lazy init
     println!("Locks: {} {}", TASKS.is_locked(), CURRENT_TASK.is_locked());
 
-    let stack = {
-        let mut setup = KERNEL_INFO.get().unwrap().lock();
-        let setup = setup.deref_mut();
-        setup
-            .stack_alloc
-            .create_stack(&mut setup.page_table, &mut setup.frame_allocator)
-            .expect("A stack")
-    };
+    let stack = KERNEL_INFO
+        .get()
+        .unwrap()
+        .lock()
+        .create_stack()
+        .expect("A stack");
     // // === 1) Allocate a stack ===
     // const STACK_PAGES: usize = 2;
     // let page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;

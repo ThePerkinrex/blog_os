@@ -2,7 +2,7 @@ use x86_64::{VirtAddr, instructions::interrupts, structures::gdt::SegmentSelecto
 
 use crate::{elf::LoadedProgram, gdt::selectors};
 
-pub fn test_jmp_to_usermode(prog: LoadedProgram) {
+pub fn jmp_to_usermode(prog: LoadedProgram) {
     let selectors = selectors();
 
     unsafe {
@@ -12,7 +12,7 @@ pub fn test_jmp_to_usermode(prog: LoadedProgram) {
             selectors.user_data_selector,
             selectors.user_code_selector,
         );
-    } // Crashes - not on a user accessible page
+    }
 }
 
 unsafe fn jump_to_ring3(

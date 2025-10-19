@@ -19,12 +19,12 @@ const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 16KiB = 4MiB
 
 // const KERNEL_STACK_REGION_START: VirtAddr = VirtAddr::new_truncate(0xFFFF_FE00_0000_0000);
 
-pub struct Stack {
+pub struct GeneralStack {
     pages: PageRangeInclusive, // start: VirtAddr,
                                // end: VirtAddr
 }
 
-impl Stack {
+impl GeneralStack {
     pub const fn bottom(&self) -> VirtAddr {
         self.pages.start.start_address()
     }
@@ -34,7 +34,7 @@ impl Stack {
     }
 }
 
-impl core::fmt::Debug for Stack {
+impl core::fmt::Debug for GeneralStack {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Stack")
             .field("bottom", &self.bottom())
@@ -45,7 +45,7 @@ impl core::fmt::Debug for Stack {
 
 pub struct SlabStack {
     idx: usize,
-    stack: Stack,
+    stack: GeneralStack,
 }
 
 impl core::fmt::Debug for SlabStack {
@@ -74,7 +74,7 @@ pub unsafe fn create_stack_at<M: Mapper<Size4KiB> + Translate, F: FrameAllocator
     mapper: &mut M,
     frame_alloc: &mut F,
     extra_flags: PageTableFlags,
-) -> Stack {
+) -> GeneralStack {
     let stack_top = bottom + (STACK_PAGES as u64) * Size4KiB::SIZE;
 
     // Leave the *bottom* page unmapped as a guard page
@@ -108,13 +108,13 @@ pub unsafe fn create_stack_at<M: Mapper<Size4KiB> + Translate, F: FrameAllocator
         }
     }
 
-    Stack { pages }
+    GeneralStack { pages }
 }
 
 /// # Safety
 /// The stack shouldn't be used, and the pages used up by it should be unmappable
 pub unsafe fn clear_stack<M: Mapper<Size4KiB> + CleanUp, F: FrameDeallocator<Size4KiB>>(
-    stack: Stack,
+    stack: GeneralStack,
     mapper: &mut M,
     frame_dealloc: &mut F,
 ) {

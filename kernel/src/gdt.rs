@@ -86,3 +86,7 @@ pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
 
     interrupts::enable();
 }
+
+pub fn get_esp0_stack_top() -> VirtAddr {
+    TSS.privilege_stack_table[0]
+}

@@ -20,7 +20,7 @@ use x86_64::{
 
 use crate::{
     memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
-    priviledge::test_jmp_to_usermode,
+    priviledge::jmp_to_usermode,
     stack::StackAlloc,
 };
 
@@ -83,6 +83,13 @@ pub struct SetupInfo {
     pub frame_allocator: BootInfoFrameAllocator,
     pub virt_region_allocator: VirtRegionAllocator<1>,
     pub stack_alloc: StackAlloc,
+}
+
+impl SetupInfo {
+    pub fn create_stack(&mut self) -> Option<stack::SlabStack> {
+        self.stack_alloc
+            .create_stack(&mut self.page_table, &mut self.frame_allocator)
+    }
 }
 
 static KERNEL_INFO: Once<Mutex<SetupInfo>> = Once::new();
@@ -183,7 +190,7 @@ pub fn kernel_main() -> ! {
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
     let prog = elf::load_example_elf();
-    test_jmp_to_usermode(prog);
+    jmp_to_usermode(prog);
     hlt_loop()
 }
 

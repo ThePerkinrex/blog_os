@@ -12,7 +12,8 @@ use x86_64::{
 
 use crate::{
     KERNEL_INFO, println,
-    stack::{self, Stack},
+    stack::{self, GeneralStack},
+    util::MaybeBoxed,
 };
 
 const TEST: &[u8] = include_bytes!("./progs/test_prog");
@@ -30,6 +31,14 @@ fn copy_aligned_box(align: usize, og: &[u8]) -> Box<[u8]> {
         let slice = core::slice::from_raw_parts_mut(ptr, size);
         slice.copy_from_slice(og);
         Box::from_raw(slice)
+    }
+}
+
+fn realign_if_necessary<'a>(align: usize, og: &'a [u8]) -> MaybeBoxed<'a, [u8]> {
+    if (og.as_ptr() as usize).is_multiple_of(align) {
+        MaybeBoxed::Borrowed(og)
+    } else {
+        MaybeBoxed::Boxed(copy_aligned_box(align, og))
     }
 }
 
@@ -71,9 +80,10 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct LoadedProgram {
     // TODO mem
-    stack: Stack,
+    stack: GeneralStack,
     entry: VirtAddr,
 }
 
@@ -82,17 +92,16 @@ impl LoadedProgram {
         self.entry
     }
 
-    pub const fn stack(&self) -> &Stack {
+    pub const fn stack(&self) -> &GeneralStack {
         &self.stack
     }
 }
 
-pub fn load_example_elf() -> LoadedProgram {
+pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     let align = core::mem::align_of::<object::elf::FileHeader64<object::endian::LittleEndian>>();
-    let aligned = copy_aligned_box(align, TEST);
 
-    let ptr = TEST.as_ptr();
-    println!("{ptr:p} {align:x} {:x}", ptr as usize % align);
+    let aligned = realign_if_necessary(align, bytes);
+
     let elf = SystemElf::parse(&aligned).expect("Correct ELF");
     // TODO check if its executable
 
@@ -221,4 +230,8 @@ pub fn load_example_elf() -> LoadedProgram {
     println!("ELF loaded with entry point {:p}", entry);
 
     LoadedProgram { stack, entry }
+}
+
+pub fn load_example_elf() -> LoadedProgram {
+    load_elf(TEST)
 }
