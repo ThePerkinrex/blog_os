@@ -10,6 +10,7 @@ use x86_64::structures::paging::{
     FrameAllocator, FrameDeallocator, OffsetPageTable, PhysFrame, Size4KiB,
 };
 
+pub mod multi_l4_paging;
 pub mod pages;
 
 /// Initialize a new OffsetPageTable.

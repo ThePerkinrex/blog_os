@@ -7,7 +7,7 @@ use alloc::{
 };
 use spin::{
     Lazy, Once,
-    lock_api::{Mutex, MutexGuard},
+    lock_api::Mutex,
 };
 use x86_64::{
     VirtAddr,

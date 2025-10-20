@@ -1,13 +1,10 @@
-use core::ops::DerefMut;
 
 use alloc::sync::Arc;
-use x86_64::VirtAddr;
 
 use crate::{
     KERNEL_INFO,
     elf::LoadedProgram,
-    gdt::get_esp0_stack_top,
-    multitask::{change_current_process_info, get_current_process_info, set_current_process_info},
+    multitask::{change_current_process_info, set_current_process_info},
     println,
     priviledge::jmp_to_usermode,
     stack::SlabStack,

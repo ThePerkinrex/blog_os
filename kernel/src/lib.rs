@@ -15,12 +15,11 @@ use qemu_common::QemuExitCode;
 use spin::{Mutex, Once};
 use x86_64::{
     VirtAddr,
-    structures::paging::{OffsetPageTable, Translate},
+    structures::paging::Translate,
 };
 
 use crate::{
-    memory::{BootInfoFrameAllocator, pages::VirtRegionAllocator},
-    priviledge::jmp_to_usermode,
+    memory::{multi_l4_paging::PageTables, pages::VirtRegionAllocator, BootInfoFrameAllocator},
     process::ProcessInfo,
     stack::StackAlloc,
 };
@@ -80,7 +79,7 @@ pub struct SetupInfo {
     /// Virtual address of the loaded kernel image.
     pub kernel_image_offset: u64,
     // The kernel page tables
-    pub page_table: OffsetPageTable<'static>,
+    pub page_table: PageTables,
     pub frame_allocator: BootInfoFrameAllocator,
     pub virt_region_allocator: VirtRegionAllocator<1>,
     pub stack_alloc: StackAlloc,
@@ -147,7 +146,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         ramdisk_len: boot_info.ramdisk_len,
         kernel_len: boot_info.kernel_len,
         kernel_image_offset: boot_info.kernel_image_offset,
-        page_table,
+        page_table: PageTables::new(page_table),
         frame_allocator,
         virt_region_allocator,
         stack_alloc,

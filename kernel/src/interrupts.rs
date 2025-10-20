@@ -1,5 +1,3 @@
-use core::arch::naked_asm;
-
 use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
