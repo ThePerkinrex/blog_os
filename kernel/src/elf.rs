@@ -232,6 +232,6 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     LoadedProgram { stack, entry }
 }
 
-pub fn load_example_elf() -> LoadedProgram {
-    load_elf(TEST)
+pub const fn load_example_elf() -> &'static [u8] {
+    TEST
 }

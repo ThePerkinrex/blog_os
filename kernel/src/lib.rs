@@ -13,13 +13,10 @@ use alloc::boxed::Box;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use qemu_common::QemuExitCode;
 use spin::{Mutex, Once};
-use x86_64::{
-    VirtAddr,
-    structures::paging::Translate,
-};
+use x86_64::{VirtAddr, structures::paging::Translate};
 
 use crate::{
-    memory::{multi_l4_paging::PageTables, pages::VirtRegionAllocator, BootInfoFrameAllocator},
+    memory::{BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator},
     process::ProcessInfo,
     stack::StackAlloc,
 };
@@ -89,6 +86,10 @@ impl SetupInfo {
     pub fn create_stack(&mut self) -> Option<stack::SlabStack> {
         self.stack_alloc
             .create_stack(&mut self.page_table, &mut self.frame_allocator)
+    }
+
+    pub fn create_p4_table_and_switch(&mut self) {
+        self.page_table.create_process_p4_and_switch(&mut self.frame_allocator);
     }
 }
 

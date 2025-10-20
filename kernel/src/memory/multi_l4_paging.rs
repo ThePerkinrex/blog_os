@@ -1,9 +1,13 @@
 use alloc::vec::Vec;
 use x86_64::{
+    VirtAddr,
     structures::paging::{
-        mapper::CleanUp, page::PageRangeInclusive, Mapper, OffsetPageTable, Page, PageTable, PageTableIndex, PhysFrame, Size4KiB, Translate
-    }, VirtAddr
+        Mapper, OffsetPageTable, Page, PageTable, PageTableIndex, PhysFrame, Size4KiB, Translate,
+        mapper::CleanUp, page::PageRangeInclusive,
+    },
 };
+
+use crate::println;
 
 const KERNEL_P4_START: u16 = 256; // adjust: index where higher-half begins
 
@@ -22,41 +26,71 @@ impl PageTables {
         }
     }
 
-	// pub fn create_process_p4_and_switch<A>(&mut self, frame_alloc: &mut A) where 
-    //     A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized {
-	// 	let frame = self 
+    unsafe fn switch_to_frame(frame: PhysFrame) {
+        let (_, flags) = x86_64::registers::control::Cr3::read();
+        unsafe {
+            x86_64::registers::control::Cr3::write(frame, flags);
+        }
+    }
 
-	// }
+    pub fn create_process_p4_and_switch<A>(&mut self, frame_alloc: &mut A)
+    where
+        A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
+    {
+        let (frame, idx) = self
+            .create_process_p4(frame_alloc)
+            .expect("A frame for the l4 table");
+        let offset = self.current.phys_offset();
+        x86_64::instructions::interrupts::without_interrupts(|| {
+            self.current_idx = idx;
+            let addr = self.l4_tables[idx];
+            self.current = unsafe {
+                OffsetPageTable::<'static>::new(
+                    addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
+                    offset,
+                )
+            };
+            unsafe {
+                Self::switch_to_frame(frame);
+            }
+        });
+    }
 
-	fn create_process_p4<A>(&mut self, frame_alloc: &mut A) -> Option<PhysFrame> where 
-        A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized, {
-		let frame = frame_alloc.allocate_frame()?;
+    fn create_process_p4<A>(&mut self, frame_alloc: &mut A) -> Option<(PhysFrame, usize)>
+    where
+        A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
+    {
+        let frame = frame_alloc.allocate_frame()?;
 
-		let offset = self.current.phys_offset();
+        let offset = self.current.phys_offset();
 
-		let page_addr = offset + frame.start_address().as_u64();
-		let page_table = unsafe {page_addr.as_mut_ptr::<PageTable>().as_mut()}.unwrap();
-		*page_table = PageTable::new(); // initialize it
-		page_table.clone_from(self.current.level_4_table());
+        let page_addr = offset + frame.start_address().as_u64();
+        let page_table = unsafe { page_addr.as_mut_ptr::<PageTable>().as_mut() }.unwrap();
+        *page_table = PageTable::new(); // initialize it
+        page_table.clone_from(self.current.level_4_table());
 
-		self.l4_tables.push(page_addr);
+        let idx = self.l4_tables.len();
+        self.l4_tables.push(page_addr);
 
-		Some(frame)
-	}
+        Some((frame, idx))
+    }
 
-	#[allow(clippy::needless_pass_by_ref_mut)]
-	fn all_but_current_internal(tables: &mut [VirtAddr], idx: usize) -> impl Iterator<Item = &mut PageTable> {
-		tables
-                .iter()
-                .copied()
-                .enumerate()
-                .filter(move |(i, _)| *i != idx)
-                .map(|(_, x)| unsafe { x.as_mut_ptr::<PageTable>().as_mut() }.unwrap())
-	}
+    #[allow(clippy::needless_pass_by_ref_mut)]
+    fn all_but_current_internal(
+        tables: &mut [VirtAddr],
+        idx: usize,
+    ) -> impl Iterator<Item = &mut PageTable> {
+        tables
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(move |(i, _)| *i != idx)
+            .map(|(_, x)| unsafe { x.as_mut_ptr::<PageTable>().as_mut() }.unwrap())
+    }
 
-	fn all_but_current(&mut self) -> impl Iterator<Item = &mut PageTable> {
-		Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
-	}
+    fn all_but_current(&mut self) -> impl Iterator<Item = &mut PageTable> {
+        Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
+    }
 }
 
 impl CleanUp for PageTables {
@@ -92,8 +126,10 @@ impl CleanUp for PageTables {
             .skip(KERNEL_P4_START as usize);
         // Iterator over the iterators of entries of each table [table: [entries]]
         // SHould be an iterator over the iterator of each table, for each entry [entries: [tables]]
-        let mut other: Vec<_> = Self::all_but_current_internal(&mut self.l4_tables, self.current_idx).map(|x| x.iter_mut())
-            .collect();
+        let mut other: Vec<_> =
+            Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
+                .map(|x| x.iter_mut())
+                .collect();
 
         for e in current {
             for t in &mut other {
@@ -120,19 +156,30 @@ impl Mapper<Size4KiB> for PageTables {
         Self: Sized,
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
-		let flush = unsafe{self.current.map_to_with_table_flags(page, frame, flags, parent_table_flags, frame_allocator)}?;
-        
-		let p4_index = page.p4_index();
+        let flush = unsafe {
+            self.current.map_to_with_table_flags(
+                page,
+                frame,
+                flags,
+                parent_table_flags,
+                frame_allocator,
+            )
+        }?;
+
+        let p4_index = page.p4_index();
 
         if p4_index >= PageTableIndex::new(KERNEL_P4_START) {
-			let current_e = &self.current.level_4_table()[p4_index];
-			// Copy kernel tables
-			for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
-				e[p4_index].clone_from(current_e);
-			}
-		}
-		
-		Ok(flush)
+            println!("Created mapping in kernelspace");
+            let current_e = &self.current.level_4_table()[p4_index];
+            // Copy kernel tables
+            for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
+                e[p4_index].clone_from(current_e);
+            }
+        }else{
+            println!("Created mapping in userspace (Current idx: {})", self.current_idx)
+        }
+
+        Ok(flush)
     }
 
     fn unmap(
@@ -172,8 +219,7 @@ impl Mapper<Size4KiB> for PageTables {
         let p4_index = page.p4_index();
 
         if p4_index >= PageTableIndex::new(KERNEL_P4_START) {
-            for p4 in self.all_but_current()
-            {
+            for p4 in self.all_but_current() {
                 let p4_entry = &mut p4[p4_index];
 
                 p4_entry.set_flags(flags);

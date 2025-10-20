@@ -1,9 +1,10 @@
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::sync::Arc;
 
 use crate::{
     KERNEL_INFO,
-    elf::LoadedProgram,
+    elf::{LoadedProgram, load_elf},
     multitask::{change_current_process_info, set_current_process_info},
     println,
     priviledge::jmp_to_usermode,
@@ -16,8 +17,27 @@ pub struct ProcessInfo {
     kernel_stack: Option<Arc<SlabStack>>,
 }
 
+static FIRST_PROC: AtomicBool = AtomicBool::new(true);
+
 impl ProcessInfo {
-    pub fn new(prog: LoadedProgram) -> Self {
+    pub fn new(prog: &[u8]) -> Self {
+        if FIRST_PROC.compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed).is_err() {
+            println!("Not first proc, creating a new l4 table");
+            println!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
+
+            KERNEL_INFO
+                .get()
+                .unwrap()
+                .lock()
+                .create_p4_table_and_switch();
+
+            println!("CR3: {:?}", x86_64::registers::control::Cr3::read());
+        }else{
+            println!("Creating first proc, not creating a new l4 table");
+        }
+
+        let prog = load_elf(prog);
+
         Self {
             program: Arc::new(prog),
             kernel_stack: None,

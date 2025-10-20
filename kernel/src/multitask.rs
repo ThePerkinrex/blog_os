@@ -5,10 +5,7 @@ use alloc::{
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
-use spin::{
-    Lazy, Once,
-    lock_api::Mutex,
-};
+use spin::{Lazy, Once, lock_api::Mutex};
 use x86_64::{
     VirtAddr,
     instructions::interrupts,
