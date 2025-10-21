@@ -158,15 +158,6 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         mov r8,[rsp+40]
         mov r9,[rsp+32]
 
-        // TODO get the other registers used for args -> 
-            // out(\"rdi\") arg1,
-            // out(\"rsi\") arg2,
-            // out(\"rdx\") arg3,
-            // out(\"r10\") arg4,
-            // out(\"r8\") arg5,
-            // out(\"r9\") arg6,
-            // out(\"rax\") code,
-
         // Call test_handler()
         call {handler}
 

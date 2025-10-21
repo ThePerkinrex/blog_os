@@ -191,6 +191,7 @@ pub fn kernel_main() -> ! {
     multitask::task_switch_safe();
 
     multitask::create_task(switch_loop, "switch loop");
+    multitask::create_task(second_process, "second_process");
 
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
@@ -205,6 +206,13 @@ pub extern "C" fn other_task() {
     println!("Switching back");
     multitask::task_switch_safe();
     println!("Should not be here");
+}
+
+pub extern "C" fn second_process() {
+    println!("Starting second process");
+    let prog = elf::load_example_elf();
+    let proc = ProcessInfo::new(prog);
+    proc.start();
 }
 
 pub extern "C" fn test_return() -> ! {

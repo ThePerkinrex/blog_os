@@ -3,12 +3,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use alloc::sync::Arc;
 
 use crate::{
-    KERNEL_INFO,
-    elf::{LoadedProgram, load_elf},
-    multitask::{change_current_process_info, set_current_process_info},
-    println,
-    priviledge::jmp_to_usermode,
-    stack::SlabStack,
+    elf::{load_elf, LoadedProgram}, gdt::get_esp0_stack_top, multitask::{change_current_process_info, set_current_process_info}, println, priviledge::jmp_to_usermode, stack::SlabStack, KERNEL_INFO
 };
 
 #[derive(Debug, Clone)]
@@ -68,6 +63,12 @@ impl ProcessInfo {
 }
 
 pub extern "C" fn get_process_kernel_stack_top() -> u64 {
-    change_current_process_info(|pi| pi.as_mut().expect("A process").get_kernel_stack().top())
-        .as_u64()
+    change_current_process_info(|pi| {
+        if let Some(pi) = pi.as_mut() {
+            pi.get_kernel_stack().top()
+        } else {
+            get_esp0_stack_top()
+        }
+    })
+    .as_u64()
 }
