@@ -152,7 +152,52 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         // Call test_handler()
         call {handler}
 
+        push rax
+
+
+        pushfq                         /* push RFLAGS */
+        call {kernel_selector}
+        push rax                       /* push kernel CS (typical selector = 0x08) */
+        // Load RIP-relative address of naked_syscall_tail into RAX
+        lea rax, [rip + {naked_syscall_tail}]
+        
+        // Push it on the stack (RIP-relative, PIE-safe)
+        push rax
+
+        iretq                           /* returns to kernel_resume at CPL=0 */
+
+
+        // Push a new return frame for iretq for jumping to naked_syscall_tail
+
+        // // Restore registers (reverse order)
+        // pop r13
+        // pop r12
+        // pop r11
+        // pop r10
+        // pop r9
+        // pop r8
+        // pop rdi
+        // pop rsi
+        // pop rdx
+        // pop rcx
+
+        // // Return from interrupt — RAX still holds the return value from test_handler()
+        // iretq
+        ",
+        handler = sym int_80_handler,
+        get_stack_top = sym get_process_kernel_stack_top,
+        frame_size = const TOTAL_FRAME_BYTES,
+        qword_count = const (TOTAL_FRAME_BYTES / 8),
+        naked_syscall_tail = sym naked_syscall_tail,
+        kernel_selector = sym gdt::kernel_code_selector
+    );
+}
+
+#[unsafe(naked)]
+extern "C" fn naked_syscall_tail() {
+    core::arch::naked_asm!("
         // Restore registers (reverse order)
+        pop rax
         pop r13
         pop r12
         pop r11
@@ -166,12 +211,7 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
 
         // Return from interrupt — RAX still holds the return value from test_handler()
         iretq
-        ",
-        handler = sym int_80_handler,
-        get_stack_top = sym get_process_kernel_stack_top,
-        frame_size = const TOTAL_FRAME_BYTES,
-        qword_count = const (TOTAL_FRAME_BYTES / 8),
-    );
+    ")
 }
 
 extern "C" fn int_80_handler() -> u64 {
@@ -295,7 +335,7 @@ extern "x86-interrupt" fn general_protection_fault_handler(
         Some(SelectorErrorCode::new(error_code))
     };
     panic!(
-        "EXCEPTION: GENERAL PROTECTION FAULT ({code:?})\n{:#?}",
+        "EXCEPTION: GENERAL PROTECTION FAULT ({error_code:x} = {code:?})\n{:#?}",
         stack_frame
     );
 }

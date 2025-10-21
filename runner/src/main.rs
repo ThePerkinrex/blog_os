@@ -52,12 +52,11 @@ fn get_manifest_target_dir() -> Option<PathBuf> {
 fn main() {
     let args = Args::parse();
     let uefi = !args.no_uefi;
-    let target = args
+    let target = dunce::canonicalize(args
         .target
         .or_else(get_env_target_dir)
         .or_else(get_manifest_target_dir)
-        .unwrap_or_else(|| PathBuf::from("target"))
-        .canonicalize()
+        .unwrap_or_else(|| PathBuf::from("target")))
         .unwrap();
 
     // for (var, val) in std::env::vars() {
@@ -66,7 +65,7 @@ fn main() {
 
     // choose whether to start the UEFI or BIOS image
 
-    let kernel = args.kernel.canonicalize().unwrap();
+    let kernel = dunce::canonicalize(args.kernel).unwrap();
     let kernel_parent = kernel.parent().expect("kernel parent");
 
     let is_doctest = kernel_parent
@@ -153,10 +152,10 @@ fn main() {
             let mut cmd = Command::new("gdb");
             cmd.arg("-ex").arg("target remote localhost:1234");
             cmd.arg("-ex").arg(format!(
-                "add-symbol-file \"{}\" -o 0x8000000000",
+                "add-symbol-file {:?} -o 0x8000000000",
                 kernel.display()
             ));
-            cmd.arg("-ex").arg("set  disassemble-next-line on");
+            cmd.arg("-ex").arg("set disassemble-next-line on");
             // cmd.arg("-ex").arg("display /-16i $pc");
             // cmd.arg("-ex").arg("display /16i $pc");
 
@@ -166,6 +165,10 @@ fn main() {
 
             let is_terminal = std::io::stdin().is_terminal();
             println!("stdin is terminal: {is_terminal}");
+
+            
+
+            println!("Running {cmd:?}");
 
             // let mut line = String::new();
             // let read = std::io::stdin().read_line(&mut line).unwrap();

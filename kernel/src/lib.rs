@@ -188,6 +188,9 @@ pub fn kernel_main() -> ! {
     println!("Returned");
     println!("Going back");
     multitask::task_switch_safe();
+
+    multitask::create_task(switch_loop, "switch loop");
+
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
     let prog = elf::load_example_elf();
@@ -206,6 +209,14 @@ pub extern "C" fn other_task() {
 pub extern "C" fn test_return() -> ! {
     println!("REturned here");
     hlt_loop();
+}
+
+pub extern "C" fn switch_loop() {
+    loop {
+        println!("SWITCH LOOP");
+        x86_64::instructions::hlt();
+        multitask::task_switch_safe();
+    }
 }
 
 #[cfg(test)]

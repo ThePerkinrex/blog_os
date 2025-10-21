@@ -1,12 +1,9 @@
 use spin::Lazy;
 use x86_64::{
-    VirtAddr,
-    instructions::interrupts,
-    registers::segmentation::{DS, ES, FS, GS, SS},
-    structures::{
-        gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
+    instructions::interrupts, registers::segmentation::{DS, ES, FS, GS, SS}, structures::{
+        gdt::{Descriptor, DescriptorFlags, GlobalDescriptorTable, SegmentSelector},
         tss::TaskStateSegment,
-    },
+    }, VirtAddr
 };
 
 use crate::{println, stack::SlabStack};
@@ -71,6 +68,16 @@ pub fn init() {
 
 pub fn selectors() -> &'static Selectors {
     &GDT.1
+}
+
+pub extern "C" fn kernel_code_selector() -> u64 {
+
+    let idx = selectors().kernel_code_selector.0 >> 3; // index in GDT
+    let desc = &GDT.0.entries()[idx as usize];
+    println!("Kernel code descriptor: {:?} {:?}", desc, DescriptorFlags::from_bits(desc.raw()));
+    let s = selectors().kernel_code_selector.0 as u64;
+    println!("Kernel CS: {s:x}");
+    s
 }
 
 pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
