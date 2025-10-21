@@ -52,12 +52,13 @@ fn get_manifest_target_dir() -> Option<PathBuf> {
 fn main() {
     let args = Args::parse();
     let uefi = !args.no_uefi;
-    let target = dunce::canonicalize(args
-        .target
-        .or_else(get_env_target_dir)
-        .or_else(get_manifest_target_dir)
-        .unwrap_or_else(|| PathBuf::from("target")))
-        .unwrap();
+    let target = dunce::canonicalize(
+        args.target
+            .or_else(get_env_target_dir)
+            .or_else(get_manifest_target_dir)
+            .unwrap_or_else(|| PathBuf::from("target")),
+    )
+    .unwrap();
 
     // for (var, val) in std::env::vars() {
     //     println!("ENV: {var}={val}");
@@ -165,8 +166,6 @@ fn main() {
 
             let is_terminal = std::io::stdin().is_terminal();
             println!("stdin is terminal: {is_terminal}");
-
-            
 
             println!("Running {cmd:?}");
 

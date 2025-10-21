@@ -6,7 +6,9 @@ use x86_64::{
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
-use crate::{gdt, hlt_loop, interrupts, print, println, process::get_process_kernel_stack_top, test_return};
+use crate::{
+    gdt, hlt_loop, interrupts, print, println, process::get_process_kernel_stack_top, test_return,
+};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;

@@ -1,4 +1,7 @@
-use crate::{multitask::{self, task_switch_safe}, println};
+use crate::{
+    multitask::{self, task_switch_safe},
+    println,
+};
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 
@@ -31,10 +34,8 @@ pub fn syscall_handle(
     }
 }
 
-
 pub extern "C" fn syscall_tail() {
     x86_64::instructions::interrupts::enable();
     println!("SYSCALL TAIL");
     task_switch_safe();
-    
 }
