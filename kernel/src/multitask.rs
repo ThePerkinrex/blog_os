@@ -207,7 +207,9 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
             core::ptr::write_volatile(stack_ptr, w);
         }
     }
-    println!("Allocated stack (sp {stack_ptr:p})");
+    let name = name.into();
+
+    println!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
 
     Arc::new_cyclic(|weak_self| {
         Mutex::new(TaskControlBlock {
@@ -216,7 +218,7 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
             next_task: Weak::clone(weak_self),
             stack: Some(stack),
             dealloc: None,
-            fn_name: name.into(),
+            fn_name: name,
             process_info: None,
         })
     })

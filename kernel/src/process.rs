@@ -70,11 +70,15 @@ impl ProcessInfo {
 
 pub extern "C" fn get_process_kernel_stack_top() -> u64 {
     change_current_process_info(|pi| {
-        if let Some(pi) = pi.as_mut() {
-            pi.get_kernel_stack().top()
-        } else {
-            get_esp0_stack_top()
-        }
+        let top = pi.as_mut().map_or_else(
+            || {
+                println!("[WARN] No current process, returning esp0 top");
+                get_esp0_stack_top()
+            },
+            |pi| pi.get_kernel_stack().top(),
+        );
+        println!("Returning stack top: {top:p}");
+        top
     })
     .as_u64()
 }

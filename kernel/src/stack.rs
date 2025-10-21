@@ -120,6 +120,7 @@ pub unsafe fn clear_stack<M: Mapper<Size4KiB> + CleanUp, F: FrameDeallocator<Siz
 ) {
     let pages = stack.pages;
     for p in pages {
+        println!("Freeing stack page at {pages:?}");
         let (frame, flush) = mapper.unmap(p).expect("page should be mapped");
         flush.flush();
         unsafe {
@@ -166,6 +167,7 @@ impl StackAlloc {
         let stack =
             unsafe { create_stack_at(stack_bottom, mapper, frame_alloc, PageTableFlags::empty()) };
 
+        println!("Created stack: {stack:?}");
         // Return a Stack descriptor. You can expand this later (store VirtAddr top/bottom).
         Some(SlabStack {
             idx: stack_idx,

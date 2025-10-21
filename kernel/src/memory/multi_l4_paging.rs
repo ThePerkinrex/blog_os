@@ -9,7 +9,7 @@ use x86_64::{
 
 use crate::println;
 
-const KERNEL_P4_START: u16 = 256; // adjust: index where higher-half begins
+const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 
 pub struct PageTables {
     current: OffsetPageTable<'static>,
@@ -37,9 +37,15 @@ impl PageTables {
     where
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
+        let sp: u64;
+        unsafe {
+            core::arch::asm!("mov {0},rsp", lateout(reg) sp);
+        }
+        println!("Creating process p4 to prepare for switch (current sp: {sp:x})");
         let (frame, idx) = self
             .create_process_p4(frame_alloc)
             .expect("A frame for the l4 table");
+        println!("Created: {frame:?} at idx {idx}");
         let offset = self.current.phys_offset();
         x86_64::instructions::interrupts::without_interrupts(|| {
             self.current_idx = idx;
@@ -60,13 +66,17 @@ impl PageTables {
     where
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
+        println!("Allocating frame for new p4");
         let frame = frame_alloc.allocate_frame()?;
+        println!("Allocated frame: {frame:?}");
 
         let offset = self.current.phys_offset();
 
         let page_addr = offset + frame.start_address().as_u64();
+        println!("Getting a pointer to the frame virtaddr({page_addr:p})");
         let page_table = unsafe { page_addr.as_mut_ptr::<PageTable>().as_mut() }.unwrap();
         *page_table = PageTable::new(); // initialize it
+        println!("Copied current p4 table here -> virtaddr({page_addr:p})");
         page_table.clone_from(self.current.level_4_table());
 
         let idx = self.l4_tables.len();
@@ -128,7 +138,7 @@ impl CleanUp for PageTables {
         // SHould be an iterator over the iterator of each table, for each entry [entries: [tables]]
         let mut other: Vec<_> =
             Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
-                .map(|x| x.iter_mut())
+                .map(|x| x.iter_mut().skip(KERNEL_P4_START as usize))
                 .collect();
 
         for e in current {
@@ -169,7 +179,7 @@ impl Mapper<Size4KiB> for PageTables {
         let p4_index = page.p4_index();
 
         if p4_index >= PageTableIndex::new(KERNEL_P4_START) {
-            println!("Created mapping in kernelspace");
+            println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
             let current_e = &self.current.level_4_table()[p4_index];
             // Copy kernel tables
             for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
@@ -177,7 +187,7 @@ impl Mapper<Size4KiB> for PageTables {
             }
         } else {
             println!(
-                "Created mapping in userspace (Current idx: {})",
+                "Created mapping in userspace (Current idx: {} / P4 idx: {p4_index:?} - {page:?})",
                 self.current_idx
             )
         }
