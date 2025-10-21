@@ -175,8 +175,11 @@ impl Mapper<Size4KiB> for PageTables {
             for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
                 e[p4_index].clone_from(current_e);
             }
-        }else{
-            println!("Created mapping in userspace (Current idx: {})", self.current_idx)
+        } else {
+            println!(
+                "Created mapping in userspace (Current idx: {})",
+                self.current_idx
+            )
         }
 
         Ok(flush)

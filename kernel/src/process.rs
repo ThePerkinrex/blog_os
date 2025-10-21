@@ -21,7 +21,10 @@ static FIRST_PROC: AtomicBool = AtomicBool::new(true);
 
 impl ProcessInfo {
     pub fn new(prog: &[u8]) -> Self {
-        if FIRST_PROC.compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed).is_err() {
+        if FIRST_PROC
+            .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
             println!("Not first proc, creating a new l4 table");
             println!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
 
@@ -32,7 +35,7 @@ impl ProcessInfo {
                 .create_p4_table_and_switch();
 
             println!("CR3: {:?}", x86_64::registers::control::Cr3::read());
-        }else{
+        } else {
             println!("Creating first proc, not creating a new l4 table");
         }
 

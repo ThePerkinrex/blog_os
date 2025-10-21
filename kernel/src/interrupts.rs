@@ -6,7 +6,7 @@ use x86_64::{
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
-use crate::{gdt, hlt_loop, print, println, process::get_process_kernel_stack_top, test_return};
+use crate::{gdt, hlt_loop, interrupts, print, println, process::get_process_kernel_stack_top, test_return};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -149,15 +149,36 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         // The stack is now the Task Kernel Stack and perfectly aligned.
         pop rax
 
+        mov rdi,[rsp+48]
+        mov rsi,[rsp+56]
+        mov rdx,[rsp+64]
+        mov r10,[rsp+24]
+        mov r8,[rsp+40]
+        mov r9,[rsp+32]
+
+        // TODO get the other registers used for args -> 
+            // out(\"rdi\") arg1,
+            // out(\"rsi\") arg2,
+            // out(\"rdx\") arg3,
+            // out(\"r10\") arg4,
+            // out(\"r8\") arg5,
+            // out(\"r9\") arg6,
+            // out(\"rax\") code,
+
         // Call test_handler()
         call {handler}
 
         push rax
 
 
+        mov rax,rsp
+        push {zero}
+        push rax
         pushfq                         /* push RFLAGS */
-        call {kernel_selector}
-        push rax                       /* push kernel CS (typical selector = 0x08) */
+        // call {kernel_selector}
+        //push rax                       /* push kernel CS (typical selector = 0x08) */
+        mov rax,cs
+        push rax
         // Load RIP-relative address of naked_syscall_tail into RAX
         lea rax, [rip + {naked_syscall_tail}]
         
@@ -189,13 +210,17 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         frame_size = const TOTAL_FRAME_BYTES,
         qword_count = const (TOTAL_FRAME_BYTES / 8),
         naked_syscall_tail = sym naked_syscall_tail,
-        kernel_selector = sym gdt::kernel_code_selector
+        kernel_selector = sym gdt::kernel_code_selector,
+        zero = const 0u64,
     );
 }
 
 #[unsafe(naked)]
 extern "C" fn naked_syscall_tail() {
-    core::arch::naked_asm!("
+    core::arch::naked_asm!(
+        "
+        call {syscall_tail}
+
         // Restore registers (reverse order)
         pop rax
         pop r13
@@ -211,7 +236,9 @@ extern "C" fn naked_syscall_tail() {
 
         // Return from interrupt — RAX still holds the return value from test_handler()
         iretq
-    ")
+    ",
+    syscall_tail = sym interrupts::syscalls::syscall_tail
+    )
 }
 
 extern "C" fn int_80_handler() -> u64 {

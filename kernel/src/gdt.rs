@@ -1,9 +1,12 @@
 use spin::Lazy;
 use x86_64::{
-    instructions::interrupts, registers::segmentation::{DS, ES, FS, GS, SS}, structures::{
+    VirtAddr,
+    instructions::interrupts,
+    registers::segmentation::{DS, ES, FS, GS, SS},
+    structures::{
         gdt::{Descriptor, DescriptorFlags, GlobalDescriptorTable, SegmentSelector},
         tss::TaskStateSegment,
-    }, VirtAddr
+    },
 };
 
 use crate::{println, stack::SlabStack};
@@ -71,10 +74,13 @@ pub fn selectors() -> &'static Selectors {
 }
 
 pub extern "C" fn kernel_code_selector() -> u64 {
-
     let idx = selectors().kernel_code_selector.0 >> 3; // index in GDT
     let desc = &GDT.0.entries()[idx as usize];
-    println!("Kernel code descriptor: {:?} {:?}", desc, DescriptorFlags::from_bits(desc.raw()));
+    println!(
+        "Kernel code descriptor: {:?} {:?}",
+        desc,
+        DescriptorFlags::from_bits(desc.raw())
+    );
     let s = selectors().kernel_code_selector.0 as u64;
     println!("Kernel CS: {s:x}");
     s

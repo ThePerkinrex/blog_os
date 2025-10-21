@@ -35,7 +35,7 @@ LIBS = ["blog_std"]
 TARGET = "./target/x86_64-unknown-none/${CARGO_BUILD_DEST}"
 
 [tasks.build]
-condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
+# condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
 workspace = false
 command = "cargo"
 args = ["build", "@@split(CARGO_BUILD_ARGS,;)"]
@@ -56,6 +56,6 @@ end
 '''
 
 [tasks.bin]
-condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
+# condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
 workspace = false
-run_task = [{name = "build"}, {name = "copy-bin"}]
+dependencies = [{name = "build"}, {name = "copy-bin"}]

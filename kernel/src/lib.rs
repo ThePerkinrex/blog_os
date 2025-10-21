@@ -89,7 +89,8 @@ impl SetupInfo {
     }
 
     pub fn create_p4_table_and_switch(&mut self) {
-        self.page_table.create_process_p4_and_switch(&mut self.frame_allocator);
+        self.page_table
+            .create_process_p4_and_switch(&mut self.frame_allocator);
     }
 }
 
@@ -212,6 +213,7 @@ pub extern "C" fn test_return() -> ! {
 }
 
 pub extern "C" fn switch_loop() {
+    x86_64::instructions::interrupts::enable();
     loop {
         println!("SWITCH LOOP");
         x86_64::instructions::hlt();
