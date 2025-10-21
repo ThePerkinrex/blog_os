@@ -313,35 +313,41 @@ extern "x86-interrupt" fn page_fault_handler(
     println!("EXCEPTION: PAGE FAULT");
     println!("Current task: {:?}", current_task.fn_name);
     println!("Current stack: {:?}", current_task.stack);
-    if let Ok(addr) = addr
-        && let Some(s) = &current_task.stack
-    {
-        let kinf = KERNEL_INFO.get().unwrap();
-        if kinf.is_locked() {
-            unsafe {
-                kinf.force_unlock();
+    if let Ok(addr) = addr {
+        if let Some(s) = &current_task.stack {
+            let kinf = KERNEL_INFO.get().unwrap();
+            if kinf.is_locked() {
+                unsafe {
+                    kinf.force_unlock();
+                }
             }
+            // CRITICAL SITUATION, not going back
+            match kinf.lock().stack_alloc.detect_guard_page_access(addr, s) {
+                crate::stack::GuardPageInfo::CurrentStackOverflow => {
+                    println!("[KSTACKS] Current stack overflow")
+                }
+                crate::stack::GuardPageInfo::CurrentStack => {
+                    println!("[KSTACKS] Current stack access")
+                }
+                crate::stack::GuardPageInfo::OtherGuardPage(idx, alloc) => {
+                    println!("[KSTACKS] Other stack overflow (idx: {idx}, alloc: {alloc})")
+                }
+                crate::stack::GuardPageInfo::OtherStack(idx, alloc) => {
+                    println!("[KSTACKS] Other stack access (idx: {idx}, alloc: {alloc})")
+                }
+                crate::stack::GuardPageInfo::Unknown => println!("[KSTACKS] Unknown access"),
+            }
+        } else {
+            println!(
+                "[KSTACKS] Addr was err or stack was not present: {addr:?}, {:?}",
+                current_task.stack
+            )
         }
-        // CRITICAL SITUATION, not going back
-        match kinf.lock().stack_alloc.detect_guard_page_access(addr, s) {
-            crate::stack::GuardPageInfo::CurrentStackOverflow => {
-                println!("[KSTACKS] Current stack overflow")
-            }
-            crate::stack::GuardPageInfo::CurrentStack => println!("[KSTACKS] Current stack access"),
-            crate::stack::GuardPageInfo::OtherGuardPage(idx, alloc) => {
-                println!("[KSTACKS] Other stack overflow (idx: {idx}, alloc: {alloc})")
-            }
-            crate::stack::GuardPageInfo::OtherStack(idx, alloc) => {
-                println!("[KSTACKS] Other stack access (idx: {idx}, alloc: {alloc})")
-            }
-            crate::stack::GuardPageInfo::Unknown => println!("[KSTACKS] Unknown access"),
+        if let Some(pinf) = &current_task.process_info {
+            println!("[PROCESS] {pinf:#?}")
         }
-    } else {
-        println!(
-            "[KSTACKS] Addr was err or stack was not present: {addr:?}, {:?}",
-            current_task.stack
-        )
     }
+
     println!("Accessed Address: {:?}", addr);
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
