@@ -1,4 +1,4 @@
-use crate::println;
+use crate::{multitask, println};
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 
@@ -6,6 +6,12 @@ const SYSCALL_HANDLERS: &[SyscallHandler] = &[nop, exit];
 
 fn nop(arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64, arg6: u64) -> u64 {
     println!("NOP SYSCALL ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6})");
+    let interrupts = x86_64::instructions::interrupts::are_enabled();
+    x86_64::instructions::interrupts::enable();
+    multitask::task_switch_safe();
+    if !interrupts {
+        x86_64::instructions::interrupts::disable();
+    }
     0
 }
 
