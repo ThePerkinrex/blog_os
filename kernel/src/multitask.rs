@@ -16,14 +16,14 @@ use x86_64::{
 use crate::{KERNEL_INFO, println, process::ProcessInfo, stack::SlabStack, util::PtrOrdArc};
 
 #[derive(Debug)]
-struct TaskControlBlock {
+pub struct TaskControlBlock {
     stack_pointer: VirtAddr,
     cr3: (PhysFrame, Cr3Flags),
     next_task: Weak<Mutex<TaskControlBlock>>,
-    stack: Option<SlabStack>,
+    pub stack: Option<SlabStack>,
     dealloc: Option<PtrOrdArc<Mutex<TaskControlBlock>>>,
-    fn_name: Cow<'static, str>,
-    process_info: Option<ProcessInfo>,
+    pub fn_name: Cow<'static, str>,
+    pub process_info: Option<ProcessInfo>,
 }
 
 static TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::new(|| {
@@ -50,6 +50,10 @@ static TASKS: Lazy<Mutex<BTreeSet<PtrOrdArc<Mutex<TaskControlBlock>>>>> = Lazy::
 
 static CURRENT_TASK: Lazy<Mutex<PtrOrdArc<Mutex<TaskControlBlock>>>> =
     Lazy::new(|| Mutex::new(TASKS.lock().first().unwrap().clone()));
+
+pub fn get_current_task() -> PtrOrdArc<Mutex<TaskControlBlock>> {
+    CURRENT_TASK.lock().clone()
+}
 
 /// # Safety
 /// Interrupts must be disabled when calling this function

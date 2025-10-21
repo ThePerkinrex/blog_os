@@ -8,14 +8,14 @@ use x86_64::{
 
 use crate::{memory::pages::VirtRegionAllocator, println};
 
-const STACK_PAGES: usize = 4; // 4KiB * 4 = 16KiB stacks
+const STACK_PAGES: usize = 8; // 4KiB * 8 = 32KiB stacks
 
 type SlabBitmapBase = u64;
 
 const SLAB_BITMAP_ENTRIES: usize = 4;
 const ENTRY_BITS: usize = SlabBitmapBase::BITS as usize;
 const SLAB_STACKS: usize = ENTRY_BITS * SLAB_BITMAP_ENTRIES; // 64 * 4 = 256
-const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 16KiB = 4MiB
+const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 32KiB = 8MiB
 
 // const KERNEL_STACK_REGION_START: VirtAddr = VirtAddr::new_truncate(0xFFFF_FE00_0000_0000);
 
@@ -138,9 +138,7 @@ pub struct StackAlloc {
 }
 
 impl StackAlloc {
-    pub fn new<const CAP: usize, S: PageSize>(
-        region_alloc: &mut VirtRegionAllocator<CAP, S>,
-    ) -> Self {
+    pub fn new<const CAP: usize>(region_alloc: &mut VirtRegionAllocator<CAP, Size4KiB>) -> Self {
         let region_start = region_alloc
             .alloc_pages(SLAB_PAGES)
             .expect("Available space for all entries");
@@ -209,4 +207,55 @@ impl StackAlloc {
         }
         self.set_stack_status(stack.idx, false); // Allow this range to be used again
     }
+
+    pub fn detect_guard_page_access(
+        &self,
+        accessed: VirtAddr,
+        current_stack: &SlabStack,
+    ) -> GuardPageInfo {
+        let region_start_page = Page::<Size4KiB>::containing_address(self.region_start);
+        let region_end_page = region_start_page + SLAB_PAGES as u64;
+        if region_start_page.start_address() <= accessed
+            && region_end_page.start_address() > accessed
+        {
+            let page_off = current_stack.idx * STACK_PAGES;
+            let stack_bottom = self.region_start + (page_off as u64) * Size4KiB::SIZE;
+            if stack_bottom <= accessed {
+                let guard_page = Page::<Size4KiB>::containing_address(stack_bottom);
+
+                if accessed < guard_page.start_address() + guard_page.size() {
+                    GuardPageInfo::CurrentStackOverflow
+                } else {
+                    GuardPageInfo::CurrentStack
+                }
+            } else {
+                let stack_aligned = accessed.align_down(Size4KiB::SIZE * STACK_PAGES as u64);
+                let stack_offset = stack_aligned - self.region_start;
+                let stack_idx = stack_offset as usize / STACK_PAGES;
+
+                let status = self.get_stack_status(stack_idx);
+
+                let page_off = stack_idx as u64 * STACK_PAGES as u64;
+                let stack_bottom = self.region_start + page_off * Size4KiB::SIZE;
+
+                let guard_page = Page::<Size4KiB>::containing_address(stack_bottom);
+
+                if accessed < guard_page.start_address() + guard_page.size() {
+                    GuardPageInfo::OtherGuardPage(stack_idx, status)
+                } else {
+                    GuardPageInfo::OtherStack(stack_idx, status)
+                }
+            }
+        } else {
+            GuardPageInfo::Unknown
+        }
+    }
+}
+
+pub enum GuardPageInfo {
+    CurrentStackOverflow,
+    CurrentStack,
+    OtherGuardPage(usize, bool),
+    OtherStack(usize, bool),
+    Unknown,
 }

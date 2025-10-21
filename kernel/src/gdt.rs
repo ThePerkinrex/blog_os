@@ -12,6 +12,7 @@ use x86_64::{
 use crate::{println, stack::SlabStack};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
+pub const PAGE_FAULT_IST_INDEX: u16 = DOUBLE_FAULT_IST_INDEX;
 
 static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
@@ -92,6 +93,7 @@ pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
     println!("Setting guarded stacks for TSS");
     println!(" - ESP0 = {:p}", esp0.top());
     println!(" - IST_DF = {:p}", ist_df.top());
+    println!(" - IST_PF = {:p}", ist_df.top());
 
     let tss_mut = unsafe { TSS.as_mut_ptr().as_mut() }.unwrap();
     tss_mut.privilege_stack_table[0] = esp0.top();

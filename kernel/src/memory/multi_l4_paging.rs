@@ -76,8 +76,15 @@ impl PageTables {
         println!("Getting a pointer to the frame virtaddr({page_addr:p})");
         let page_table = unsafe { page_addr.as_mut_ptr::<PageTable>().as_mut() }.unwrap();
         *page_table = PageTable::new(); // initialize it
+        println!("Initialized current p4 table here -> virtaddr({page_addr:p})");
+        for (a, b) in page_table
+            .iter_mut()
+            .zip(self.current.level_4_table().iter())
+            .skip(KERNEL_P4_START as usize)
+        {
+            *a = b.clone();
+        }
         println!("Copied current p4 table here -> virtaddr({page_addr:p})");
-        page_table.clone_from(self.current.level_4_table());
 
         let idx = self.l4_tables.len();
         self.l4_tables.push(page_addr);

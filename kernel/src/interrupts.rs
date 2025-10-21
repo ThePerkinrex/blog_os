@@ -7,7 +7,8 @@ use x86_64::{
 };
 
 use crate::{
-    gdt, hlt_loop, interrupts, print, println, process::get_process_kernel_stack_top, test_return,
+    KERNEL_INFO, gdt, hlt_loop, interrupts, multitask, print, println,
+    process::get_process_kernel_stack_top, test_return,
 };
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -84,9 +85,10 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     let mut idt = InterruptDescriptorTable::new();
     idt.breakpoint.set_handler_fn(breakpoint_handler);
     idt.page_fault.set_handler_fn(page_fault_handler);
-    idt.general_protection_fault
-        .set_handler_fn(general_protection_fault_handler);
     unsafe {
+        idt.general_protection_fault
+            .set_handler_fn(general_protection_fault_handler)
+            .set_stack_index(gdt::PAGE_FAULT_IST_INDEX);
         idt.double_fault
             .set_handler_fn(double_fault_handler)
             .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX); // new
@@ -303,10 +305,47 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
+    let current_task = multitask::get_current_task();
+    let current_task = current_task.lock();
+
+    let addr = Cr2::read();
+
     println!("EXCEPTION: PAGE FAULT");
-    println!("Accessed Address: {:?}", Cr2::read());
+    println!("Current task: {:?}", current_task.fn_name);
+    println!("Current stack: {:?}", current_task.stack);
+    if let Ok(addr) = addr
+        && let Some(s) = &current_task.stack
+    {
+        let kinf = KERNEL_INFO.get().unwrap();
+        if kinf.is_locked() {
+            unsafe {
+                kinf.force_unlock();
+            }
+        }
+        // CRITICAL SITUATION, not going back
+        match kinf.lock().stack_alloc.detect_guard_page_access(addr, s) {
+            crate::stack::GuardPageInfo::CurrentStackOverflow => {
+                println!("[KSTACKS] Current stack overflow")
+            }
+            crate::stack::GuardPageInfo::CurrentStack => println!("[KSTACKS] Current stack access"),
+            crate::stack::GuardPageInfo::OtherGuardPage(idx, alloc) => {
+                println!("[KSTACKS] Other stack overflow (idx: {idx}, alloc: {alloc})")
+            }
+            crate::stack::GuardPageInfo::OtherStack(idx, alloc) => {
+                println!("[KSTACKS] Other stack access (idx: {idx}, alloc: {alloc})")
+            }
+            crate::stack::GuardPageInfo::Unknown => println!("[KSTACKS] Unknown access"),
+        }
+    } else {
+        println!(
+            "[KSTACKS] Addr was err or stack was not present: {addr:?}, {:?}",
+            current_task.stack
+        )
+    }
+    println!("Accessed Address: {:?}", addr);
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
+    drop(current_task);
     hlt_loop();
 }
 
