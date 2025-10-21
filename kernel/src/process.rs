@@ -3,7 +3,13 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use alloc::sync::Arc;
 
 use crate::{
-    elf::{load_elf, LoadedProgram}, gdt::get_esp0_stack_top, multitask::{change_current_process_info, set_current_process_info}, println, priviledge::jmp_to_usermode, stack::SlabStack, KERNEL_INFO
+    KERNEL_INFO,
+    elf::{LoadedProgram, load_elf},
+    gdt::get_esp0_stack_top,
+    multitask::{change_current_process_info, set_current_process_info},
+    println,
+    priviledge::jmp_to_usermode,
+    stack::SlabStack,
 };
 
 #[derive(Debug, Clone)]
