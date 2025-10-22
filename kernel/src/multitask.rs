@@ -100,6 +100,9 @@ unsafe fn task_switch() {
     unsafe {
         __switch_asm(cur_sp_ptr, next_sp_ptr);
     }
+
+    println!("Current sp: {cur_sp_ptr:p}");
+    println!("Next sp: {next_sp_ptr:p}");
     // after the asm returns, execution continues in the context of the next task.
 }
 
