@@ -6,7 +6,8 @@ CARGO_MAKE_WORKSPACE_EMULATION = false
 [tasks.copy-bin]
 condition = { files_modified = { input = ["../userspace/bin/*"], output = ["./src/progs/*"]}}
 dependencies = [{name = "bin", path = "../userspace"}]
-script = "cp ../userspace/bin/* ./src/progs/"
+script_runner = "@duckscript"
+script = "glob_cp ../userspace/bin/* ./src/progs/"
 # args = ["../userspace/bin/*", "./src/progs/"]
 
 [tasks.build-base]

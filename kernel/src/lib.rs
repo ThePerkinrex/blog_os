@@ -33,6 +33,7 @@ pub mod priviledge;
 pub mod process;
 pub mod stack;
 pub mod util;
+pub mod unwind;
 
 pub struct SetupInfo {
     /// The version of the `bootloader_api` crate. Must match the `bootloader` version.

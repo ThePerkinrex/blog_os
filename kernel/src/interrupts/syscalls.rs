@@ -1,6 +1,6 @@
 use crate::{
     multitask::{self, task_switch_safe},
-    println,
+    println, unwind,
 };
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
@@ -26,6 +26,7 @@ pub fn syscall_handle(
     arg5: u64,
     arg6: u64,
 ) -> u64 {
+    unwind::get_backtrace();
     if code < SYSCALL_HANDLERS.len() as u64 {
         SYSCALL_HANDLERS[code as usize](arg1, arg2, arg3, arg4, arg5, arg6)
     } else {

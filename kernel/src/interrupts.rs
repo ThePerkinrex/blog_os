@@ -105,7 +105,7 @@ pub fn init_idt() {
     IDT.load();
 }
 
-const SAVED_REG_COUNT: u64 = 11; // RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
+const SAVED_REG_COUNT: u64 = 13; // RBP ONE RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
 const SAVED_BYTES: u64 = SAVED_REG_COUNT * core::mem::size_of::<u64>() as u64;
 const IRET_FRAME_BYTES: u64 = 5 * core::mem::size_of::<u64>() as u64; // SS, RSP, RFLAGS, CS, RIP
 const TOTAL_FRAME_BYTES: u64 = SAVED_BYTES + IRET_FRAME_BYTES; // 15 * 8 = 120 bytes (0x78)
@@ -115,6 +115,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
     core::arch::naked_asm!(
         "
         // Save caller-saved registers
+        push rbp
+        push {one}
         push rcx
         push rdx
         push rsi
@@ -149,6 +151,12 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
 
         // Perform the copy (13 QWords = 104 bytes)
         rep movsq             // Copy the entire stack frame and saved regs to the new stack
+
+        
+        mov rbp,rsp
+        add rbp,{frame_size}
+        sub rbp,16
+        mov [rbp],rbp
 
         // The stack is now the Task Kernel Stack and perfectly aligned.
         pop rax
@@ -196,6 +204,9 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         // pop rsi
         // pop rdx
         // pop rcx
+        // sub rsp,8
+        // pop rbp
+
 
         // // Return from interrupt — RAX still holds the return value from test_handler()
         // iretq
@@ -207,6 +218,7 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         naked_syscall_tail = sym naked_syscall_tail,
         kernel_selector = sym gdt::kernel_code_selector,
         zero = const 0u64,
+        one = const 1u64
     );
 }
 
@@ -228,6 +240,8 @@ extern "C" fn naked_syscall_tail() {
         pop rsi
         pop rdx
         pop rcx
+        add rsp,8
+        pop rbp
 
         // Return from interrupt — RAX still holds the return value from test_handler()
         iretq
