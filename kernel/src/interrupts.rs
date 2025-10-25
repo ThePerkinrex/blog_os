@@ -154,9 +154,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
 
         
         mov rbp,rsp
-        add rbp,{frame_size}
-        sub rbp,16
-        mov [rbp],rbp
+        add rbp,{saved_bytes}
+        sub rbp,24
 
         // The stack is now the Task Kernel Stack and perfectly aligned.
         pop rax
@@ -214,6 +213,7 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         handler = sym int_80_handler,
         get_stack_top = sym get_process_kernel_stack_top,
         frame_size = const TOTAL_FRAME_BYTES,
+        saved_bytes = const SAVED_BYTES,
         qword_count = const (TOTAL_FRAME_BYTES / 8),
         naked_syscall_tail = sym naked_syscall_tail,
         kernel_selector = sym gdt::kernel_code_selector,
