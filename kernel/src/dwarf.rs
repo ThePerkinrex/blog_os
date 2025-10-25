@@ -1,9 +1,10 @@
-use gimli::{EndianSlice, SectionId};
+use gimli::SectionId;
 use object::read::elf::SectionHeader;
 
 use crate::setup::KernelElfFile;
 
-pub type Dwarf = gimli::Dwarf<EndianSlice<'static, gimli::LittleEndian>>;
+pub type EndianSlice = gimli::EndianSlice<'static, gimli::LittleEndian>;
+pub type Dwarf = gimli::Dwarf<EndianSlice>;
 
 #[derive(Debug)]
 pub enum LoadError {
@@ -17,7 +18,7 @@ impl From<object::read::Error> for LoadError {
 	}
 }
 
-fn dwarf_loader(elf: &KernelElfFile) -> impl FnMut(SectionId) -> Result<EndianSlice<'static, gimli::LittleEndian>, LoadError> {
+fn dwarf_loader(elf: &KernelElfFile) -> impl FnMut(SectionId) -> Result<EndianSlice, LoadError> {
 	|s| {
 		let (_, hdr) = elf
             .elf_section_table()

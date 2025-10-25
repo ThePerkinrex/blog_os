@@ -1,11 +1,20 @@
+use addr2line::Context;
+use alloc::sync::Arc;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use spin::{Mutex, Once};
 use x86_64::VirtAddr;
 
 use crate::{
-    allocator, dwarf::{load_dwarf, Dwarf, LoadError}, elf::SystemElf, gdt, interrupts, io, memory::{
-        self, multi_l4_paging::PageTables, pages::VirtRegionAllocator, BootInfoFrameAllocator
-    }, multitask, println, stack::{self, SlabStack, StackAlloc}, unwind::eh::EhInfo
+    allocator,
+    dwarf::{Dwarf, EndianSlice, LoadError, load_dwarf},
+    elf::SystemElf,
+    gdt, interrupts, io,
+    memory::{
+        self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
+    },
+    multitask, println,
+    stack::{self, SlabStack, StackAlloc},
+    unwind::eh::EhInfo,
 };
 
 pub type KernelElfFile = SystemElf<'static>;
@@ -27,8 +36,10 @@ impl MutableKernelInfo {
     /// # Safety
     /// The stack shouldn't be used, and the pages used up by it should be unmappable
     pub unsafe fn free_stack(&mut self, stack: SlabStack) {
-        unsafe { self.stack_alloc
-					.free_stack(stack, &mut self.page_table, &mut self.frame_allocator) }
+        unsafe {
+            self.stack_alloc
+                .free_stack(stack, &mut self.page_table, &mut self.frame_allocator)
+        }
     }
 
     pub fn create_p4_table_and_switch(&mut self) {
@@ -79,8 +90,8 @@ pub struct KernelInfo {
     /// Virtual address of the loaded kernel image.
     pub kernel_image_offset: u64,
     pub kernel_elf: KernelElfFile,
-	pub eh_info: Option<EhInfo>,
-	pub dwarf: Result<Dwarf, LoadError>,
+    pub eh_info: Option<EhInfo>,
+    pub addr2line: Option<Mutex<Context<EndianSlice>>>,
 
     pub mutable: Mutex<MutableKernelInfo>,
 }
@@ -156,11 +167,21 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     let kernel_elf = KernelElfFile::parse(kernel_elf_slice).expect("A valid kernel ELF");
 
     let eh_info = EhInfo::from_elf(&kernel_elf);
-	let dwarf = load_dwarf(&kernel_elf);
+    let dwarf = load_dwarf(&kernel_elf);
 
-	if let Err(e) = dwarf.as_ref() {
-		println!("[WARN] Dwarf error: {e:?}")
-	}
+    if eh_info.is_none() {
+        println!("[WARN] No eh_info");
+    }
+
+    let addr2line = dwarf
+        .inspect_err(|e| println!("[WARN] Dwarf error: {e:?}"))
+        .ok()
+        .and_then(|x| {
+            Context::from_dwarf(x)
+                .inspect_err(|e| println!("[WARN] addr2line error: {e:?}"))
+                .ok()
+        })
+        .map(Mutex::new);
 
     let setup_info = KernelInfo {
         kernel_addr: boot_info.kernel_addr,
@@ -175,8 +196,8 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         kernel_len: boot_info.kernel_len,
         kernel_image_offset: boot_info.kernel_image_offset,
         kernel_elf,
-		eh_info,
-		dwarf,
+        eh_info,
+        addr2line,
         mutable: Mutex::new(MutableKernelInfo {
             page_table: PageTables::new(page_table),
             frame_allocator,

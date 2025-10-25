@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
 use gimli::{CfaRule, EndianSlice, LittleEndian, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection, UnwindTableRow};
+use spin::Mutex;
 
-use crate::{println, setup::KERNEL_INFO, unwind::{eh::EhInfo, register::RegisterSet}};
+use crate::{print, println, setup::KERNEL_INFO, unwind::{eh::EhInfo, register::RegisterSet}};
 
 pub mod eh;
 mod register;
@@ -113,7 +114,8 @@ impl<'a> Unwinder<'a> {
 
 
 pub fn backtrace() {
-    if let Some(eh_info) = KERNEL_INFO.get().unwrap().eh_info.as_ref() {
+    let kinf = KERNEL_INFO.get().unwrap();
+    if let Some(eh_info) = kinf.eh_info.as_ref() {
         let aprox_pc: u64;
         unsafe {
             core::arch::asm!("lea {reg}, [rip]", reg = lateout(reg) aprox_pc, options(nomem,nostack));
@@ -124,7 +126,30 @@ pub fn backtrace() {
         loop {
             match unwind.next() {
                 Ok(Some(frame)) => {
-                    println!("Unwind frame: {:x}", frame.pc)
+                    let elf_addr = frame.pc - kinf.kernel_image_offset;
+                    let lock = kinf.addr2line.as_ref().map(Mutex::lock);
+                    let location = lock.as_ref().map(|x| x.find_location(elf_addr)).transpose().map(Option::flatten);
+                    let location = location.inspect_err(|e| println!("[WARN] No location information: {e}")).ok().flatten();
+                    print!("Unwind frame: {:x} ({:x}) ", frame.pc, elf_addr);
+                    if let Some(location) = location {
+                        if let Some(file) = location.file {
+                            print!("{file}:")
+                        }else{
+                            print!("<unknown file>:")
+                        }
+                        if let Some(line) = location.line {
+                            print!("{line}:")
+                        }else{
+                            print!("<unknown line>:")
+                        }
+                        if let Some(column) = location.column {
+                            print!("{column}")
+                        }else{
+                            print!("<unknown column>")
+                        }
+                    }
+                    println!("<unknown>")
+
                 }
                 Ok(None) => {
                     println!("No stack frame");
