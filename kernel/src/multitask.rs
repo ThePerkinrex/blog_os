@@ -1,4 +1,4 @@
-use core::{arch::naked_asm, ops::DerefMut, ptr};
+use core::{arch::naked_asm, ptr};
 
 use alloc::{
     borrow::Cow,
@@ -158,7 +158,6 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
     let stack = KERNEL_INFO
         .get()
         .unwrap()
-        .lock()
         .create_stack()
         .expect("A stack");
     // // === 1) Allocate a stack ===
@@ -311,13 +310,10 @@ extern "C" fn task_dealloc() {
                 }
 
                 if let Some(stack) = dealloc_task_lock.stack.take() {
-                    let mut info = KERNEL_INFO.get().unwrap().lock();
-                    let info = info.deref_mut();
+                    let info = KERNEL_INFO.get().unwrap();
                     unsafe {
-                        info.stack_alloc.free_stack(
+                        info.free_stack(
                             stack,
-                            &mut info.page_table,
-                            &mut info.frame_allocator,
                         );
                     }
                 }

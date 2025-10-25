@@ -26,7 +26,7 @@ pub fn syscall_handle(
     arg5: u64,
     arg6: u64,
 ) -> u64 {
-    unwind::get_backtrace();
+    unwind::backtrace();
     if code < SYSCALL_HANDLERS.len() as u64 {
         SYSCALL_HANDLERS[code as usize](arg1, arg2, arg3, arg4, arg5, arg6)
     } else {

@@ -13,7 +13,7 @@ use blog_os_kernel::{panic_handler, setup};
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     use blog_os_kernel::hlt_loop;
 
-    setup(boot_info);
+    setup::setup(boot_info);
 
     test_main();
     hlt_loop();
@@ -22,7 +22,7 @@ pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! 
 #[cfg(not(test))]
 pub fn kernel_entrypoint(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     use blog_os_kernel::kernel_main;
-    setup(boot_info);
+    setup::setup(boot_info);
 
     kernel_main()
 }

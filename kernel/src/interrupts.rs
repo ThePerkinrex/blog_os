@@ -7,7 +7,7 @@ use x86_64::{
 };
 
 use crate::{
-    KERNEL_INFO, gdt, hlt_loop, interrupts, multitask, print, println,
+    setup::KERNEL_INFO, gdt, hlt_loop, interrupts, multitask, print, println,
     process::get_process_kernel_stack_top, test_return,
 };
 
@@ -330,6 +330,7 @@ extern "x86-interrupt" fn page_fault_handler(
     if let Ok(addr) = addr {
         if let Some(s) = &current_task.stack {
             let kinf = KERNEL_INFO.get().unwrap();
+            let kinf = &kinf.mutable;
             if kinf.is_locked() {
                 unsafe {
                     kinf.force_unlock();

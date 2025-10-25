@@ -32,7 +32,6 @@ impl ProcessInfo {
             KERNEL_INFO
                 .get()
                 .unwrap()
-                .lock()
                 .create_p4_table_and_switch();
 
             println!("CR3: {:?}", x86_64::registers::control::Cr3::read());
@@ -59,7 +58,6 @@ impl ProcessInfo {
             let stack = KERNEL_INFO
                 .get()
                 .unwrap()
-                .lock()
                 .create_stack()
                 .expect("A stack");
             println!("Created a new stack for the process: {stack:?}");
