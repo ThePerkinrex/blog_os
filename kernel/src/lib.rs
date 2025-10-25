@@ -16,9 +16,7 @@ use spin::{Mutex, Once};
 use x86_64::{VirtAddr, structures::paging::Translate};
 
 use crate::{
-    memory::{BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator},
-    process::ProcessInfo,
-    stack::StackAlloc,
+    eh::EhInfo, elf::SystemElf, memory::{multi_l4_paging::PageTables, pages::VirtRegionAllocator, BootInfoFrameAllocator}, process::ProcessInfo, stack::StackAlloc
 };
 
 pub mod allocator;
@@ -34,6 +32,9 @@ pub mod process;
 pub mod stack;
 pub mod util;
 pub mod unwind;
+pub mod eh;
+
+pub type KernelElfFile = SystemElf<'static>;
 
 pub struct SetupInfo {
     /// The version of the `bootloader_api` crate. Must match the `bootloader` version.
@@ -76,6 +77,7 @@ pub struct SetupInfo {
     pub kernel_len: u64,
     /// Virtual address of the loaded kernel image.
     pub kernel_image_offset: u64,
+    pub kernel_elf: KernelElfFile,
     // The kernel page tables
     pub page_table: PageTables,
     pub frame_allocator: BootInfoFrameAllocator,
@@ -107,6 +109,10 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     io::serial::init();
     interrupts::init_pics();
 
+    println!("Kernel offset: {:x}", boot_info.kernel_image_offset);
+    println!("Kernel physaddr: {:x}", boot_info.kernel_addr);
+    println!("Kernel size: {:x}", boot_info.kernel_len);
+
     println!("Minimum init done. Setting up memory");
 
     let physical_memory_offset = VirtAddr::new(
@@ -137,6 +143,12 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
 
     gdt::set_tss_guarded_stacks(esp0, ist_df);
 
+    let kernel_elf_slice = unsafe { core::slice::from_raw_parts::<'static, _>((physical_memory_offset + boot_info.kernel_addr).as_ptr::<u8>(), boot_info.kernel_len as usize) };
+    let kernel_elf = KernelElfFile::parse(kernel_elf_slice).expect("A valid kernel ELF");
+
+    let eh_info = EhInfo::from_elf(&kernel_elf);
+
+
     let setup_info = SetupInfo {
         kernel_addr: boot_info.kernel_addr,
         api_version: boot_info.api_version,
@@ -149,6 +161,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         ramdisk_len: boot_info.ramdisk_len,
         kernel_len: boot_info.kernel_len,
         kernel_image_offset: boot_info.kernel_image_offset,
+        kernel_elf,
         page_table: PageTables::new(page_table),
         frame_allocator,
         virt_region_allocator,

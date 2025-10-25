@@ -25,6 +25,8 @@ struct Args {
     gdb: bool,
     #[arg(env = "NO_START_GDB", long)]
     no_start_gdb: bool,
+    #[arg(env = "NO_DISPLAY", long)]
+    no_display: bool,
 }
 
 fn get_env_target_dir() -> Option<PathBuf> {
@@ -133,7 +135,7 @@ fn main() {
 
         cmd.arg("-serial").arg("stdio");
 
-        if is_test {
+        if is_test || (args.no_display && (!args.gdb || args.no_start_gdb)) {
             cmd.arg("-display").arg("none");
         } else {
             #[cfg(target_os = "linux")]

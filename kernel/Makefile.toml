@@ -7,7 +7,15 @@ CARGO_MAKE_WORKSPACE_EMULATION = false
 condition = { files_modified = { input = ["../userspace/bin/*"], output = ["./src/progs/*"]}}
 dependencies = [{name = "bin", path = "../userspace"}]
 script_runner = "@duckscript"
-script = "glob_cp ../userspace/bin/* ./src/progs/"
+#"glob_cp ../userspace/bin/* ./src/progs"
+script = '''
+arr = glob_array ../userspace/bin/*
+for bin in ${arr}
+	name = basename ${bin}
+	echo cp ${bin} ./src/progs/${name}
+	cp ${bin} ./src/progs/${name}
+end
+'''
 # args = ["../userspace/bin/*", "./src/progs/"]
 
 [tasks.build-base]

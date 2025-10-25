@@ -16,6 +16,7 @@ pc-keyboard = "0.8.0"
 talc = "4.4.3"
 object = { version = "0.37.3", default-features = false, features = ["read_core", "elf", "core", "alloc"] }
 bitflags = "2.9.4"
+gimli = {version = "0.32.3", default-features = false, features = ["read", "rustc-dep-of-std", "fallible-iterator", "endian-reader"]}
 
 [[bin]]
 name = "blog_os_kernel"

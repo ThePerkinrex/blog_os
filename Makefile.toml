@@ -13,6 +13,9 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
 [env.gdb]
 GDB_LISTEN = true
 
+[env.no_display]
+NO_DISPLAY = true
+
 [tasks.run]
 workspace = false
 description = "Run the kernel"
