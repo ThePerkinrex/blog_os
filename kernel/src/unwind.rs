@@ -34,6 +34,7 @@ impl UnwindContextStorage<usize> for ContextStore {
 
 pub struct Unwinder<'a> {
     eh_info: &'a EhInfo,
+    offset: u64,
 
     /// A `UnwindContext` needed by Gimli for optimizations.
     unwind_ctx: UnwindContext<usize, ContextStore>,
@@ -52,6 +53,7 @@ pub struct Unwinder<'a> {
 impl<'a> Unwinder<'a> {
     fn new(
         eh_info: &'a EhInfo,
+        offset: u64,
         register_set: RegisterSet,
     ) -> Self {
         Self {
@@ -60,6 +62,7 @@ impl<'a> Unwinder<'a> {
             regs: register_set,
             cfa: 0,
             is_first: true,
+            offset
         }
     }
 
@@ -78,7 +81,10 @@ impl<'a> Unwinder<'a> {
             &mut self.unwind_ctx,
             pc,
             |section, bases, offset| section.cie_from_offset(bases, offset),
-        ).map_err(|_| UnwinderError::NoUnwindInfo)?;
+        ).map_err(|e| {
+            println!("Unwind error: {e}");
+            UnwinderError::NoUnwindInfo
+        })?;
 
         match row.cfa() {
             CfaRule::RegisterAndOffset { register, offset } => {
@@ -117,11 +123,17 @@ pub fn backtrace() {
     let kinf = KERNEL_INFO.get().unwrap();
     if let Some(eh_info) = kinf.eh_info.as_ref() {
         let aprox_pc: u64;
+        let sp: u64;
         unsafe {
-            core::arch::asm!("lea {reg}, [rip]", reg = lateout(reg) aprox_pc, options(nomem,nostack));
+            core::arch::asm!("
+            lea {pc}, [rip]
+            mov {sp}, rsp
+            ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, options(nomem,nostack));
         }
         println!("Current pc: {aprox_pc:x}");
-        let mut unwind = Unwinder::new(eh_info, RegisterSet::new(aprox_pc));
+        let mut register_set = RegisterSet::new(aprox_pc);
+        register_set.set_stack_ptr(sp);
+        let mut unwind = Unwinder::new(eh_info, kinf.kernel_image_offset, register_set);
         println!("Created unwinder");
         loop {
             match unwind.next() {

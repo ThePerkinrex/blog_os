@@ -1,4 +1,4 @@
-use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
+use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr, UnwindSection};
 use object::
     read::elf::SectionHeader
 ;
@@ -18,7 +18,7 @@ pub struct EhInfo {
 }
 
 impl EhInfo {
-    pub fn from_elf(elf: &KernelElfFile) -> Option<Self> {
+    pub fn from_elf(elf: &KernelElfFile, kernel_image_offset: u64) -> Option<Self> {
         let eh_frame_hdr_sect = elf
             .elf_section_table()
             .section_by_name(object::LittleEndian, b".eh_frame_hdr")?;
@@ -40,8 +40,34 @@ impl EhInfo {
         println!("eh_frame: {eh_frame:?}");
 
         let base_addrs = BaseAddresses::default().set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64).set_eh_frame(eh_frame.as_ptr() as u64);
+
+        println!("Base addresses: {base_addrs:?}");
+
+
+        let eh_frame_hdr_va = eh_frame_hdr_sect.1.sh_addr.get(object::LittleEndian);
+        let eh_frame_va     = eh_frame_sect.1.sh_addr.get(object::LittleEndian);
+
+         let base_addrs = BaseAddresses::default()
+            // add the runtime kernel image offset (where the ELF is actually loaded)
+            .set_eh_frame_hdr(eh_frame_hdr_va + kernel_image_offset)
+            .set_eh_frame(eh_frame_va + kernel_image_offset)
+            // optionally set a text base too (helps some lookups)
+            .set_text(kernel_image_offset);
+
+        
+        println!("New addresses: {base_addrs:?}");
+
 		let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian).parse(&base_addrs, 8).expect("Correct hdr");
 		let eh_frame = EhFrame::new(eh_frame, LittleEndian);
+
+        let table = hdr.table().unwrap();
+        let mut i = table.iter(&base_addrs);
+        while let Some(x) = i.next().transpose() {
+            
+            println!("Lookup ({}): {x:?}", 0x80000bb989u64);
+        }
+        panic!();
+
 
         Some(Self { base_addrs, hdr, eh_frame })
     }
