@@ -7,8 +7,10 @@ use x86_64::structures::paging::{
 use crate::memory::pages::VirtRegionAllocator;
 
 // pub const HEAP_START: u64 = 0x_4444_4444_0000;
-pub const HEAP_PAGES: u64 = 20;
-pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 100 KiB
+pub const HEAP_PAGES: u64 = 4096;
+pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 16 MiB
+
+// TODO grow on oom
 
 pub fn init_heap<const CAP: usize>(
     mapper: &mut impl Mapper<Size4KiB>,

@@ -155,12 +155,14 @@ pub fn backtrace() {
                             print!("<unknown line>:")
                         }
                         if let Some(column) = location.column {
-                            print!("{column}")
+                            println!("{column}")
                         }else{
-                            print!("<unknown column>")
+                            println!("<unknown column>")
                         }
+                    }else {
+                        println!("<unknown>")
+
                     }
-                    println!("<unknown>")
 
                 }
                 Ok(None) => {

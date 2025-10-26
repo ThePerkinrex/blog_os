@@ -167,11 +167,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     let kernel_elf = KernelElfFile::parse(kernel_elf_slice).expect("A valid kernel ELF");
 
     let eh_info = EhInfo::from_elf(&kernel_elf, boot_info.kernel_image_offset);
-    let dwarf = load_dwarf(&kernel_elf);
-
     if eh_info.is_none() {
         println!("[WARN] No eh_info");
+    }else{
+        println!("[INFO] Loaded eh_info");
     }
+    let dwarf = load_dwarf(&kernel_elf);
+    println!("[INFO] attempted to load DWARF");
+    
 
     let addr2line = dwarf
         .inspect_err(|e| println!("[WARN] Dwarf error: {e:?}"))
