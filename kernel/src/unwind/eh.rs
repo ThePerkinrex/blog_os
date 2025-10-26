@@ -36,8 +36,8 @@ impl EhInfo {
             .1
             .data(object::LittleEndian, elf.data())
             .expect("eh_frame");
-        println!("eh_frame_hdr: {eh_frame_hdr:?}");
-        println!("eh_frame: {eh_frame:?}");
+        // println!("eh_frame_hdr: {eh_frame_hdr:?}");
+        // println!("eh_frame: {eh_frame:?}");
 
         let base_addrs = BaseAddresses::default().set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64).set_eh_frame(eh_frame.as_ptr() as u64);
 
@@ -60,13 +60,15 @@ impl EhInfo {
 		let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian).parse(&base_addrs, 8).expect("Correct hdr");
 		let eh_frame = EhFrame::new(eh_frame, LittleEndian);
 
-        let table = hdr.table().unwrap();
-        let mut i = table.iter(&base_addrs);
-        while let Some(x) = i.next().transpose() {
-            
-            println!("Lookup ({}): {x:?}", 0x80000bb989u64);
-        }
-        panic!();
+        // let table = hdr.table().unwrap();
+        // let mut i = table.iter(&base_addrs);
+        // while let Some(Ok((a,b))) = i.next().transpose() {
+        //     println!("Lookup ({:x}): {:x} -> {:x}", 0x80000bb989u64, a.pointer(), b.pointer());
+        // }
+        // panic!();
+
+        // let lookup = table.lookup(0x80000bb989u64, &base_addrs);
+        // panic!("{lookup:?}");
 
 
         Some(Self { base_addrs, hdr, eh_frame })

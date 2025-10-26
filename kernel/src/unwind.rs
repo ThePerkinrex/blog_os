@@ -91,7 +91,7 @@ impl<'a> Unwinder<'a> {
                 let reg_val = self.regs.get(*register)
                     .ok_or(UnwinderError::CfaRuleUnknownRegister(*register))?;
                 self.cfa = (reg_val as i64 + offset) as u64;
-                println!("Register and offset: {register:?}, {offset:x} = {:x}", self.cfa);
+                // println!("Register and offset: {register:?}, {offset:x} = {:x}", self.cfa);
             },
             _ => return Err(UnwinderError::UnsupportedCfaRule),
         }
@@ -102,7 +102,7 @@ impl<'a> Unwinder<'a> {
                 RegisterRule::SameValue => (),
                 RegisterRule::Offset(offset) => {
                     let ptr = (self.cfa as i64 + offset) as u64 as *const usize;
-                    println!("OFFSET: {:x} + {offset:x} = {ptr:p}", self.cfa);
+                    // println!("OFFSET: {:x} + {offset:x} = {ptr:p}", self.cfa);
                     self.regs.set(reg, unsafe { ptr.read() } as u64)?;
                 },
                 _ => return Err(UnwinderError::UnimplementedRegisterRule),
