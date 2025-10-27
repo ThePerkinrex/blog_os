@@ -139,7 +139,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     }
 
     let info = KERNEL_INFO.get().unwrap();
-    let mut info = info.mutable.lock();
+    let mut info = info.alloc_kinf.lock();
     let info = info.deref_mut();
     let mut highest_page: Option<Page> = None;
     let mut mapped_pages = BTreeMap::new();

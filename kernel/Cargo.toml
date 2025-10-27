@@ -20,6 +20,7 @@ gimli = {version = "0.32.3", default-features = false, features = ["read", "rust
 addr2line = { version = "0.25.1", default-features = false, features = ["rustc-demangle", "cpp_demangle", "fallible-iterator", "smallvec", "rustc-dep-of-std"] }
 lock_api = "0.4.14"
 uuid = { version = "1.18.1", default-features = false }
+smallvec = "1.15.1"
 
 [[bin]]
 name = "blog_os_kernel"

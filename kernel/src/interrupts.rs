@@ -330,14 +330,14 @@ extern "x86-interrupt" fn page_fault_handler(
     if let Ok(addr) = addr {
         if let Some(s) = &current_task.stack {
             let kinf = KERNEL_INFO.get().unwrap();
-            let kinf = &kinf.mutable;
-            if kinf.is_locked() {
+            let stack_alloc = &kinf.stack_alloc;
+            if stack_alloc.is_locked() {
                 unsafe {
-                    kinf.force_unlock();
+                    stack_alloc.force_unlock();
                 }
             }
             // CRITICAL SITUATION, not going back
-            match kinf.lock().stack_alloc.detect_guard_page_access(addr, s) {
+            match stack_alloc.lock().detect_guard_page_access(addr, s) {
                 crate::stack::GuardPageInfo::CurrentStackOverflow => {
                     println!("[KSTACKS] Current stack overflow")
                 }

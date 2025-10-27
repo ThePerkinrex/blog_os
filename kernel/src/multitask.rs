@@ -1,4 +1,4 @@
-use core::{arch::naked_asm, hash::Hash, ptr};
+use core::{arch::naked_asm, hash::Hash, ptr, sync::atomic::AtomicBool};
 
 use alloc::{
     borrow::Cow,
@@ -61,7 +61,10 @@ pub struct Context {
     pub process_info: Option<ProcessInfo>,
 }
 
+static INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock>>>> = Lazy::new(|| {
+    INITIALIZED.store(true, core::sync::atomic::Ordering::Release);
     #[allow(clippy::mutable_key_type)]
     let mut set = BTreeSet::new();
     set.insert(Arc::new_cyclic(|w| TaskControlBlock {
@@ -371,6 +374,13 @@ pub fn get_current_process_info() -> Option<ProcessInfo> {
     CURRENT_TASK.lock().context.lock().process_info.clone()
 }
 
-pub fn get_current_task_id() -> Uuid {
-    CURRENT_TASK.lock().id
+pub fn get_current_task_id() -> TaskId {
+    if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
+        Some(CURRENT_TASK.lock().id)
+    }else{
+        None
+    }
 }
+
+
+pub type TaskId = Option<Uuid>;

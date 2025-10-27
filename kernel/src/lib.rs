@@ -48,7 +48,7 @@ pub fn kernel_main() -> ! {
 
     for &address in &addresses {
         let setup_info = KERNEL_INFO.get().unwrap();
-        let setup_info = setup_info.mutable.lock();
+        let setup_info = setup_info.alloc_kinf.lock();
         let virt = VirtAddr::new(address);
         // new: use the `mapper.translate_addr` method
         let phys = setup_info.page_table.translate_addr(virt);

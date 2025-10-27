@@ -1,14 +1,13 @@
 use lock_api::{GuardSend, RawMutex};
-use uuid::Uuid;
 
-use crate::{multitask::get_current_task_id};
+use crate::{multitask::{TaskId, get_current_task_id}, println};
 
 pub struct ReentrantRawMutex {
     inner: spin::Mutex<ReentrantInner>,
 }
 
 struct ReentrantInner {
-    owner: Option<Uuid>,
+    owner: Option<TaskId>,
     depth: usize,
 }
 
@@ -53,7 +52,9 @@ unsafe impl RawMutex for ReentrantRawMutex {
 
 	/// Acquire the reentrant lock. Spins if another thread holds it.
     fn lock(&self) {
+		println!("[INFO][LOCK] Locking reentrant_lock");
         let me = get_current_task_id();
+		println!("[INFO][LOCK] For id {me:?}");
 
         loop {
             {

@@ -11,36 +11,22 @@ use crate::{
     memory::{
         self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
     },
-    multitask::{self, lock::ReentrantMutex}, println,
+    multitask::{self, lock::ReentrantMutex},
+    println,
     stack::{self, SlabStack, StackAlloc},
     unwind::eh::EhInfo,
 };
 
 pub type KernelElfFile = SystemElf<'static>;
 
-pub struct MutableKernelInfo {
+pub struct AllocKernelInfo {
     /// The kernel page tables
     pub page_table: PageTables,
     pub frame_allocator: BootInfoFrameAllocator,
     pub virt_region_allocator: VirtRegionAllocator<1>,
-    pub stack_alloc: StackAlloc,
 }
 
-impl MutableKernelInfo {
-    pub fn create_stack(&mut self) -> Option<stack::SlabStack> {
-        self.stack_alloc
-            .create_stack(&mut self.page_table, &mut self.frame_allocator)
-    }
-
-    /// # Safety
-    /// The stack shouldn't be used, and the pages used up by it should be unmappable
-    pub unsafe fn free_stack(&mut self, stack: SlabStack) {
-        unsafe {
-            self.stack_alloc
-                .free_stack(stack, &mut self.page_table, &mut self.frame_allocator)
-        }
-    }
-
+impl AllocKernelInfo {
     pub fn create_p4_table_and_switch(&mut self) {
         self.page_table
             .create_process_p4_and_switch(&mut self.frame_allocator);
@@ -92,26 +78,39 @@ pub struct KernelInfo {
     pub eh_info: Option<EhInfo>,
     pub addr2line: Option<ReentrantMutex<Context<EndianSlice>>>,
 
-    pub mutable: ReentrantMutex<MutableKernelInfo>,
+    pub alloc_kinf: &'static ReentrantMutex<AllocKernelInfo>,
+    pub stack_alloc: ReentrantMutex<StackAlloc>,
 }
 
 impl KernelInfo {
     pub fn create_stack(&self) -> Option<stack::SlabStack> {
-        self.mutable.lock().create_stack()
+        let mut lock = self.alloc_kinf.lock();
+        let alloc_kinf = &mut *lock;
+        let res = self.stack_alloc.lock()
+            .create_stack(&mut alloc_kinf.page_table, &mut alloc_kinf.frame_allocator);
+        drop(lock);
+        res
     }
 
     /// # Safety
     /// The stack shouldn't be used, and the pages used up by it should be unmappable
     pub unsafe fn free_stack(&self, stack: SlabStack) {
-        unsafe { self.mutable.lock().free_stack(stack) }
+        let mut lock = self.alloc_kinf.lock();
+        let alloc_kinf = &mut *lock;
+        unsafe {
+            self.stack_alloc.lock()
+                .free_stack(stack, &mut alloc_kinf.page_table, &mut alloc_kinf.frame_allocator)
+        }
+        drop(lock);
     }
 
     pub fn create_p4_table_and_switch(&self) {
-        self.mutable.lock().create_p4_table_and_switch();
+        self.alloc_kinf.lock().create_p4_table_and_switch();
     }
 }
 
 pub static KERNEL_INFO: Once<KernelInfo> = Once::new();
+static ALLOC_KINF: Once<ReentrantMutex<AllocKernelInfo>> = Once::new();
 
 pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     let layout = memory::pages::discover_layout(boot_info);
@@ -123,11 +122,11 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     io::serial::init();
     interrupts::init_pics();
 
-    println!("Kernel offset: {:x}", boot_info.kernel_image_offset);
-    println!("Kernel physaddr: {:x}", boot_info.kernel_addr);
-    println!("Kernel size: {:x}", boot_info.kernel_len);
+    println!("[INFO][SETUP] Kernel offset: {:x}", boot_info.kernel_image_offset);
+    println!("[INFO][SETUP] Kernel physaddr: {:x}", boot_info.kernel_addr);
+    println!("[INFO][SETUP] Kernel size: {:x}", boot_info.kernel_len);
 
-    println!("Minimum init done. Setting up memory");
+    println!("[INFO][SETUP] Minimum init done. Setting up memory");
 
     let physical_memory_offset = VirtAddr::new(
         *boot_info
@@ -135,27 +134,41 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
             .as_ref()
             .expect("Physical memory mapped"),
     );
-    let mut page_table = unsafe { memory::init_page_tables(physical_memory_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
-    println!("Initializing region allocator");
-    let mut virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
-    println!("Initializing heap");
-    allocator::init_heap(
-        &mut page_table,
-        &mut frame_allocator,
-        &mut virt_region_allocator,
-    )
-    .expect("initialized heap");
-    let mut stack_alloc = StackAlloc::new(&mut virt_region_allocator);
+    let page_table = unsafe { memory::init_page_tables(physical_memory_offset) };
+    let frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
+    println!("[INFO][SETUP] Initializing region allocator");
+    let virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
+    println!("[INFO][SETUP] Initialized region allocator");
+    
 
-    let esp0 = stack_alloc
-        .create_stack(&mut page_table, &mut frame_allocator)
-        .unwrap();
-    let ist_df = stack_alloc
-        .create_stack(&mut page_table, &mut frame_allocator)
-        .unwrap();
 
-    gdt::set_tss_guarded_stacks(esp0, ist_df);
+    let alloc_kinf = ALLOC_KINF.call_once(|| {
+        ReentrantMutex::new(AllocKernelInfo {
+            page_table: PageTables::new(page_table),
+            frame_allocator,
+            virt_region_allocator,
+        })
+    });
+    println!("[INFO][SETUP] Initializing heap");
+    allocator::init_heap(alloc_kinf).expect("initialized heap");
+    println!("[INFO][SETUP] Initialized heap");
+
+    let mut stack_alloc;
+
+    {
+        let mut lock = alloc_kinf.lock();
+        let locked = &mut *lock;
+
+        
+        stack_alloc = StackAlloc::new(&mut locked.virt_region_allocator);
+
+        let esp0 = stack_alloc.create_stack(&mut locked.page_table, &mut locked.frame_allocator).unwrap();
+        let ist_df = stack_alloc.create_stack(&mut locked.page_table, &mut locked.frame_allocator).unwrap();
+
+        drop(lock);
+
+        gdt::set_tss_guarded_stacks(esp0, ist_df);
+    }
 
     let kernel_elf_slice = unsafe {
         core::slice::from_raw_parts::<'static, _>(
@@ -168,12 +181,11 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     let eh_info = EhInfo::from_elf(&kernel_elf, boot_info.kernel_image_offset);
     if eh_info.is_none() {
         println!("[WARN] No eh_info");
-    }else{
+    } else {
         println!("[INFO] Loaded eh_info");
     }
     let dwarf = load_dwarf(&kernel_elf);
     println!("[INFO] attempted to load DWARF");
-    
 
     let addr2line = dwarf
         .inspect_err(|e| println!("[WARN] Dwarf error: {e:?}"))
@@ -200,12 +212,8 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         kernel_elf,
         eh_info,
         addr2line,
-        mutable: ReentrantMutex::new(MutableKernelInfo {
-            page_table: PageTables::new(page_table),
-            frame_allocator,
-            virt_region_allocator,
-            stack_alloc,
-        }),
+        alloc_kinf,
+        stack_alloc: ReentrantMutex::new(stack_alloc)
     };
     KERNEL_INFO.call_once(|| setup_info);
     multitask::init();

@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use smallvec::SmallVec;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -14,13 +15,13 @@ const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 pub struct PageTables {
     current: OffsetPageTable<'static>,
     current_idx: usize,
-    l4_tables: Vec<VirtAddr>,
+    l4_tables: SmallVec<[VirtAddr;1]>,
 }
 
 impl PageTables {
     pub fn new(current: OffsetPageTable<'static>) -> Self {
         Self {
-            l4_tables: alloc::vec![VirtAddr::from_ptr(current.level_4_table())],
+            l4_tables: smallvec::smallvec![VirtAddr::from_ptr(current.level_4_table())],
             current_idx: 0,
             current,
         }

@@ -50,6 +50,7 @@ dependencies = [
  "pc-keyboard",
  "pic8259",
  "qemu-common",
+ "smallvec",
  "spin",
  "talc",
  "uuid",

@@ -1,7 +1,5 @@
 use alloc::vec::Vec;
 use gimli::{CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection, UnwindTableRow};
-use lock_api::ReentrantMutex;
-use spin::Mutex;
 
 use crate::{print, println, setup::KERNEL_INFO, unwind::{eh::EhInfo, register::RegisterSet}};
 
@@ -164,6 +162,7 @@ pub fn backtrace() {
                         println!("<unknown>")
 
                     }
+                    drop(lock);
 
                 }
                 Ok(None) => {
