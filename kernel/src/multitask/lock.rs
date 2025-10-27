@@ -53,9 +53,9 @@ unsafe impl RawMutex for ReentrantRawMutex {
 
     /// Acquire the reentrant lock. Spins if another thread holds it.
     fn lock(&self) {
-        println!("[INFO][LOCK] Locking reentrant_lock");
+        // println!("[INFO][LOCK] Locking reentrant_lock");
         let me = get_current_task_id();
-        println!("[INFO][LOCK] For id {me:?}");
+        // println!("[INFO][LOCK] For id {me:?}");
 
         loop {
             {
@@ -110,9 +110,9 @@ unsafe impl RawMutex for ReentrantRawMutex {
     }
 
     unsafe fn unlock(&self) {
-        println!("[INFO][LOCK] Unlocking reentrant_lock");
+        // println!("[INFO][LOCK] Unlocking reentrant_lock");
         let me = get_current_task_id();
-        println!("[INFO][LOCK] For id {me:?}");
+        // println!("[INFO][LOCK] For id {me:?}");
         let mut guard = self.inner.lock();
         // must be owner
         debug_assert!(
@@ -124,7 +124,7 @@ unsafe impl RawMutex for ReentrantRawMutex {
         if guard.depth == 0 {
             guard.owner = None;
         }
-        println!("[INFO][LOCK] Unlocked depth: {}", guard.depth);
+        // println!("[INFO][LOCK] Unlocked depth: {}", guard.depth);
     }
 }
 

@@ -105,7 +105,7 @@ pub fn init_idt() {
     IDT.load();
 }
 
-const SAVED_REG_COUNT: u64 = 13; // RBP ONE RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
+const SAVED_REG_COUNT: u64 = 12; // RBP RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
 const SAVED_BYTES: u64 = SAVED_REG_COUNT * core::mem::size_of::<u64>() as u64;
 const IRET_FRAME_BYTES: u64 = 5 * core::mem::size_of::<u64>() as u64; // SS, RSP, RFLAGS, CS, RIP
 const TOTAL_FRAME_BYTES: u64 = SAVED_BYTES + IRET_FRAME_BYTES; // 15 * 8 = 120 bytes (0x78)
@@ -114,9 +114,15 @@ const TOTAL_FRAME_BYTES: u64 = SAVED_BYTES + IRET_FRAME_BYTES; // 15 * 8 = 120 b
 extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame) {
     core::arch::naked_asm!(
         "
+        .cfi_startproc              // Start DWARF frame info
+        .cfi_signal_frame            // Mark as interrupt/signal frame (important!)
+        .cfi_def_cfa rsp, 0          // CFA = current RSP (top of stack before pushes)
         // Save caller-saved registers
         push rbp
-        push {one}
+        mov rbp,rsp
+        .cfi_def_cfa rbp, 8
+        .cfi_offset rbp, -8
+
         push rcx
         push rdx
         push rsi
@@ -128,6 +134,18 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         push r12
         push r13
         push rax // ESP0 stack now holds 11 registers and the 5-QWord IRET frame
+
+        .cfi_offset rcx, -16
+        .cfi_offset rdx, -24
+        .cfi_offset rsi, -32
+        .cfi_offset rdi, -40
+        .cfi_offset r8,  -48
+        .cfi_offset r9,  -56
+        .cfi_offset r10, -64
+        .cfi_offset r11, -72
+        .cfi_offset r12, -80
+        .cfi_offset r13, -88
+        .cfi_offset rax, -96
 
         // 2. Call Rust helper to get the new Task Kernel Stack Top
         //    The return value (the new stack top) will be in RAX.
@@ -155,7 +173,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         
         mov rbp,rsp
         add rbp,{saved_bytes}
-        sub rbp,24
+        sub rbp,16
+        .cfi_def_cfa rbp, 8
 
         // The stack is now the Task Kernel Stack and perfectly aligned.
         pop rax
@@ -188,6 +207,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         push rax
 
         iretq                           /* returns to kernel_resume at CPL=0 */
+        
+        .cfi_endproc
 
 
         // Push a new return frame for iretq for jumping to naked_syscall_tail
@@ -218,14 +239,32 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         naked_syscall_tail = sym naked_syscall_tail,
         kernel_selector = sym gdt::kernel_code_selector,
         zero = const 0u64,
-        one = const 1u64
     );
 }
 
+/// # Safety
+/// Only ever reachable from naked_int_80_handler, via iretq
 #[unsafe(naked)]
-extern "C" fn naked_syscall_tail() {
+unsafe extern "C" fn naked_syscall_tail() {
     core::arch::naked_asm!(
         "
+        .cfi_startproc
+        .cfi_signal_frame
+        .cfi_def_cfa rsp, 104
+        .cfi_offset rbp, -8
+        .cfi_offset rcx, -16
+        .cfi_offset rdx, -24
+        .cfi_offset rsi, -32
+        .cfi_offset rdi, -40
+        .cfi_offset r8,  -48
+        .cfi_offset r9,  -56
+        .cfi_offset r10, -64
+        .cfi_offset r11, -72
+        .cfi_offset r12, -80
+        .cfi_offset r13, -88
+        .cfi_offset rax, -96
+
+
         call {syscall_tail}
 
         // Restore registers (reverse order)
@@ -240,11 +279,12 @@ extern "C" fn naked_syscall_tail() {
         pop rsi
         pop rdx
         pop rcx
-        add rsp,8
         pop rbp
 
         // Return from interrupt — RAX still holds the return value from test_handler()
         iretq
+        
+        .cfi_endproc
     ",
     syscall_tail = sym interrupts::syscalls::syscall_tail
     )
