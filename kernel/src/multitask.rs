@@ -5,7 +5,7 @@ use alloc::{
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
-use spin::{Lazy, Once, lock_api::Mutex};
+use spin::{Lazy, Once, lock_api::{Mutex, RwLock}};
 use uuid::Uuid;
 use x86_64::{
     VirtAddr,
@@ -84,18 +84,18 @@ static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock>>>> = Lazy::new(|| {
 
 // static ENDING_TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock>>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 
-static CURRENT_TASK: Lazy<Mutex<Arc<TaskControlBlock>>> =
-    Lazy::new(|| Mutex::new(TASKS.lock().first().unwrap().clone()));
+static CURRENT_TASK: Lazy<RwLock<Arc<TaskControlBlock>>> =
+    Lazy::new(|| RwLock::new(TASKS.lock().first().unwrap().clone()));
 
 pub fn get_current_task() -> Arc<TaskControlBlock> {
-    CURRENT_TASK.lock().clone()
+    CURRENT_TASK.read().clone()
 }
 
 /// # Safety
 /// Interrupts must be disabled when calling this function
 unsafe fn task_switch() {
     // 1) Grab the current Arc<Mutex<TaskControlBlock>>
-    let mut current_arc_guard = CURRENT_TASK.lock();
+    let mut current_arc_guard = CURRENT_TASK.write();
     let current_arc = current_arc_guard.clone(); // Arc clone of current
     let mut current_tcb = current_arc.context.lock();
 
@@ -272,7 +272,7 @@ pub fn create_task(entry: extern "C" fn(), name: &'static str) {
     {
         let mut tasks = TASKS.lock();
         println!("Locked tasks");
-        let current = CURRENT_TASK.lock();
+        let current = CURRENT_TASK.read();
         println!("Locked current task");
         tasks.insert(tcb.clone());
 
@@ -302,7 +302,7 @@ pub fn init() {
 extern "C" fn task_exit() -> ! {
     println!("Ending task");
     let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
-    let current = CURRENT_TASK.lock();
+    let current = CURRENT_TASK.read();
     let old_next = {
         let mut current = current.context.lock();
         let old_next = current.next_task.clone();
@@ -360,24 +360,24 @@ extern "C" fn task_dealloc() {
 }
 
 pub fn set_current_process_info(process_info: ProcessInfo) {
-    let arc = CURRENT_TASK.lock().clone();
+    let arc = CURRENT_TASK.read().clone();
     arc.context.lock().process_info = Some(process_info);
 }
 
 #[allow(clippy::significant_drop_tightening)]
 pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U) -> U {
-    let lock = CURRENT_TASK.lock();
+    let lock = CURRENT_TASK.read();
     let p = &mut lock.context.lock().process_info;
     f(p)
 }
 
 pub fn get_current_process_info() -> Option<ProcessInfo> {
-    CURRENT_TASK.lock().context.lock().process_info.clone()
+    CURRENT_TASK.read().context.lock().process_info.clone()
 }
 
 pub fn get_current_task_id() -> TaskId {
     if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
-        Some(CURRENT_TASK.lock().id)
+        Some(CURRENT_TASK.read().id)
     }else{
         None
     }
