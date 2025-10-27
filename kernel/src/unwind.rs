@@ -1,7 +1,14 @@
 use alloc::vec::Vec;
-use gimli::{CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection, UnwindTableRow};
+use gimli::{
+    CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection,
+    UnwindTableRow,
+};
 
-use crate::{print, println, setup::KERNEL_INFO, unwind::{eh::EhInfo, register::RegisterSet}};
+use crate::{
+    print, println,
+    setup::KERNEL_INFO,
+    unwind::{eh::EhInfo, register::RegisterSet},
+};
 
 pub mod eh;
 mod register;
@@ -10,7 +17,6 @@ mod register;
 struct CallFrame {
     pub pc: u64,
 }
-
 
 #[derive(Debug)]
 enum UnwinderError {
@@ -50,18 +56,14 @@ pub struct Unwinder<'a> {
 }
 
 impl<'a> Unwinder<'a> {
-    fn new(
-        eh_info: &'a EhInfo,
-        offset: u64,
-        register_set: RegisterSet,
-    ) -> Self {
+    fn new(eh_info: &'a EhInfo, offset: u64, register_set: RegisterSet) -> Self {
         Self {
             eh_info,
             unwind_ctx: Default::default(),
             regs: register_set,
             cfa: 0,
             is_first: true,
-            offset
+            offset,
         }
     }
 
@@ -74,24 +76,32 @@ impl<'a> Unwinder<'a> {
             return Ok(Some(CallFrame { pc }));
         }
 
-        let row = self.eh_info.hdr.table().expect("hdr table").unwind_info_for_address(
-            &self.eh_info.eh_frame,
-            &self.eh_info.base_addrs,
-            &mut self.unwind_ctx,
-            pc,
-            |section, bases, offset| section.cie_from_offset(bases, offset),
-        ).map_err(|e| {
-            println!("Unwind error: {e}");
-            UnwinderError::NoUnwindInfo
-        })?;
+        let row = self
+            .eh_info
+            .hdr
+            .table()
+            .expect("hdr table")
+            .unwind_info_for_address(
+                &self.eh_info.eh_frame,
+                &self.eh_info.base_addrs,
+                &mut self.unwind_ctx,
+                pc,
+                |section, bases, offset| section.cie_from_offset(bases, offset),
+            )
+            .map_err(|e| {
+                println!("Unwind error: {e}");
+                UnwinderError::NoUnwindInfo
+            })?;
 
         match row.cfa() {
             CfaRule::RegisterAndOffset { register, offset } => {
-                let reg_val = self.regs.get(*register)
+                let reg_val = self
+                    .regs
+                    .get(*register)
                     .ok_or(UnwinderError::CfaRuleUnknownRegister(*register))?;
                 self.cfa = (reg_val as i64 + offset) as u64;
                 // println!("Register and offset: {register:?}, {offset:x} = {:x}", self.cfa);
-            },
+            }
             _ => return Err(UnwinderError::UnsupportedCfaRule),
         }
 
@@ -103,7 +113,7 @@ impl<'a> Unwinder<'a> {
                     let ptr = (self.cfa as i64 + offset) as u64 as *const usize;
                     // println!("OFFSET: {:x} + {offset:x} = {ptr:p}", self.cfa);
                     self.regs.set(reg, unsafe { ptr.read() } as u64)?;
-                },
+                }
                 _ => return Err(UnwinderError::UnimplementedRegisterRule),
             }
         }
@@ -113,10 +123,8 @@ impl<'a> Unwinder<'a> {
         self.regs.set_stack_ptr(self.cfa);
 
         Ok(Some(CallFrame { pc }))
-
     }
 }
-
 
 pub fn backtrace() {
     let kinf = KERNEL_INFO.get().unwrap();
@@ -139,31 +147,36 @@ pub fn backtrace() {
                 Ok(Some(frame)) => {
                     let elf_addr = frame.pc - kinf.kernel_image_offset;
                     let lock = kinf.addr2line.as_ref().map(|x| x.lock());
-                    let location = lock.as_ref().map(|x| x.find_location(elf_addr)).transpose().map(Option::flatten);
-                    let location = location.inspect_err(|e| println!("[WARN] No location information: {e}")).ok().flatten();
+                    let location = lock
+                        .as_ref()
+                        .map(|x| x.find_location(elf_addr))
+                        .transpose()
+                        .map(Option::flatten);
+                    let location = location
+                        .inspect_err(|e| println!("[WARN] No location information: {e}"))
+                        .ok()
+                        .flatten();
                     print!("Unwind frame: {:x} ({:x}) ", frame.pc, elf_addr);
                     if let Some(location) = location {
                         if let Some(file) = location.file {
                             print!("{file}:")
-                        }else{
+                        } else {
                             print!("<unknown file>:")
                         }
                         if let Some(line) = location.line {
                             print!("{line}:")
-                        }else{
+                        } else {
                             print!("<unknown line>:")
                         }
                         if let Some(column) = location.column {
                             println!("{column}")
-                        }else{
+                        } else {
                             println!("<unknown column>")
                         }
-                    }else {
+                    } else {
                         println!("<unknown>")
-
                     }
                     drop(lock);
-
                 }
                 Ok(None) => {
                     println!("No stack frame");
@@ -175,7 +188,7 @@ pub fn backtrace() {
                 }
             }
         }
-    }else{
+    } else {
         println!("No eh_info -> no available backtracing info");
     }
 }

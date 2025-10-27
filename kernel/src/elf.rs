@@ -11,7 +11,8 @@ use x86_64::{
 };
 
 use crate::{
-    setup::KERNEL_INFO, println,
+    println,
+    setup::KERNEL_INFO,
     stack::{self, GeneralStack},
     util::MaybeBoxed,
 };
@@ -139,8 +140,8 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     }
 
     let info = KERNEL_INFO.get().unwrap();
-    let mut info = info.alloc_kinf.lock();
-    let info = info.deref_mut();
+    let mut info_lock = info.alloc_kinf.lock();
+    let info = info_lock.deref_mut();
     let mut highest_page: Option<Page> = None;
     let mut mapped_pages = BTreeMap::new();
     for ((offset, filesz), (vaddr, memsz), flags) in loads {
@@ -224,6 +225,8 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
             PageTableFlags::USER_ACCESSIBLE,
         )
     };
+
+    drop(info_lock);
 
     println!("Setup stack {stack:?}");
 

@@ -29,17 +29,13 @@ impl ProcessInfo {
             println!("Not first proc, creating a new l4 table");
             println!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
 
-            KERNEL_INFO
-                .get()
-                .unwrap()
-                .create_p4_table_and_switch();
+            KERNEL_INFO.get().unwrap().create_p4_table_and_switch();
 
             println!("CR3: {:?}", x86_64::registers::control::Cr3::read());
         } else {
             println!("Creating first proc, not creating a new l4 table");
         }
 
-        
         println!("Loading elf");
         let prog = load_elf(prog);
         println!("Loaded elf");
@@ -59,11 +55,7 @@ impl ProcessInfo {
 
     fn get_kernel_stack(&mut self) -> &Arc<SlabStack> {
         self.kernel_stack.get_or_insert_with(|| {
-            let stack = KERNEL_INFO
-                .get()
-                .unwrap()
-                .create_stack()
-                .expect("A stack");
+            let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
             println!("Created a new stack for the process: {stack:?}");
             Arc::new(stack)
         })

@@ -1,6 +1,9 @@
 use lock_api::{GuardSend, RawMutex};
 
-use crate::{multitask::{TaskId, get_current_task_id}, println};
+use crate::{
+    multitask::{TaskId, get_current_task_id},
+    println,
+};
 
 pub struct ReentrantRawMutex {
     inner: spin::Mutex<ReentrantInner>,
@@ -20,8 +23,6 @@ impl ReentrantRawMutex {
             }),
         }
     }
-
-    
 
     // /// Internal: give mutable access. Unsafe because caller must hold lock.
     // unsafe fn data(&self) -> &mut T {
@@ -46,15 +47,15 @@ impl Default for ReentrantRawMutex {
 }
 
 unsafe impl RawMutex for ReentrantRawMutex {
-	const INIT: Self = Self::new();
+    const INIT: Self = Self::new();
 
-	type GuardMarker = GuardSend;
+    type GuardMarker = GuardSend;
 
-	/// Acquire the reentrant lock. Spins if another thread holds it.
+    /// Acquire the reentrant lock. Spins if another thread holds it.
     fn lock(&self) {
-		println!("[INFO][LOCK] Locking reentrant_lock");
+        println!("[INFO][LOCK] Locking reentrant_lock");
         let me = get_current_task_id();
-		println!("[INFO][LOCK] For id {me:?}");
+        println!("[INFO][LOCK] For id {me:?}");
 
         loop {
             {
@@ -69,7 +70,10 @@ unsafe impl RawMutex for ReentrantRawMutex {
                     }
                     Some(owner) if owner == me => {
                         // Reentrant lock by same thread: increase depth
-                        guard.depth = guard.depth.checked_add(1).expect("reentrant depth overflow");
+                        guard.depth = guard
+                            .depth
+                            .checked_add(1)
+                            .expect("reentrant depth overflow");
                         return;
                     }
                     _ => {
@@ -86,8 +90,8 @@ unsafe impl RawMutex for ReentrantRawMutex {
     fn try_lock(&self) -> bool {
         let me = get_current_task_id();
         let Some(mut guard) = self.inner.try_lock() else {
-			return false;
-		};
+            return false;
+        };
         match guard.owner {
             None => {
                 guard.owner = Some(me);
@@ -95,27 +99,33 @@ unsafe impl RawMutex for ReentrantRawMutex {
                 true
             }
             Some(owner) if owner == me => {
-                guard.depth = guard.depth.checked_add(1).expect("reentrant depth overflow");
+                guard.depth = guard
+                    .depth
+                    .checked_add(1)
+                    .expect("reentrant depth overflow");
                 true
             }
             _ => false,
         }
     }
 
-	unsafe fn unlock(&self) {
-		println!("[INFO][LOCK] Unlocking reentrant_lock");
+    unsafe fn unlock(&self) {
+        println!("[INFO][LOCK] Unlocking reentrant_lock");
         let me = get_current_task_id();
-		println!("[INFO][LOCK] For id {me:?}");
+        println!("[INFO][LOCK] For id {me:?}");
         let mut guard = self.inner.lock();
         // must be owner
-        debug_assert!(guard.owner == Some(me), "ReentrantGuard dropped by non-owner");
+        debug_assert!(
+            guard.owner == Some(me),
+            "ReentrantGuard dropped by non-owner"
+        );
         // reduce depth and release when 0
         guard.depth -= 1;
         if guard.depth == 0 {
             guard.owner = None;
         }
-		println!("[INFO][LOCK] Unlocked depth: {}", guard.depth);
-	}
+        println!("[INFO][LOCK] Unlocked depth: {}", guard.depth);
+    }
 }
 
 // pub struct ReentrantGuard<'a, T> {

@@ -1,9 +1,7 @@
 use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
-use object::
-    read::elf::SectionHeader
-;
+use object::read::elf::SectionHeader;
 
-use crate::{setup::KernelElfFile, println};
+use crate::{println, setup::KernelElfFile};
 
 #[derive(Debug)]
 pub struct EhInfo {
@@ -39,26 +37,28 @@ impl EhInfo {
         // println!("eh_frame_hdr: {eh_frame_hdr:?}");
         // println!("eh_frame: {eh_frame:?}");
 
-        let base_addrs = BaseAddresses::default().set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64).set_eh_frame(eh_frame.as_ptr() as u64);
+        let base_addrs = BaseAddresses::default()
+            .set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64)
+            .set_eh_frame(eh_frame.as_ptr() as u64);
 
         println!("Base addresses: {base_addrs:?}");
 
-
         let eh_frame_hdr_va = eh_frame_hdr_sect.1.sh_addr.get(object::LittleEndian);
-        let eh_frame_va     = eh_frame_sect.1.sh_addr.get(object::LittleEndian);
+        let eh_frame_va = eh_frame_sect.1.sh_addr.get(object::LittleEndian);
 
-         let base_addrs = BaseAddresses::default()
+        let base_addrs = BaseAddresses::default()
             // add the runtime kernel image offset (where the ELF is actually loaded)
             .set_eh_frame_hdr(eh_frame_hdr_va + kernel_image_offset)
             .set_eh_frame(eh_frame_va + kernel_image_offset)
             // optionally set a text base too (helps some lookups)
             .set_text(kernel_image_offset);
 
-        
         println!("New addresses: {base_addrs:?}");
 
-		let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian).parse(&base_addrs, 8).expect("Correct hdr");
-		let eh_frame = EhFrame::new(eh_frame, LittleEndian);
+        let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian)
+            .parse(&base_addrs, 8)
+            .expect("Correct hdr");
+        let eh_frame = EhFrame::new(eh_frame, LittleEndian);
 
         // let table = hdr.table().unwrap();
         // let mut i = table.iter(&base_addrs);
@@ -70,7 +70,10 @@ impl EhInfo {
         // let lookup = table.lookup(0x80000bb989u64, &base_addrs);
         // panic!("{lookup:?}");
 
-
-        Some(Self { base_addrs, hdr, eh_frame })
+        Some(Self {
+            base_addrs,
+            hdr,
+            eh_frame,
+        })
     }
 }

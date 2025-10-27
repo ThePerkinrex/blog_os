@@ -15,7 +15,7 @@ const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 pub struct PageTables {
     current: OffsetPageTable<'static>,
     current_idx: usize,
-    l4_tables: SmallVec<[VirtAddr;1]>,
+    l4_tables: SmallVec<[VirtAddr; 1]>,
 }
 
 impl PageTables {

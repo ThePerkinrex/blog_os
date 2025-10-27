@@ -5,7 +5,7 @@ use x86_64::structures::paging::{
     FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
 };
 
-use crate::{memory::pages::VirtRegionAllocator, multitask::lock::ReentrantMutex, println, setup::{KERNEL_INFO, AllocKernelInfo}};
+use crate::{multitask::lock::ReentrantMutex, println, setup::AllocKernelInfo};
 
 // pub const HEAP_START: u64 = 0x_4444_4444_0000;
 pub const HEAP_PAGES: u64 = 1024;
@@ -13,17 +13,20 @@ pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 16 MiB
 
 // TODO grow on oom
 
-pub fn init_heap(mutable_inf: &'static ReentrantMutex<AllocKernelInfo>) -> Result<(), MapToError<Size4KiB>> {
+pub fn init_heap(
+    mutable_inf: &'static ReentrantMutex<AllocKernelInfo>,
+) -> Result<(), MapToError<Size4KiB>> {
     println!("[INFO][ALLOC] Locking alloc_inf");
     let mut lock = mutable_inf.lock();
     let locked = lock.deref_mut();
-    
+
     println!("[INFO][ALLOC] Getting heap_start");
-    let heap_start = locked.virt_region_allocator
+    let heap_start = locked
+        .virt_region_allocator
         .alloc_pages(HEAP_PAGES as usize)
         .expect("Heap region");
     // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
-    
+
     println!("[INFO][ALLOC] Getting page range");
     let page_range = {
         let heap_end = heap_start + HEAP_SIZE - 1u64;
@@ -34,11 +37,17 @@ pub fn init_heap(mutable_inf: &'static ReentrantMutex<AllocKernelInfo>) -> Resul
 
     println!("[INFO][ALLOC] Mapping pages");
     for page in page_range {
-        let frame = locked.frame_allocator
+        let frame = locked
+            .frame_allocator
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe { locked.page_table.map_to(page, frame, flags, &mut locked.frame_allocator)?.flush() };
+        unsafe {
+            locked
+                .page_table
+                .map_to(page, frame, flags, &mut locked.frame_allocator)?
+                .flush()
+        };
     }
     drop(lock);
 
@@ -60,11 +69,10 @@ pub fn init_heap(mutable_inf: &'static ReentrantMutex<AllocKernelInfo>) -> Resul
 }
 
 #[global_allocator]
-static ALLOCATOR: Talck<Mutex<()>, OomGrow> = Talc::new(OomGrow {mutable_inf: None}).lock();
-
+static ALLOCATOR: Talck<Mutex<()>, OomGrow> = Talc::new(OomGrow { mutable_inf: None }).lock();
 
 struct OomGrow {
-    mutable_inf: Option<&'static ReentrantMutex<AllocKernelInfo>>
+    mutable_inf: Option<&'static ReentrantMutex<AllocKernelInfo>>,
 }
 
 const GROW_PAGES: u64 = 1024;
@@ -73,13 +81,19 @@ impl OomHandler for OomGrow {
     fn handle_oom(talc: &mut Talc<Self>, _layout: core::alloc::Layout) -> Result<(), ()> {
         println!("[INFO] Growing the HEAP");
 
-        let mut lock = talc.oom_handler.mutable_inf.ok_or(()).inspect_err(|_| println!("[ERR] No kernel to claim"))?.lock();
+        let mut lock = talc
+            .oom_handler
+            .mutable_inf
+            .ok_or(())
+            .inspect_err(|_| println!("[ERR] No kernel to claim"))?
+            .lock();
         let kinf = lock.deref_mut();
 
         // TODO take layout into account
-        let heap_start = kinf.virt_region_allocator
-        .alloc_pages(GROW_PAGES as usize)
-        .expect("Heap region");
+        let heap_start = kinf
+            .virt_region_allocator
+            .alloc_pages(GROW_PAGES as usize)
+            .expect("Heap region");
         // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
         let page_range = {
             let heap_end = heap_start + (GROW_PAGES * Size4KiB::SIZE) - 1u64;
@@ -89,11 +103,14 @@ impl OomHandler for OomGrow {
         };
 
         for page in page_range {
-            let frame = kinf.frame_allocator
-                .allocate_frame()
-                .ok_or(())?;
+            let frame = kinf.frame_allocator.allocate_frame().ok_or(())?;
             let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-            unsafe { kinf.page_table.map_to(page, frame, flags, &mut kinf.frame_allocator).map_err(|_|())?.flush() };
+            unsafe {
+                kinf.page_table
+                    .map_to(page, frame, flags, &mut kinf.frame_allocator)
+                    .map_err(|_| ())?
+                    .flush()
+            };
         }
         drop(lock);
 

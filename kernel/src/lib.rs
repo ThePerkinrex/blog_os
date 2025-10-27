@@ -13,12 +13,11 @@ use alloc::boxed::Box;
 use qemu_common::QemuExitCode;
 use x86_64::{VirtAddr, structures::paging::Translate};
 
-use crate::{
-    process::ProcessInfo, setup::KERNEL_INFO
-};
+use crate::{process::ProcessInfo, setup::KERNEL_INFO};
 
 pub mod allocator;
 pub mod config;
+pub mod dwarf;
 pub mod elf;
 pub mod gdt;
 pub mod interrupts;
@@ -27,12 +26,11 @@ pub mod memory;
 pub mod multitask;
 pub mod priviledge;
 pub mod process;
-pub mod stack;
-pub mod util;
-pub mod unwind;
-pub mod setup;
-pub mod dwarf;
 pub mod rand;
+pub mod setup;
+pub mod stack;
+pub mod unwind;
+pub mod util;
 
 pub fn kernel_main() -> ! {
     println!("HELLO");
@@ -46,14 +44,15 @@ pub fn kernel_main() -> ! {
         0x0100_0020_1a10,
     ];
 
+    let setup_info = KERNEL_INFO.get().unwrap();
+    let setup_info = setup_info.alloc_kinf.lock();
     for &address in &addresses {
-        let setup_info = KERNEL_INFO.get().unwrap();
-        let setup_info = setup_info.alloc_kinf.lock();
         let virt = VirtAddr::new(address);
         // new: use the `mapper.translate_addr` method
         let phys = setup_info.page_table.translate_addr(virt);
         println!("{:?} -> {:?}", virt, phys);
     }
+    drop(setup_info);
 
     let x = Box::new(41);
     println!("heap_value at {x:p}");

@@ -7,8 +7,8 @@ use x86_64::{
 };
 
 use crate::{
-    setup::KERNEL_INFO, gdt, hlt_loop, interrupts, multitask, print, println,
-    process::get_process_kernel_stack_top, test_return,
+    gdt, hlt_loop, interrupts, multitask, print, println, process::get_process_kernel_stack_top,
+    setup::KERNEL_INFO, test_return,
 };
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -325,7 +325,10 @@ extern "x86-interrupt" fn page_fault_handler(
     let addr = Cr2::read();
 
     println!("EXCEPTION: PAGE FAULT");
-    println!("Current task: {:?} ({})", current_task_arc.name, current_task_arc.id);
+    println!(
+        "Current task: {:?} ({})",
+        current_task_arc.name, current_task_arc.id
+    );
     println!("Current stack: {:?}", current_task.stack);
     if let Ok(addr) = addr {
         if let Some(s) = &current_task.stack {
@@ -337,6 +340,7 @@ extern "x86-interrupt" fn page_fault_handler(
                 }
             }
             // CRITICAL SITUATION, not going back
+            #[allow(clippy::significant_drop_in_scrutinee)]
             match stack_alloc.lock().detect_guard_page_access(addr, s) {
                 crate::stack::GuardPageInfo::CurrentStackOverflow => {
                     println!("[KSTACKS] Current stack overflow")

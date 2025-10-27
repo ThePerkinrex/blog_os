@@ -86,7 +86,9 @@ impl KernelInfo {
     pub fn create_stack(&self) -> Option<stack::SlabStack> {
         let mut lock = self.alloc_kinf.lock();
         let alloc_kinf = &mut *lock;
-        let res = self.stack_alloc.lock()
+        let res = self
+            .stack_alloc
+            .lock()
             .create_stack(&mut alloc_kinf.page_table, &mut alloc_kinf.frame_allocator);
         drop(lock);
         res
@@ -98,8 +100,11 @@ impl KernelInfo {
         let mut lock = self.alloc_kinf.lock();
         let alloc_kinf = &mut *lock;
         unsafe {
-            self.stack_alloc.lock()
-                .free_stack(stack, &mut alloc_kinf.page_table, &mut alloc_kinf.frame_allocator)
+            self.stack_alloc.lock().free_stack(
+                stack,
+                &mut alloc_kinf.page_table,
+                &mut alloc_kinf.frame_allocator,
+            )
         }
         drop(lock);
     }
@@ -122,7 +127,10 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     io::serial::init();
     interrupts::init_pics();
 
-    println!("[INFO][SETUP] Kernel offset: {:x}", boot_info.kernel_image_offset);
+    println!(
+        "[INFO][SETUP] Kernel offset: {:x}",
+        boot_info.kernel_image_offset
+    );
     println!("[INFO][SETUP] Kernel physaddr: {:x}", boot_info.kernel_addr);
     println!("[INFO][SETUP] Kernel size: {:x}", boot_info.kernel_len);
 
@@ -139,8 +147,6 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     println!("[INFO][SETUP] Initializing region allocator");
     let virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
     println!("[INFO][SETUP] Initialized region allocator");
-    
-
 
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {
@@ -159,11 +165,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         let mut lock = alloc_kinf.lock();
         let locked = &mut *lock;
 
-        
         stack_alloc = StackAlloc::new(&mut locked.virt_region_allocator);
 
-        let esp0 = stack_alloc.create_stack(&mut locked.page_table, &mut locked.frame_allocator).unwrap();
-        let ist_df = stack_alloc.create_stack(&mut locked.page_table, &mut locked.frame_allocator).unwrap();
+        let esp0 = stack_alloc
+            .create_stack(&mut locked.page_table, &mut locked.frame_allocator)
+            .unwrap();
+        let ist_df = stack_alloc
+            .create_stack(&mut locked.page_table, &mut locked.frame_allocator)
+            .unwrap();
 
         drop(lock);
 
@@ -213,7 +222,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         eh_info,
         addr2line,
         alloc_kinf,
-        stack_alloc: ReentrantMutex::new(stack_alloc)
+        stack_alloc: ReentrantMutex::new(stack_alloc),
     };
     KERNEL_INFO.call_once(|| setup_info);
     multitask::init();

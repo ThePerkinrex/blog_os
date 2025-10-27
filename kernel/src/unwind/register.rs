@@ -10,13 +10,12 @@ pub struct RegisterSet {
     ret: Option<u64>,
 }
 
-
 impl RegisterSet {
-	pub fn new(pc: u64) -> Self {
-		let mut s = Self::default();
-		s.set_pc(pc);
-		s
-	}
+    pub fn new(pc: u64) -> Self {
+        let mut s = Self::default();
+        s.set_pc(pc);
+        s
+    }
 
     pub const fn get(&self, reg: Register) -> Option<u64> {
         match reg {

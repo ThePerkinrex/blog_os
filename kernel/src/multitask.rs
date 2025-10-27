@@ -5,7 +5,10 @@ use alloc::{
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
-use spin::{Lazy, Once, lock_api::{Mutex, RwLock}};
+use spin::{
+    Lazy, Once,
+    lock_api::{Mutex, RwLock},
+};
 use uuid::Uuid;
 use x86_64::{
     VirtAddr,
@@ -248,20 +251,17 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
 
     println!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
 
-    Arc::new_cyclic(|weak_self| {
-        TaskControlBlock {
-            name,
-            id: uuid_v4(),
-            context: Mutex::new(Context {
+    Arc::new_cyclic(|weak_self| TaskControlBlock {
+        name,
+        id: uuid_v4(),
+        context: Mutex::new(Context {
             stack_pointer: VirtAddr::from_ptr(stack_ptr),
             cr3: Cr3::read(),
             next_task: Weak::clone(weak_self),
             stack: Some(stack),
             dealloc: None,
             process_info: None,
-        })
-        }
-        
+        }),
     })
 }
 
@@ -272,9 +272,10 @@ pub fn create_task(entry: extern "C" fn(), name: &'static str) {
     {
         let mut tasks = TASKS.lock();
         println!("Locked tasks");
-        let current = CURRENT_TASK.read();
+        let current = CURRENT_TASK.read().clone();
         println!("Locked current task");
         tasks.insert(tcb.clone());
+        drop(tasks);
 
         println!("Pushed tcb");
 
@@ -284,6 +285,8 @@ pub fn create_task(entry: extern "C" fn(), name: &'static str) {
         cur_tcb.next_task = Arc::downgrade(&tcb);
         let mut new_tcb = tcb.context.lock();
         new_tcb.next_task = cur_next;
+        drop(cur_tcb);
+        drop(new_tcb);
     }
 
     println!("Finished");
@@ -295,6 +298,7 @@ pub fn init() {
     let dealloc = create_cyclic_task(task_dealloc, "dealloc");
     let mut tasks = TASKS.lock();
     tasks.insert(dealloc.clone());
+    drop(tasks);
     TASK_DEALLOC.call_once(|| dealloc);
 }
 
@@ -326,7 +330,10 @@ extern "C" fn task_dealloc() {
             let mut dealloc_ptr_lock = dealloc_ptr.context.lock();
             if let Some(dealloc_task_ptr) = dealloc_ptr_lock.dealloc.take() {
                 let mut dealloc_task_lock = dealloc_task_ptr.context.lock();
-                println!("Cleaning up {} ({})", dealloc_task_ptr.name, dealloc_task_ptr.id);
+                println!(
+                    "Cleaning up {} ({})",
+                    dealloc_task_ptr.name, dealloc_task_ptr.id
+                );
                 let mut tasks = TASKS.lock();
                 tasks.remove(&dealloc_task_ptr);
                 println!("Removed task from list");
@@ -342,6 +349,8 @@ extern "C" fn task_dealloc() {
                         }
                     }
                 }
+                drop(tasks);
+                drop(dealloc_ptr_lock);
 
                 if let Some(stack) = dealloc_task_lock.stack.take() {
                     let info = KERNEL_INFO.get().unwrap();
@@ -350,6 +359,7 @@ extern "C" fn task_dealloc() {
                     }
                 }
             } else {
+                drop(dealloc_ptr_lock);
                 println!("Nothing to clean up");
             }
         } else {
@@ -378,10 +388,9 @@ pub fn get_current_process_info() -> Option<ProcessInfo> {
 pub fn get_current_task_id() -> TaskId {
     if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
         Some(CURRENT_TASK.read().id)
-    }else{
+    } else {
         None
     }
 }
-
 
 pub type TaskId = Option<Uuid>;
