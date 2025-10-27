@@ -39,7 +39,10 @@ impl ProcessInfo {
             println!("Creating first proc, not creating a new l4 table");
         }
 
+        
+        println!("Loading elf");
         let prog = load_elf(prog);
+        println!("Loaded elf");
 
         Self {
             program: Arc::new(prog),
@@ -48,6 +51,7 @@ impl ProcessInfo {
     }
 
     pub fn start(self) {
+        println!("Starting process");
         let prog = self.program.clone();
         set_current_process_info(self);
         jmp_to_usermode(&prog);

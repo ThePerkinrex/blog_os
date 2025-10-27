@@ -360,7 +360,8 @@ extern "C" fn task_dealloc() {
 }
 
 pub fn set_current_process_info(process_info: ProcessInfo) {
-    CURRENT_TASK.lock().context.lock().process_info = Some(process_info)
+    let arc = CURRENT_TASK.lock().clone();
+    arc.context.lock().process_info = Some(process_info);
 }
 
 #[allow(clippy::significant_drop_tightening)]

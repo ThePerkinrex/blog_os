@@ -187,7 +187,7 @@ impl Mapper<Size4KiB> for PageTables {
         let p4_index = page.p4_index();
 
         if p4_index >= PageTableIndex::new(KERNEL_P4_START) {
-            println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
+            // println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
             let current_e = &self.current.level_4_table()[p4_index];
             // Copy kernel tables
             for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
