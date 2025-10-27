@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
-use gimli::{CfaRule, EndianSlice, LittleEndian, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection, UnwindTableRow};
+use gimli::{CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection, UnwindTableRow};
+use lock_api::ReentrantMutex;
 use spin::Mutex;
 
 use crate::{print, println, setup::KERNEL_INFO, unwind::{eh::EhInfo, register::RegisterSet}};
@@ -139,7 +140,7 @@ pub fn backtrace() {
             match unwind.next() {
                 Ok(Some(frame)) => {
                     let elf_addr = frame.pc - kinf.kernel_image_offset;
-                    let lock = kinf.addr2line.as_ref().map(Mutex::lock);
+                    let lock = kinf.addr2line.as_ref().map(|x| x.lock());
                     let location = lock.as_ref().map(|x| x.find_location(elf_addr)).transpose().map(Option::flatten);
                     let location = location.inspect_err(|e| println!("[WARN] No location information: {e}")).ok().flatten();
                     print!("Unwind frame: {:x} ({:x}) ", frame.pc, elf_addr);

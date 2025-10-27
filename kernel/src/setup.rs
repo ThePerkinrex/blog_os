@@ -1,18 +1,17 @@
 use addr2line::Context;
-use alloc::sync::Arc;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
-use spin::{Mutex, Once};
+use spin::Once;
 use x86_64::VirtAddr;
 
 use crate::{
     allocator,
-    dwarf::{Dwarf, EndianSlice, LoadError, load_dwarf},
+    dwarf::{EndianSlice, load_dwarf},
     elf::SystemElf,
     gdt, interrupts, io,
     memory::{
         self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
     },
-    multitask, println,
+    multitask::{self, lock::ReentrantMutex}, println,
     stack::{self, SlabStack, StackAlloc},
     unwind::eh::EhInfo,
 };
@@ -91,9 +90,9 @@ pub struct KernelInfo {
     pub kernel_image_offset: u64,
     pub kernel_elf: KernelElfFile,
     pub eh_info: Option<EhInfo>,
-    pub addr2line: Option<Mutex<Context<EndianSlice>>>,
+    pub addr2line: Option<ReentrantMutex<Context<EndianSlice>>>,
 
-    pub mutable: Mutex<MutableKernelInfo>,
+    pub mutable: ReentrantMutex<MutableKernelInfo>,
 }
 
 impl KernelInfo {
@@ -184,7 +183,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
                 .inspect_err(|e| println!("[WARN] addr2line error: {e:?}"))
                 .ok()
         })
-        .map(Mutex::new);
+        .map(ReentrantMutex::new);
 
     let setup_info = KernelInfo {
         kernel_addr: boot_info.kernel_addr,
@@ -201,7 +200,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         kernel_elf,
         eh_info,
         addr2line,
-        mutable: Mutex::new(MutableKernelInfo {
+        mutable: ReentrantMutex::new(MutableKernelInfo {
             page_table: PageTables::new(page_table),
             frame_allocator,
             virt_region_allocator,

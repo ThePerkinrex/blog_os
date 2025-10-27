@@ -10,13 +10,11 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 use alloc::boxed::Box;
-use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use qemu_common::QemuExitCode;
-use spin::{Mutex, Once};
 use x86_64::{VirtAddr, structures::paging::Translate};
 
 use crate::{
-    elf::SystemElf, memory::{multi_l4_paging::PageTables, pages::VirtRegionAllocator, BootInfoFrameAllocator}, process::ProcessInfo, setup::KERNEL_INFO, stack::StackAlloc, unwind::eh::EhInfo
+    process::ProcessInfo, setup::KERNEL_INFO
 };
 
 pub mod allocator;
@@ -34,6 +32,7 @@ pub mod util;
 pub mod unwind;
 pub mod setup;
 pub mod dwarf;
+pub mod rand;
 
 pub fn kernel_main() -> ! {
     println!("HELLO");

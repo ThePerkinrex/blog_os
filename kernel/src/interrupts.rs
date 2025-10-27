@@ -319,13 +319,13 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
-    let current_task = multitask::get_current_task();
-    let current_task = current_task.lock();
+    let current_task_arc = multitask::get_current_task();
+    let current_task = current_task_arc.context.lock();
 
     let addr = Cr2::read();
 
     println!("EXCEPTION: PAGE FAULT");
-    println!("Current task: {:?}", current_task.fn_name);
+    println!("Current task: {:?} ({})", current_task_arc.name, current_task_arc.id);
     println!("Current stack: {:?}", current_task.stack);
     if let Ok(addr) = addr {
         if let Some(s) = &current_task.stack {

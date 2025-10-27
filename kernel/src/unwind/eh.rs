@@ -1,4 +1,4 @@
-use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr, UnwindSection};
+use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
 use object::
     read::elf::SectionHeader
 ;

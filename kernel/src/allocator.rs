@@ -1,13 +1,14 @@
+use core::ops::DerefMut;
 use spin::Mutex;
-use talc::{ErrOnOom, Span, Talc, Talck};
+use talc::{OomHandler, Span, Talc, Talck};
 use x86_64::structures::paging::{
     FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
 };
 
-use crate::memory::pages::VirtRegionAllocator;
+use crate::{memory::pages::VirtRegionAllocator, println, setup::KERNEL_INFO};
 
 // pub const HEAP_START: u64 = 0x_4444_4444_0000;
-pub const HEAP_PAGES: u64 = 4096;
+pub const HEAP_PAGES: u64 = 1024;
 pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 16 MiB
 
 // TODO grow on oom
@@ -46,7 +47,49 @@ pub fn init_heap<const CAP: usize>(
 }
 
 #[global_allocator]
-static ALLOCATOR: Talck<Mutex<()>, ErrOnOom> = Talc::new(ErrOnOom).lock();
+static ALLOCATOR: Talck<Mutex<()>, OomGrow> = Talc::new(OomGrow).lock();
+
+
+struct OomGrow;
+
+const GROW_PAGES: u64 = 1024;
+
+impl OomHandler for OomGrow {
+    fn handle_oom(talc: &mut Talc<Self>, _layout: core::alloc::Layout) -> Result<(), ()> {
+        println!("[INFO] Growing the HEAP");
+
+        let mut lock = KERNEL_INFO.get().ok_or(())?.mutable.lock();
+        let kinf = lock.deref_mut();
+
+        // TODO take layout into account
+        let heap_start = kinf.virt_region_allocator
+        .alloc_pages(GROW_PAGES as usize)
+        .expect("Heap region");
+        // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
+        let page_range = {
+            let heap_end = heap_start + (GROW_PAGES * Size4KiB::SIZE) - 1u64;
+            let heap_start_page = Page::containing_address(heap_start);
+            let heap_end_page = Page::containing_address(heap_end);
+            Page::range_inclusive(heap_start_page, heap_end_page)
+        };
+
+        for page in page_range {
+            let frame = kinf.frame_allocator
+                .allocate_frame()
+                .ok_or(())?;
+            let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+            unsafe { kinf.page_table.map_to(page, frame, flags, &mut kinf.frame_allocator).map_err(|_|())?.flush() };
+        }
+        drop(lock);
+
+        let span = Span::from_base_size(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
+
+        unsafe {
+            talc.claim(span)?;
+        }
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod test {
