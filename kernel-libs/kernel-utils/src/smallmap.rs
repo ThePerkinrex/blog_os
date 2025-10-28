@@ -154,7 +154,7 @@ where
         }
     }
 
-     pub fn contains_key<K2>(&self, key: &K2) -> bool
+    pub fn contains_key<K2>(&self, key: &K2) -> bool
     where
         K: Borrow<K2>,
         K2: Ord + ?Sized,

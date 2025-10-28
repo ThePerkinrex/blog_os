@@ -5,6 +5,9 @@ use smallvec::SmallVec;
 
 use itertools::Itertools;
 
+#[derive(Debug)]
+pub struct ContainsSlashError;
+
 #[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct Path {
@@ -12,17 +15,45 @@ pub struct Path {
 }
 
 impl Path {
-    pub fn from_slice(slice: &[Box<str>]) -> &Self {
+    unsafe fn from_slice_unchecked(slice: &[Box<str>]) -> &Self {
         unsafe { core::mem::transmute(slice) }
     }
 
+    pub fn from_slice(slice: &[Box<str>]) -> Result<&Self, ContainsSlashError> {
+        for x in slice {
+            if x.contains('/') {
+                return Err(ContainsSlashError);
+            }
+        }
+        Ok(unsafe { Self::from_slice_unchecked(slice) })
+    }
+
     pub fn parent(&self) -> Option<&Self> {
-        if self.components.is_empty() {
+        if self.components.len() <= 1 {
             None
         } else {
             let len = self.components.len();
-            Some(Self::from_slice(&self.components[..(len - 1)]))
+            Some(unsafe { Self::from_slice_unchecked(&self.components[..(len - 1)]) })
         }
+    }
+
+    pub fn is_absolute(&self) -> bool {
+        !self.components.is_empty() && self.components[0].is_empty()
+    }
+
+    pub fn join(&self, other: &Self) -> PathBuf {
+        let mut x = self.to_owned();
+        x.push(other);
+        x
+    }
+
+    pub const fn len(&self) -> usize {
+        self.components.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.components.is_empty()
     }
 }
 
@@ -66,12 +97,34 @@ impl PathBuf {
         }
     }
 
-    pub fn push<I: Into<Box<str>>>(&mut self, component: I) {
-        self.components.push(component.into());
+    pub fn push_component<I: Into<Box<str>>>(
+        &mut self,
+        component: I,
+    ) -> Result<(), ContainsSlashError> {
+        let c = component.into();
+        if c.is_empty() && !self.components.is_empty() {
+            Ok(())
+        } else if c.contains('/') {
+            Err(ContainsSlashError)
+        } else {
+            self.components.push(c);
+            Ok(())
+        }
+    }
+
+    pub fn push(&mut self, path: &Path) {
+        for (_, c) in path
+            .components
+            .iter()
+            .enumerate()
+            .skip_while(|(i, s)| s.is_empty() && *i == 0)
+        {
+            self.components.push(c.clone());
+        }
     }
 
     pub fn as_path(&self) -> &Path {
-        Path::from_slice(self.components.as_slice())
+        unsafe { Path::from_slice_unchecked(&self.components) }
     }
 }
 
@@ -132,7 +185,7 @@ mod tests {
     #[test]
     fn root_path_fmt() {
         let mut path = PathBuf::new();
-        path.push("");
+        path.push_component("").unwrap();
 
         assert_eq!("/", format!("{path}"))
     }
@@ -140,8 +193,8 @@ mod tests {
     #[test]
     fn abs_path_fmt() {
         let mut path = PathBuf::new();
-        path.push("");
-        path.push("a");
+        path.push_component("").unwrap();
+        path.push_component("a").unwrap();
 
         assert_eq!("/a", format!("{path}"))
     }
@@ -149,9 +202,9 @@ mod tests {
     #[test]
     fn abs_path_2_fmt() {
         let mut path = PathBuf::new();
-        path.push("");
-        path.push("a");
-        path.push("b");
+        path.push_component("").unwrap();
+        path.push_component("a").unwrap();
+        path.push_component("b").unwrap();
 
         assert_eq!("/a/b", format!("{path}"))
     }
@@ -159,7 +212,7 @@ mod tests {
     #[test]
     fn rel_path_fmt() {
         let mut path = PathBuf::new();
-        path.push("a");
+        path.push_component("a").unwrap();
 
         assert_eq!("a", format!("{path}"))
     }
@@ -167,9 +220,23 @@ mod tests {
     #[test]
     fn rel_path_2_fmt() {
         let mut path = PathBuf::new();
-        path.push("a");
-        path.push("b");
+        path.push_component("a").unwrap();
+        path.push_component("b").unwrap();
 
         assert_eq!("a/b", format!("{path}"))
+    }
+
+    #[test]
+    fn slash_in_component() {
+        let mut path = PathBuf::new();
+        assert!(path.push_component("a/").is_err());
+    }
+
+    #[test]
+    fn ignore_double_empty() {
+        let mut path = PathBuf::new();
+        assert!(path.push_component("").is_ok());
+        assert!(path.push_component("").is_ok());
+        assert_eq!(1, path.len())
     }
 }
