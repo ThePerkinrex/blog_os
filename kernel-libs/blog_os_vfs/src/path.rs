@@ -38,6 +38,9 @@ impl ToOwned for Path {
 
 impl core::fmt::Display for Path {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.components.len() == 1 && self.components[0].as_ref() == "" {
+            return write!(f, "/");
+        }
         for c in Itertools::intersperse(self.components.iter().map(AsRef::as_ref), "/") {
             write!(f, "{c}")?;
         }
@@ -63,8 +66,8 @@ impl PathBuf {
         }
     }
 
-    pub fn insert(&mut self, component: Box<str>) {
-        self.components.push(component);
+    pub fn push<I: Into<Box<str>>>(&mut self, component: I) {
+        self.components.push(component.into());
     }
 
     pub fn as_path(&self) -> &Path {
@@ -117,5 +120,56 @@ impl core::fmt::Display for PathBuf {
 impl core::fmt::Debug for PathBuf {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Debug::fmt(self.as_path(), f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::format;
+
+    use crate::path::PathBuf;
+
+    #[test]
+    fn root_path_fmt() {
+        let mut path = PathBuf::new();
+        path.push("");
+
+        assert_eq!("/", format!("{path}"))
+    }
+
+    #[test]
+    fn abs_path_fmt() {
+        let mut path = PathBuf::new();
+        path.push("");
+        path.push("a");
+
+        assert_eq!("/a", format!("{path}"))
+    }
+
+    #[test]
+    fn abs_path_2_fmt() {
+        let mut path = PathBuf::new();
+        path.push("");
+        path.push("a");
+        path.push("b");
+
+        assert_eq!("/a/b", format!("{path}"))
+    }
+
+    #[test]
+    fn rel_path_fmt() {
+        let mut path = PathBuf::new();
+        path.push("a");
+
+        assert_eq!("a", format!("{path}"))
+    }
+
+    #[test]
+    fn rel_path_2_fmt() {
+        let mut path = PathBuf::new();
+        path.push("a");
+        path.push("b");
+
+        assert_eq!("a/b", format!("{path}"))
     }
 }
