@@ -121,8 +121,23 @@ unsafe fn task_switch() {
     // 4) Switch page tables to the next task's CR3 before switching stack.
     //    This ensures the next task's stack addresses are valid after we load its rsp.
     let (next_frame, next_flags) = next_tcb.cr3;
-    unsafe {
-        Cr3::write(next_frame, next_flags);
+    let read = Cr3::read();
+    if read.0 != next_frame || read.1 != next_flags {
+        println!(
+            "[INFO][MULTITASK] Switching CR3 from {read:?} to {:?}",
+            (next_frame, next_flags)
+        );
+        unsafe {
+            Cr3::write(next_frame, next_flags);
+        }
+
+        KERNEL_INFO
+            .get()
+            .unwrap()
+            .alloc_kinf
+            .lock()
+            .page_table
+            .set_current_page_table();
     }
 
     // 5) Prepare pointers for asm:

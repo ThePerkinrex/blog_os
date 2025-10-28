@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use smallvec::SmallVec;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -8,23 +7,58 @@ use x86_64::{
     },
 };
 
-use crate::println;
+use crate::{println, util::smallmap::SmallBTreeMap};
 
 const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 
 pub struct PageTables {
     current: OffsetPageTable<'static>,
-    current_idx: usize,
-    l4_tables: SmallVec<[VirtAddr; 1]>,
+    current_frame: PhysFrame,
+    l4_tables: SmallBTreeMap<1, PhysFrame, VirtAddr>,
 }
 
 impl PageTables {
     pub fn new(current: OffsetPageTable<'static>) -> Self {
+        let (phys_f, _) = x86_64::registers::control::Cr3::read();
         Self {
-            l4_tables: smallvec::smallvec![VirtAddr::from_ptr(current.level_4_table())],
-            current_idx: 0,
+            l4_tables: {
+                let mut map = SmallBTreeMap::new();
+
+                let virt_addr = VirtAddr::from_ptr(current.level_4_table());
+                debug_assert_eq!(
+                    current.phys_offset() + phys_f.start_address().as_u64(),
+                    virt_addr,
+                    "Current CR3 does not match current Page Table"
+                );
+                map.insert(phys_f, virt_addr);
+
+                map
+            },
+            current_frame: phys_f,
             current,
         }
+    }
+
+    pub fn set_current_page_table(&mut self) {
+        let (frame, _) = x86_64::registers::control::Cr3::read();
+        self.set_current_page_table_frame(&frame);
+    }
+
+    fn set_current_page_table_frame(&mut self, frame: &PhysFrame) {
+        x86_64::instructions::interrupts::without_interrupts(|| {
+            let addr = self
+                .l4_tables
+                .get(frame)
+                .expect("the CR3 page table to be registered");
+            self.current_frame = *frame;
+            println!("[INFO][PAGE_TABLES] Switching to page table with frame {frame:?}");
+            self.current = unsafe {
+                OffsetPageTable::<'static>::new(
+                    addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
+                    self.current.phys_offset(),
+                )
+            };
+        });
     }
 
     unsafe fn switch_to_frame(frame: PhysFrame) {
@@ -43,27 +77,19 @@ impl PageTables {
             core::arch::asm!("mov {0},rsp", lateout(reg) sp);
         }
         println!("Creating process p4 to prepare for switch (current sp: {sp:x})");
-        let (frame, idx) = self
+        let frame = self
             .create_process_p4(frame_alloc)
             .expect("A frame for the l4 table");
-        println!("Created: {frame:?} at idx {idx}");
-        let offset = self.current.phys_offset();
+        println!("Created: {frame:?}");
         x86_64::instructions::interrupts::without_interrupts(|| {
-            self.current_idx = idx;
-            let addr = self.l4_tables[idx];
-            self.current = unsafe {
-                OffsetPageTable::<'static>::new(
-                    addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
-                    offset,
-                )
-            };
+            self.set_current_page_table_frame(&frame);
             unsafe {
                 Self::switch_to_frame(frame);
             }
         });
     }
 
-    fn create_process_p4<A>(&mut self, frame_alloc: &mut A) -> Option<(PhysFrame, usize)>
+    fn create_process_p4<A>(&mut self, frame_alloc: &mut A) -> Option<PhysFrame>
     where
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
@@ -87,27 +113,23 @@ impl PageTables {
         }
         println!("Copied current p4 table here -> virtaddr({page_addr:p})");
 
-        let idx = self.l4_tables.len();
-        self.l4_tables.push(page_addr);
+        self.l4_tables.insert(frame, page_addr);
 
-        Some((frame, idx))
+        Some(frame)
     }
 
-    #[allow(clippy::needless_pass_by_ref_mut)]
-    fn all_but_current_internal(
-        tables: &mut [VirtAddr],
-        idx: usize,
-    ) -> impl Iterator<Item = &mut PageTable> {
+    fn all_but_current_internal<'a>(
+        tables: impl Iterator<Item = (&'a PhysFrame, &'a VirtAddr)>,
+        frame: &'a PhysFrame,
+    ) -> impl Iterator<Item = &'a mut PageTable> {
         tables
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(move |(i, _)| *i != idx)
+            .filter(move |(i, _)| **i != *frame)
             .map(|(_, x)| unsafe { x.as_mut_ptr::<PageTable>().as_mut() }.unwrap())
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn all_but_current(&mut self) -> impl Iterator<Item = &mut PageTable> {
-        Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
+        Self::all_but_current_internal(self.l4_tables.iter(), &self.current_frame)
     }
 }
 
@@ -145,7 +167,7 @@ impl CleanUp for PageTables {
         // Iterator over the iterators of entries of each table [table: [entries]]
         // SHould be an iterator over the iterator of each table, for each entry [entries: [tables]]
         let mut other: Vec<_> =
-            Self::all_but_current_internal(&mut self.l4_tables, self.current_idx)
+            Self::all_but_current_internal(self.l4_tables.iter(), &self.current_frame)
                 .map(|x| x.iter_mut().skip(KERNEL_P4_START as usize))
                 .collect();
 
@@ -190,13 +212,13 @@ impl Mapper<Size4KiB> for PageTables {
             // println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
             let current_e = &self.current.level_4_table()[p4_index];
             // Copy kernel tables
-            for e in Self::all_but_current_internal(&mut self.l4_tables, self.current_idx) {
+            for e in Self::all_but_current_internal(self.l4_tables.iter(), &self.current_frame) {
                 e[p4_index].clone_from(current_e);
             }
         } else {
             println!(
-                "Created mapping in userspace (Current idx: {} / P4 idx: {p4_index:?} - {page:?})",
-                self.current_idx
+                "Created mapping in userspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?})",
+                self.current_frame
             )
         }
 

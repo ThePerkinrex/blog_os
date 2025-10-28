@@ -126,8 +126,7 @@ impl OomHandler for OomGrow {
 #[cfg(test)]
 mod test {
     use alloc::{boxed::Box, vec::Vec};
-
-    use crate::allocator::HEAP_SIZE;
+    use x86_64::structures::paging::{PageSize, Size4KiB};
 
     #[test_case]
     fn simple_allocation() {
@@ -149,7 +148,7 @@ mod test {
 
     #[test_case]
     fn many_boxes() {
-        for i in 0..HEAP_SIZE {
+        for i in 0..(12 * Size4KiB::SIZE) {
             let x = Box::new(i);
             assert_eq!(*x, i);
         }
