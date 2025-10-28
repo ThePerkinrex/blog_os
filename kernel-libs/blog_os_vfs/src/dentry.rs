@@ -1,9 +1,11 @@
 use core::num::NonZeroU64;
 
-use alloc::boxed::Box;
 use kernel_utils::smallmap::SmallBTreeMap;
 
-use crate::INodeRef;
+use crate::{
+    INodeRef,
+    path::{Path, PathBuf},
+};
 
 pub struct DEntry {
     pub inode: INodeRef,
@@ -24,7 +26,7 @@ impl DEntryStatus {
 }
 
 pub struct DEntryCache {
-    map: SmallBTreeMap<1, Box<str>, (DEntry, DEntryStatus)>,
+    map: SmallBTreeMap<1, PathBuf, (DEntry, DEntryStatus)>,
     version: NonZeroU64, // TODO implement cleaning
 }
 
@@ -36,7 +38,7 @@ impl DEntryCache {
         }
     }
 
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut DEntry> {
+    pub fn get_mut(&mut self, key: &Path) -> Option<&mut DEntry> {
         self.map.get_mut(key).map(|(x, status)| {
             status.set_version(self.version);
             self.version = self.version.saturating_add(1);
@@ -44,18 +46,37 @@ impl DEntryCache {
         })
     }
 
-    pub fn add_mountpoint(&mut self, key: Box<str>, entry: DEntry) {
+    pub fn add_mountpoint(&mut self, key: PathBuf, entry: DEntry) {
         self.map.insert(key, (entry, DEntryStatus::MountPoint));
     }
 
-    pub fn add_cached(&mut self, key: Box<str>, entry: DEntry) {
+    pub fn add_cached(&mut self, key: PathBuf, entry: DEntry) {
         self.map
             .insert(key, (entry, DEntryStatus::LastAccess(self.version)));
         self.version = self.version.saturating_add(1);
     }
 
-    pub fn remove(&mut self, key: &str) -> Option<DEntry> {
+    pub fn remove(&mut self, key: &Path) -> Option<DEntry> {
         self.map.remove(key).map(|(x, _)| x)
+    }
+
+    pub fn find_greatest<'a, 'b>(
+        &'a mut self,
+        mut key: &'b Path,
+    ) -> Option<(&'a mut DEntry, &'b Path)> {
+        let key = loop {
+            if self.map.contains_key(key) {
+                break Some(key);
+            }
+
+            if let Some(parent) = key.parent() {
+                key = parent
+            } else {
+                break None;
+            }
+        };
+
+        key.and_then(|x| self.get_mut(x).map(move |a| (a, x)))
     }
 }
 

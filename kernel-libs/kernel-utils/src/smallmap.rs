@@ -153,6 +153,19 @@ where
             SmallBTreeMapInner::Alloc(btree_map) => btree_map.remove(key),
         }
     }
+
+     pub fn contains_key<K2>(&self, key: &K2) -> bool
+    where
+        K: Borrow<K2>,
+        K2: Ord + ?Sized,
+    {
+        match &self.0 {
+            SmallBTreeMapInner::Small { data, indices, len } => {
+                Self::find_index(data, indices, *len, key).is_ok()
+            }
+            SmallBTreeMapInner::Alloc(btree_map) => btree_map.contains_key(key),
+        }
+    }
 }
 
 impl<const N: usize, K, V> SmallBTreeMap<N, K, V> {
