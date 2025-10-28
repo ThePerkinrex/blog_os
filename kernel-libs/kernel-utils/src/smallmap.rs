@@ -1,5 +1,8 @@
 use core::{
-    borrow::Borrow, cmp::Ordering, mem::MaybeUninit, ops::{Deref, Index, IndexMut}
+    borrow::Borrow,
+    cmp::Ordering,
+    mem::MaybeUninit,
+    ops::{Deref, Index, IndexMut},
 };
 
 use alloc::collections::btree_map::BTreeMap;
@@ -33,7 +36,11 @@ where
         indices: &[usize; N],
         len: usize,
         key: &K2,
-    ) -> Result<usize, usize> where K: Borrow<K2>, K2: Ord + ?Sized {
+    ) -> Result<usize, usize>
+    where
+        K: Borrow<K2>,
+        K2: Ord + ?Sized,
+    {
         let mut low = 0;
         let mut high = len;
         while low < high {
@@ -92,7 +99,11 @@ where
         }
     }
 
-    pub fn get<K2>(&self, key: &K2) -> Option<&V> where K: Borrow<K2>, K2: Ord + ?Sized {
+    pub fn get<K2>(&self, key: &K2) -> Option<&V>
+    where
+        K: Borrow<K2>,
+        K2: Ord + ?Sized,
+    {
         match &self.0 {
             SmallBTreeMapInner::Small { data, indices, len } => {
                 Self::find_index(data, indices, *len, key).map_or(None, |i| {
@@ -105,7 +116,11 @@ where
         }
     }
 
-    pub fn get_mut<K2>(&mut self, key: &K2) -> Option<&mut V> where K: Borrow<K2>, K2: Ord + ?Sized {
+    pub fn get_mut<K2>(&mut self, key: &K2) -> Option<&mut V>
+    where
+        K: Borrow<K2>,
+        K2: Ord + ?Sized,
+    {
         match &mut self.0 {
             SmallBTreeMapInner::Small { data, indices, len } => {
                 Self::find_index(data, indices, *len, key).map_or(None, |i| {
@@ -118,7 +133,11 @@ where
         }
     }
 
-    pub fn remove<K2>(&mut self, key: &K2) -> Option<V> where K: Borrow<K2>, K2: Ord + ?Sized  {
+    pub fn remove<K2>(&mut self, key: &K2) -> Option<V>
+    where
+        K: Borrow<K2>,
+        K2: Ord + ?Sized,
+    {
         match &mut self.0 {
             SmallBTreeMapInner::Small { data, indices, len } => {
                 Self::find_index(data, indices, *len, key).map_or(None, |i| {
