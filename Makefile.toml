@@ -4,10 +4,11 @@ extend = "env.toml"
 CARGO_MAKE_WORKSPACE_EMULATION = true
 # a list of crate members. since we do not have a Cargo.toml, we will need to specify this in here.
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
-	"kernel",
 	"qemu-common",
 	"runner",
 	"userspace",
+	"kernel-libs",
+	"kernel",
 ]
 
 [env.gdb]

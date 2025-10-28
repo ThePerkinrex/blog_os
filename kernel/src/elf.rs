@@ -1,6 +1,7 @@
 use core::{alloc::Layout, ops::DerefMut};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
+use kernel_utils::maybe_boxed::MaybeBoxed;
 use object::{
     LittleEndian,
     read::elf::{ElfFile64, FileHeader, ProgramHeader},
@@ -14,7 +15,6 @@ use crate::{
     println,
     setup::KERNEL_INFO,
     stack::{self, GeneralStack},
-    util::MaybeBoxed,
 };
 
 const TEST: &[u8] = include_bytes!("./progs/test_prog");
