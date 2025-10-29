@@ -250,7 +250,7 @@ unsafe extern "C" fn naked_syscall_tail() {
         "
         .cfi_startproc
         .cfi_signal_frame
-        .cfi_def_cfa rsp, 104
+        .cfi_def_cfa rsp, 136
         .cfi_offset rbp, -8
         .cfi_offset rcx, -16
         .cfi_offset rdx, -24
