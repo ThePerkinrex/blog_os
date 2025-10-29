@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
+use alloc::{borrow::ToOwned, boxed::Box};
 
 use crate::{
     dentry::{DEntry, DEntryCache},
@@ -11,6 +11,7 @@ use crate::{
     path::{Path, PathBuf},
 };
 
+pub mod block;
 pub mod dentry;
 pub mod fs;
 pub mod inode;
@@ -20,7 +21,7 @@ slotmap::new_key_type! {
     pub struct FsIdx;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct INodeRef(FsIdx, FsINodeRef);
 
 impl INodeRef {
@@ -65,9 +66,12 @@ impl VFS {
     pub fn get_ref(&mut self, path: &Path) -> Option<INodeRef> {
         let (dentry, greatest) = self.dentry_cache.find_greatest(path)?;
         if greatest == path {
-            Some(dentry.inode.clone())
+            Some(dentry.inode)
         } else {
-            todo!("Recurse on the fs")
+            let greatest = greatest.to_owned();
+            let inode = dentry.inode;
+
+            todo!()
         }
     }
 }
