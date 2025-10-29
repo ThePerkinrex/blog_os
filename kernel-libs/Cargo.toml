@@ -1,3 +1,3 @@
 [workspace]
-members = ["blog_os_vfs", "kernel-utils"]
+members = ["blog_os_vfs", "blog_os_vfs_api", "kernel-utils"]
 resolver = "3"

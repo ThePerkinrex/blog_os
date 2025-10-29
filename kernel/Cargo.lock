@@ -62,9 +62,17 @@ dependencies = [
 name = "blog_os_vfs"
 version = "0.1.0"
 dependencies = [
- "itertools",
+ "blog_os_vfs_api",
  "kernel-utils",
  "slotmap",
+]
+
+[[package]]
+name = "blog_os_vfs_api"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "kernel-utils",
  "smallvec",
 ]
 

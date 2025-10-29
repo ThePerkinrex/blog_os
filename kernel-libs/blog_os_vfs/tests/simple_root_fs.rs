@@ -1,10 +1,11 @@
 use blog_os_vfs::{
     VFS,
-    block::{Block, FsBlockRef},
-    fs::Superblock,
-    inode::{FsINodeRef, INode},
-    path::PathBuf,
+    api::block::{Block, FsBlockRef},
+    api::fs::Superblock,
+    api::inode::{FsINodeRef, INode},
+    api::path::PathBuf,
 };
+use blog_os_vfs_api::{IOError, file::File};
 use kernel_utils::try_from_iterator::TryFromIterator;
 
 mod common;
@@ -29,6 +30,10 @@ pub fn simple_root_fs() {
         fn get_mut_block(&mut self, _: FsBlockRef) -> Option<&mut Block> {
             todo!()
         }
+
+        fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {
+            todo!()
+        }
     }
 
     let mut vfs = VFS::new();
@@ -46,7 +51,7 @@ pub fn simple_root_fs() {
 #[test]
 pub fn tree_root_fs() {
     let mut vfs = VFS::new();
-    let root = PathBuf::try_from_iter([""]).expect("A correct path");
+    let root = PathBuf::root();
     let fs = vfs.mount(root.clone(), common::fs::example_fs_empty_files());
 
     let inode = vfs.get_ref(&root);
@@ -56,6 +61,9 @@ pub fn tree_root_fs() {
     assert_eq!(fs, inode.fs());
     assert_eq!(0, inode.inode().0);
 
-    let sh_path = PathBuf::try_from_iter(["", "bin", "sh"]).expect("A correct path");
+    let sh_path = PathBuf::parse("/bin/sh");
     let sh = vfs.get_ref(&sh_path).expect("An inode");
+
+    assert_eq!(fs, sh.fs());
+    assert!(sh.inode().0 > 0);
 }

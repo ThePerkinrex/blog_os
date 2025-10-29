@@ -52,6 +52,19 @@ impl Path {
         self.components.len()
     }
 
+    pub fn components(&self) -> impl Iterator<Item = &str> {
+        self.components.iter().map(|x| x.as_ref())
+    }
+
+    pub fn relative<'a>(&'a self, to: &Self) -> Option<&'a Self> {
+        if self.components.starts_with(&to.components) {
+            let slice = &self.components[to.len()..];
+            Some(unsafe { Self::from_slice_unchecked(slice) })
+        } else {
+            None
+        }
+    }
+
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.components.is_empty()
@@ -95,6 +108,24 @@ impl PathBuf {
     pub const fn new() -> Self {
         Self {
             components: SmallVec::new_const(),
+        }
+    }
+
+    pub fn root() -> Self {
+        Self {
+            components: smallvec::smallvec![Box::from("")],
+        }
+    }
+
+    pub fn parse(str: &str) -> Self {
+        let s = str.trim_end_matches('/');
+        Self {
+            components: s
+                .split('/')
+                .enumerate()
+                .filter(|&(i, x)| i == 0 || !x.is_empty())
+                .map(|(_, x)| Box::from(x))
+                .collect(),
         }
     }
 
@@ -149,25 +180,6 @@ impl<B: Into<Box<str>>> TryFromIterator<B> for PathBuf {
     }
 }
 
-// impl<B: Into<Box<str>>> TryFromIterator<B> for PathBuf {
-//     type Error = ContainsSlashError;
-//     fn try_from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Result<Self, Self::Error> {
-//         Ok(Self {
-//             components: iter
-//                 .into_iter()
-//                 .map(Box::from)
-//                 .map(|x: Box<str>| {
-//                     if x.contains('/') {
-//                         Err(ContainsSlashError)
-//                     } else {
-//                         Ok(x)
-//                     }
-//                 })
-//                 .collect::<Result<SmallVec<_>, ContainsSlashError>>()?,
-//         })
-//     }
-// }
-
 impl Default for PathBuf {
     fn default() -> Self {
         Self::new()
@@ -197,6 +209,23 @@ impl core::fmt::Display for PathBuf {
 impl core::fmt::Debug for PathBuf {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Debug::fmt(self.as_path(), f)
+    }
+}
+
+impl<T: Borrow<Path>> core::ops::Div<&T> for &Path {
+    type Output = PathBuf;
+
+    fn div(self, rhs: &T) -> Self::Output {
+        self.join(rhs.borrow())
+    }
+}
+
+impl<T: Borrow<Path>> core::ops::Div<&T> for PathBuf {
+    type Output = Self;
+
+    fn div(mut self, rhs: &T) -> Self::Output {
+        self.push(rhs.borrow());
+        self
     }
 }
 
@@ -413,5 +442,67 @@ mod tests {
         let slice = [Box::from(""), Box::from("a")];
         let path = PathBuf::try_from_iter(slice).expect("Correct path");
         assert_eq!("/a", format!("{path}"));
+    }
+
+    #[test]
+    fn parse_simple_abs() {
+        let path = PathBuf::parse("/a/b");
+        assert_eq!(3, path.len());
+        assert_eq!("/a/b", format!("{path}"));
+    }
+
+    #[test]
+    fn parse_multiple_slash_abs() {
+        let path = PathBuf::parse("/a///b");
+        assert_eq!(3, path.len());
+        assert_eq!("/a/b", format!("{path}"));
+    }
+
+    #[test]
+    fn parse_simple_rel() {
+        let path = PathBuf::parse("a/b");
+        assert_eq!(2, path.len());
+        assert_eq!("a/b", format!("{path}"));
+    }
+
+    #[test]
+    fn parse_multiple_slash_rel() {
+        let path = PathBuf::parse("a///b");
+        assert_eq!(2, path.len());
+        assert_eq!("a/b", format!("{path}"));
+    }
+
+    #[test]
+    fn relative_path() {
+        let a = PathBuf::parse("a/b");
+        let b = PathBuf::parse("a");
+        let rel = a.relative(&b).expect("Relative addr");
+        assert_eq!(1, rel.len());
+        assert_eq!("b", format!("{rel}"));
+    }
+
+    #[test]
+    fn not_relative_path() {
+        let a = PathBuf::parse("a/b");
+        let b = PathBuf::parse("c");
+        assert!(a.relative(&b).is_none());
+    }
+
+    #[test]
+    fn join_div() {
+        let a = PathBuf::parse("a/");
+        let b = PathBuf::parse("b/");
+        let joined = a.as_path() / &b;
+        assert_eq!(2, joined.len());
+        assert_eq!("a/b", format!("{joined}"));
+    }
+
+    #[test]
+    fn push_div() {
+        let a = PathBuf::parse("a/");
+        let b = PathBuf::parse("b/");
+        let joined = a / &b;
+        assert_eq!(2, joined.len());
+        assert_eq!("a/b", format!("{joined}"));
     }
 }

@@ -4,7 +4,7 @@ use kernel_utils::smallmap::SmallBTreeMap;
 
 use crate::{
     INodeRef,
-    path::{Path, PathBuf},
+    api::path::{Path, PathBuf},
 };
 
 pub struct DEntry {
