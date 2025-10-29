@@ -4,17 +4,25 @@ extend = "env.toml"
 CARGO_MAKE_WORKSPACE_EMULATION = true
 # a list of crate members. since we do not have a Cargo.toml, we will need to specify this in here.
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
-	"kernel",
 	"qemu-common",
 	"runner",
 	"userspace",
+	"kernel-libs",
+	"kernel",
 ]
+COV_ARGS = []
 
 [env.gdb]
 GDB_LISTEN = true
 
 [env.no_display]
 NO_DISPLAY = true
+
+[env.cov-open]
+COV_ARGS = ["--open"]
+
+[env.cov-vscode]
+COV_ARGS = ["--lcov", "--output-path", "./target/lcov.info"]
 
 [tasks.run]
 workspace = false
@@ -24,6 +32,19 @@ dependencies = [{ name = "run", path = "kernel/" }]
 
 [tasks.run-gdb-server]
 workspace = false
-dependencies = [{ name = "build", path = "kernel/" }, { name = "build", path = "runner/" }]
+dependencies = [
+	{ name = "build", path = "kernel/" },
+	{ name = "build", path = "runner/" },
+]
 command = "./runner/target/release/runner"
-args = ["--target", "./kernel/target", "--gdb", "--no-start-gdb", "./kernel/target/x86_64-unknown-none/${CARGO_BUILD_DEST}/blog_os_kernel"]
+args = [
+	"--target",
+	"./kernel/target",
+	"--gdb",
+	"--no-start-gdb",
+	"./kernel/target/x86_64-unknown-none/${CARGO_BUILD_DEST}/blog_os_kernel",
+]
+
+[tasks.cov]
+workspace = false
+dependencies = [{ name = "cov", path = "kernel-libs" }]

@@ -1,12 +1,13 @@
 use core::marker::PhantomData;
 
 use bootloader_api::BootInfo;
+use kernel_utils::no_heap_vec::NoHeapVec;
 use x86_64::{
     VirtAddr,
     structures::paging::{PageSize, Size4KiB, Translate},
 };
 
-use crate::{println, util::NoHeapVec};
+use crate::println;
 
 /// Represents a contiguous unmapped range in virtual space.
 #[derive(Debug, Clone)]

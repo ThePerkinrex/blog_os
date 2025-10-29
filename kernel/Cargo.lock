@@ -45,6 +45,7 @@ dependencies = [
  "bootloader-x86_64-common",
  "bootloader_api",
  "gimli",
+ "kernel-utils",
  "lock_api",
  "object",
  "pc-keyboard",
@@ -60,6 +61,12 @@ dependencies = [
 [[package]]
 name = "blog_os_vfs"
 version = "0.1.0"
+dependencies = [
+ "itertools",
+ "kernel-utils",
+ "slotmap",
+ "smallvec",
+]
 
 [[package]]
 name = "bootloader-boot-config"
@@ -128,6 +135,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+
+[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -144,6 +157,19 @@ dependencies = [
  "rustc-std-workspace-core",
  "stable_deref_trait",
 ]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "kernel-utils"
+version = "0.1.0"
 
 [[package]]
 name = "lock_api"
@@ -314,6 +340,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slotmap"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbff4acf519f630b3a3ddcfaea6c06b42174d9a44bc70c620e9ed1649d58b82a"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,6 +426,12 @@ name = "uuid"
 version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
+
+[[package]]
+name = "version_check"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "volatile"

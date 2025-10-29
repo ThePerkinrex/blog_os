@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use kernel_utils::smallmap::SmallBTreeMap;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -7,7 +8,7 @@ use x86_64::{
     },
 };
 
-use crate::{println, util::smallmap::SmallBTreeMap};
+use crate::println;
 
 const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 

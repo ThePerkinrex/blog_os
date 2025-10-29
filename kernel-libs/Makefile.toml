@@ -1,0 +1,5 @@
+[tasks.cov]
+workspace = false
+install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo", test_arg = ["llvm-cov", "--help"]}
+command = "cargo"
+args = ["llvm-cov", "test", "@@split(COV_ARGS,;)"]

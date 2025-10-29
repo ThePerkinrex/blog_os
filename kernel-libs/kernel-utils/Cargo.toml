@@ -1,5 +1,5 @@
 [package]
-name = "blog_os_vfs"
+name = "kernel-utils"
 version = "0.1.0"
 edition = "2024"
 
