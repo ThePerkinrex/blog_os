@@ -4,6 +4,7 @@ use blog_os_vfs::{
     inode::{FsINodeRef, INode},
     path::PathBuf,
 };
+use kernel_utils::try_from_iterator::TryFromIterator;
 
 struct Super;
 
@@ -12,7 +13,7 @@ impl Superblock for Super {
         FsINodeRef(1)
     }
 
-    fn get_inode(&self, inode: FsINodeRef) -> &dyn INode {
+    fn get_inode(&self, _: FsINodeRef) -> &dyn INode {
         todo!()
     }
 }
@@ -20,7 +21,7 @@ impl Superblock for Super {
 #[test]
 pub fn simple_root_fs() {
     let mut vfs = VFS::new();
-    let root: PathBuf = [""].into_iter().collect();
+    let root: PathBuf = TryFromIterator::try_from_iter([""]).expect("A correct path");
     let fs = vfs.mount(root.clone(), Super);
 
     let inode = vfs.get_ref(&root);

@@ -10,7 +10,7 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
 	"kernel-libs",
 	"kernel",
 ]
-COV_ARGS = []
+COV_ARGS = ["test", "--no-report"]
 
 [env.gdb]
 GDB_LISTEN = true
@@ -18,11 +18,14 @@ GDB_LISTEN = true
 [env.no_display]
 NO_DISPLAY = true
 
-[env.cov-open]
-COV_ARGS = ["--open"]
+[env.cov-report-open]
+COV_ARGS = ["report", "--open"]
 
-[env.cov-vscode]
-COV_ARGS = ["--lcov", "--output-path", "./target/lcov.info"]
+[env.cov-report-html]
+COV_ARGS = ["report", "--html"]
+
+[env.cov-report-vscode]
+COV_ARGS = ["report", "--lcov", "--output-path", "./target/lcov.info"]
 
 [tasks.run]
 workspace = false

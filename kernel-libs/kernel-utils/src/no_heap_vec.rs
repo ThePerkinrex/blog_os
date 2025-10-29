@@ -103,3 +103,104 @@ impl<const CAP: usize, T> IndexMut<usize> for NoHeapVec<CAP, T> {
             .map_or_else(|| panic!("Index out of range {index} >= {}", len), |x| x)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_starts_empty() {
+        let v: NoHeapVec<4, i32> = NoHeapVec::new();
+        assert_eq!(v.len(), 0);
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn push_and_len_work() {
+        let mut v: NoHeapVec<3, i32> = NoHeapVec::new();
+        assert_eq!(v.push(10), Ok(()));
+        assert_eq!(v.len(), 1);
+        assert!(!v.is_empty());
+        assert_eq!(v.first(), Some(&10));
+
+        v.push(20).unwrap();
+        v.push(30).unwrap();
+        assert_eq!(v.len(), 3);
+    }
+
+    #[test]
+    fn push_returns_error_when_full() {
+        let mut v: NoHeapVec<2, i32> = NoHeapVec::new();
+        assert_eq!(v.push(1), Ok(()));
+        assert_eq!(v.push(2), Ok(()));
+        assert_eq!(v.push(3), Err("Container full"));
+    }
+
+    #[test]
+    fn get_and_get_mut_work() {
+        let mut v: NoHeapVec<3, i32> = NoHeapVec::new();
+        v.push(5).unwrap();
+        v.push(10).unwrap();
+
+        assert_eq!(v.get(0), Some(&5));
+        assert_eq!(v.get(1), Some(&10));
+        assert_eq!(v.get(2), None);
+
+        *v.get_mut(1).unwrap() = 99;
+        assert_eq!(v.get(1), Some(&99));
+    }
+
+    #[test]
+    fn index_and_index_mut_work() {
+        let mut v: NoHeapVec<2, i32> = NoHeapVec::new();
+        v.push(7).unwrap();
+        v.push(8).unwrap();
+
+        assert_eq!(v[0], 7);
+        assert_eq!(v[1], 8);
+
+        v[0] = 42;
+        assert_eq!(v[0], 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of range 2 >= 2")]
+    fn index_out_of_range_panics() {
+        let mut v: NoHeapVec<2, i32> = NoHeapVec::new();
+        v.push(1).unwrap();
+        v.push(2).unwrap();
+        let _ = v[2]; // should panic
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of range 3 >= 2")]
+    fn index_mut_out_of_range_panics() {
+        let mut v: NoHeapVec<2, i32> = NoHeapVec::new();
+        v.push(10).unwrap();
+        v.push(20).unwrap();
+        v[3] = 99; // should panic
+    }
+
+    #[test]
+    fn from_array_works() {
+        let v = NoHeapVec::from([1, 2, 3]);
+        assert_eq!(v.len(), 3);
+        assert_eq!(v[0], 1);
+        assert_eq!(v[1], 2);
+        assert_eq!(v[2], 3);
+    }
+
+    #[test]
+    fn debug_fmt_prints_correctly() {
+        let v = NoHeapVec::from([1, 2, 3]);
+        let s = alloc::format!("{:?}", v);
+        assert_eq!(s, "[1, 2, 3]");
+    }
+
+    #[test]
+    fn default_creates_empty() {
+        let v: NoHeapVec<5, i32> = Default::default();
+        assert_eq!(v.len(), 0);
+        assert!(v.is_empty());
+    }
+}

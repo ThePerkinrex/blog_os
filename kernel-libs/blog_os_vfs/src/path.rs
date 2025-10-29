@@ -1,6 +1,7 @@
 use core::{borrow::Borrow, ops::Deref};
 
 use alloc::{borrow::ToOwned, boxed::Box};
+use kernel_utils::try_from_iterator::TryFromIterator;
 use smallvec::SmallVec;
 
 use itertools::Itertools;
@@ -128,21 +129,44 @@ impl PathBuf {
     }
 }
 
-impl FromIterator<Box<str>> for PathBuf {
-    fn from_iter<T: IntoIterator<Item = Box<str>>>(iter: T) -> Self {
-        Self {
-            components: iter.into_iter().collect(),
-        }
+impl<B: Into<Box<str>>> TryFromIterator<B> for PathBuf {
+    type Error = ContainsSlashError;
+
+    fn try_from_iter<T: IntoIterator<Item = B>>(iter: T) -> Result<Self, Self::Error> {
+        Ok(Self {
+            components: iter
+                .into_iter()
+                .map(|x| {
+                    let x = x.into();
+                    if x.contains('/') {
+                        Err(ContainsSlashError)
+                    } else {
+                        Ok(x)
+                    }
+                })
+                .collect::<Result<SmallVec<_>, ContainsSlashError>>()?,
+        })
     }
 }
 
-impl<'a> FromIterator<&'a str> for PathBuf {
-    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        Self {
-            components: iter.into_iter().map(From::from).collect(),
-        }
-    }
-}
+// impl<B: Into<Box<str>>> TryFromIterator<B> for PathBuf {
+//     type Error = ContainsSlashError;
+//     fn try_from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Result<Self, Self::Error> {
+//         Ok(Self {
+//             components: iter
+//                 .into_iter()
+//                 .map(Box::from)
+//                 .map(|x: Box<str>| {
+//                     if x.contains('/') {
+//                         Err(ContainsSlashError)
+//                     } else {
+//                         Ok(x)
+//                     }
+//                 })
+//                 .collect::<Result<SmallVec<_>, ContainsSlashError>>()?,
+//         })
+//     }
+// }
 
 impl Default for PathBuf {
     fn default() -> Self {
@@ -178,16 +202,17 @@ impl core::fmt::Debug for PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use alloc::format;
+    use alloc::{boxed::Box, format};
+    use kernel_utils::try_from_iterator::TryFromIterator;
 
-    use crate::path::PathBuf;
+    use crate::path::{Path, PathBuf};
 
     #[test]
     fn root_path_fmt() {
         let mut path = PathBuf::new();
         path.push_component("").unwrap();
 
-        assert_eq!("/", format!("{path}"))
+        assert_eq!("/", format!("{path:?}"))
     }
 
     #[test]
@@ -238,5 +263,155 @@ mod tests {
         assert!(path.push_component("").is_ok());
         assert!(path.push_component("").is_ok());
         assert_eq!(1, path.len())
+    }
+
+    #[test]
+    fn push_another() {
+        let mut path1 = PathBuf::new();
+        assert!(path1.push_component("").is_ok());
+        assert!(path1.push_component("a").is_ok());
+        let mut path2 = PathBuf::new();
+        assert!(path2.push_component("b").is_ok());
+        path1.push(&path2);
+        assert_eq!(3, path1.len());
+        assert_eq!("/a/b", format!("{path1}"));
+    }
+
+    #[test]
+    fn push_another_abs() {
+        let mut path1 = PathBuf::new();
+        assert!(path1.push_component("").is_ok());
+        assert!(path1.push_component("a").is_ok());
+        let mut path2 = PathBuf::new();
+        assert!(path2.push_component("").is_ok());
+        assert!(path2.push_component("b").is_ok());
+        path1.push(&path2);
+        assert_eq!(3, path1.len());
+        assert_eq!("/a/b", format!("{path1}"));
+    }
+
+    #[test]
+    fn join_abs() {
+        let mut path1 = PathBuf::new();
+        assert!(path1.push_component("").is_ok());
+        assert!(path1.push_component("a").is_ok());
+        let mut path2 = PathBuf::new();
+        assert!(path2.push_component("").is_ok());
+        assert!(path2.push_component("b").is_ok());
+        let path3 = path1.join(&path2);
+        assert_eq!(3, path3.len());
+        assert_eq!("/a/b", format!("{path3}"));
+        assert_eq!(2, path1.len());
+        assert_eq!("/a", format!("{path1}"));
+        assert_eq!(2, path2.len());
+        assert_eq!("/b", format!("{path2}"));
+    }
+
+    #[test]
+    fn not_absolute() {
+        let mut path = PathBuf::new();
+        path.push_component("a").unwrap();
+
+        assert!(!path.is_absolute())
+    }
+
+    #[test]
+    fn absolute() {
+        let mut path = PathBuf::new();
+        path.push_component("").unwrap();
+        path.push_component("a").unwrap();
+
+        assert!(path.is_absolute())
+    }
+
+    #[test]
+    fn not_absolute_empty() {
+        let path = PathBuf::new();
+
+        assert!(!path.is_absolute())
+    }
+
+    #[test]
+    fn absolute_root() {
+        let mut path = PathBuf::new();
+        path.push_component("").unwrap();
+
+        assert!(path.is_absolute())
+    }
+
+    #[test]
+    fn parent1() {
+        let mut path = PathBuf::new();
+        path.push_component("").unwrap();
+        path.push_component("a").unwrap();
+
+        assert_eq!(2, path.len());
+        assert_eq!(1, path.parent().expect("parent is root").len());
+    }
+
+    #[test]
+    fn no_parent_abs() {
+        let mut path = PathBuf::new();
+        path.push_component("").unwrap();
+
+        assert_eq!(1, path.len());
+        assert!(path.parent().is_none());
+    }
+
+    #[test]
+    fn no_parent_rel() {
+        let mut path = PathBuf::new();
+        path.push_component("a").unwrap();
+
+        assert_eq!(1, path.len());
+        assert!(path.parent().is_none());
+    }
+
+    #[test]
+    fn slash_in_slice() {
+        let slice = [Box::from(""), Box::from("a/")];
+        assert!(Path::from_slice(&slice).is_err());
+    }
+
+    #[test]
+    fn no_slash_in_slice() {
+        let slice = [Box::from(""), Box::from("a")];
+        let path = Path::from_slice(&slice).expect("Correct path");
+        assert_eq!("/a", format!("{path}"));
+    }
+
+    #[test]
+    fn not_empty() {
+        let mut path = PathBuf::new();
+        path.push_component("a").unwrap();
+
+        assert!(!path.is_empty())
+    }
+
+    #[test]
+    fn empty() {
+        let path = PathBuf::new();
+
+        assert!(path.is_empty())
+    }
+
+    #[test]
+    fn default() {
+        let path = PathBuf::default();
+
+        assert!(path.is_empty())
+    }
+
+    #[test]
+    fn slash_in_iter() {
+        let slice: [Box<str>; 2] = [Box::from(""), Box::from("a/")];
+        assert!(PathBuf::try_from_iter(slice).is_err());
+    }
+
+    #[test]
+    fn no_slash_in_iter() {
+        let slice = [Box::from(""), Box::from("a")];
+        let path = PathBuf::try_from_iter(slice).expect("Correct path");
+        assert_eq!("/a", format!("{path}"));
     }
 }
