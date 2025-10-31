@@ -55,3 +55,26 @@ args = [
 [tasks.cov]
 workspace = false
 dependencies = [{ name = "cov", path = "kernel-libs" }]
+
+[tasks.pdf]
+workspace = false
+script_runner = "@duckscript"
+script = '''
+git = which git
+if is_empty git
+	exit
+end
+echo "Git is here" ${git}
+out = exec git rev-parse --short HEAD
+echo "Commit is" ${out.stdout}
+hash = trim ${out.stdout}
+exec typst compile --input version=${hash} docs/main.typ docs/docs.pdf
+'''
+
+
+[tasks.pdf-version]
+workspace = false
+script_runner = "@duckscript"
+script = '''
+exec typst compile --input version=${1} docs/main.typ docs/docs.pdf
+'''
