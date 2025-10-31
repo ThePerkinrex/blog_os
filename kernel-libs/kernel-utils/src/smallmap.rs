@@ -297,9 +297,8 @@ mod tests {
         use alloc::string::String;
         let mut map = SmallBTreeMap::<4, i32, String>::new();
         map.insert(1, "a".into());
-        if let Some(v) = map.get_mut(&1) {
-            v.push_str("bc");
-        }
+        let v = map.get_mut(&1).unwrap();
+        v.push_str("bc");
         assert_eq!(map.get(&1).unwrap(), "abc");
     }
 
@@ -318,9 +317,8 @@ mod tests {
         use alloc::string::String;
         let mut map = SmallBTreeMap::<0, i32, String>::new();
         map.insert(1, "a".into());
-        if let Some(v) = map.get_mut(&1) {
-            v.push_str("bc");
-        }
+        let v = map.get_mut(&1).unwrap();
+        v.push_str("bc");
         assert_eq!(map.get(&1).unwrap(), "abc");
     }
 

@@ -1,10 +1,11 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use blog_os_vfs::{
-    block::{Block, FsBlockRef},
-    fs::Superblock,
-    inode::{FsINodeRef, INode, INodeType},
+    api::block::{Block, FsBlockRef},
+    api::fs::Superblock,
+    api::inode::{FsINodeRef, INode, INodeType},
 };
+use blog_os_vfs_api::{IOError, file::File};
 
 enum CustomINode {
     Regular {
@@ -58,6 +59,10 @@ impl Superblock for CustomFs {
 
     fn get_mut_block(&mut self, block: FsBlockRef) -> Option<&mut Block> {
         self.data_blocks.get_mut(block.0).map(|x| x.as_mut_slice())
+    }
+
+    fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {
+        todo!()
     }
 }
 

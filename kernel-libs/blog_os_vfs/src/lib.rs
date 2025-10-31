@@ -1,21 +1,18 @@
 #![no_std]
 
 extern crate alloc;
+pub use blog_os_vfs_api as api;
 
 use alloc::{borrow::ToOwned, boxed::Box};
 
 use crate::{
+    api::fs::Superblock,
+    api::inode::FsINodeRef,
+    api::path::{Path, PathBuf},
     dentry::{DEntry, DEntryCache},
-    fs::Superblock,
-    inode::FsINodeRef,
-    path::{Path, PathBuf},
 };
 
-pub mod block;
 pub mod dentry;
-pub mod fs;
-pub mod inode;
-pub mod path;
 
 slotmap::new_key_type! {
     pub struct FsIdx;
@@ -68,10 +65,30 @@ impl VFS {
         if greatest == path {
             Some(dentry.inode)
         } else {
-            let greatest = greatest.to_owned();
-            let inode = dentry.inode;
+            let remaining = path
+                .relative(greatest)
+                .expect("greatest is a prefix of path");
+            let mut current = greatest.to_owned();
+            let INodeRef(fs, mut inode_ref) = dentry.inode;
+            let superblock = &self.superblocks[fs];
 
-            todo!()
+            for (i, c) in remaining.components().enumerate() {
+                let inode = superblock.get_inode(inode_ref)?;
+                if i < remaining.len() - 1 {
+                    inode_ref = inode.lookup(c)?;
+                    current
+                        .push_component(c)
+                        .expect("component doesnt contain slash");
+                    self.dentry_cache.add_cached(
+                        current.clone(),
+                        DEntry {
+                            inode: INodeRef(fs, inode_ref),
+                        },
+                    );
+                }
+            }
+
+            Some(INodeRef(fs, inode_ref))
         }
     }
 }

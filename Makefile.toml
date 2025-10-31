@@ -18,6 +18,10 @@ GDB_LISTEN = true
 [env.no_display]
 NO_DISPLAY = true
 
+
+[env.cov-clean]
+COV_ARGS = ["clean"]
+
 [env.cov-report-open]
 COV_ARGS = ["report", "--open"]
 

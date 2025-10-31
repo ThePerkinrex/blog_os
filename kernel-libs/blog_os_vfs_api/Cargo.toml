@@ -1,0 +1,9 @@
+[package]
+name = "blog_os_vfs_api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kernel-utils = { path = "../kernel-utils"}
+itertools = { version = "0.14.0", default-features = false }
+smallvec = {version = "1.15.1", features = ["const_generics", "union", "const_new"]}
