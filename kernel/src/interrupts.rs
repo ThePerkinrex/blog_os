@@ -116,12 +116,11 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         "
         .cfi_startproc              // Start DWARF frame info
         .cfi_signal_frame            // Mark as interrupt/signal frame (important!)
-        .cfi_def_cfa rsp, 0          // CFA = current RSP (top of stack before pushes)
         // Save caller-saved registers
         push rbp
         mov rbp,rsp
-        .cfi_def_cfa rbp, 8
-        .cfi_offset rbp, -8
+        .cfi_adjust_cfa_offset 8
+        .cfi_offset rbp, -16
 
         push rcx
         push rdx
@@ -135,17 +134,17 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         push r13
         push rax // ESP0 stack now holds 11 registers and the 5-QWord IRET frame
 
-        .cfi_offset rcx, -16
-        .cfi_offset rdx, -24
-        .cfi_offset rsi, -32
-        .cfi_offset rdi, -40
-        .cfi_offset r8,  -48
-        .cfi_offset r9,  -56
-        .cfi_offset r10, -64
-        .cfi_offset r11, -72
-        .cfi_offset r12, -80
-        .cfi_offset r13, -88
-        .cfi_offset rax, -96
+        .cfi_offset rcx, -24
+        .cfi_offset rdx, -32
+        .cfi_offset rsi, -40
+        .cfi_offset rdi, -48
+        .cfi_offset r8,  -56
+        .cfi_offset r9,  -64
+        .cfi_offset r10, -72
+        .cfi_offset r11, -80
+        .cfi_offset r12, -88
+        .cfi_offset r13, -96
+        .cfi_offset rax, -104
 
         // 2. Call Rust helper to get the new Task Kernel Stack Top
         //    The return value (the new stack top) will be in RAX.
@@ -173,8 +172,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         
         mov rbp,rsp
         add rbp,{saved_bytes}
-        sub rbp,16
-        .cfi_def_cfa rbp, 8
+        sub rbp,8
+        .cfi_def_cfa_register rbp
 
         // The stack is now the Task Kernel Stack and perfectly aligned.
         pop rax
@@ -250,19 +249,19 @@ unsafe extern "C" fn naked_syscall_tail() {
         "
         .cfi_startproc
         .cfi_signal_frame
-        .cfi_def_cfa rsp, 136
-        .cfi_offset rbp, -8
-        .cfi_offset rcx, -16
-        .cfi_offset rdx, -24
-        .cfi_offset rsi, -32
-        .cfi_offset rdi, -40
-        .cfi_offset r8,  -48
-        .cfi_offset r9,  -56
-        .cfi_offset r10, -64
-        .cfi_offset r11, -72
-        .cfi_offset r12, -80
-        .cfi_offset r13, -88
-        .cfi_offset rax, -96
+        .cfi_adjust_cfa_offset 112
+        .cfi_offset rbp, -16
+        .cfi_offset rcx, -24
+        .cfi_offset rdx, -32
+        .cfi_offset rsi, -40
+        .cfi_offset rdi, -48
+        .cfi_offset r8,  -56
+        .cfi_offset r9,  -64
+        .cfi_offset r10, -72
+        .cfi_offset r11, -80
+        .cfi_offset r12, -88
+        .cfi_offset r13, -96
+        .cfi_offset rax, -104
 
 
         call {syscall_tail}

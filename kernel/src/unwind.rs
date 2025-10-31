@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use gimli::{
     CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection,
-    UnwindTableRow,
+    UnwindTableRow, X86_64,
 };
 
 use crate::{
@@ -37,8 +37,8 @@ impl UnwindContextStorage<usize> for ContextStore {
     type Stack = Vec<UnwindTableRow<usize, Self>>;
 }
 
-pub struct Unwinder<'a> {
-    eh_info: &'a EhInfo,
+pub struct Unwinder<'a, 'b> {
+    eh_info: &'a EhInfo<'b>,
     offset: u64,
 
     /// A `UnwindContext` needed by Gimli for optimizations.
@@ -55,8 +55,8 @@ pub struct Unwinder<'a> {
     is_first: bool,
 }
 
-impl<'a> Unwinder<'a> {
-    fn new(eh_info: &'a EhInfo, offset: u64, register_set: RegisterSet) -> Self {
+impl<'a, 'b> Unwinder<'a, 'b> {
+    fn new(eh_info: &'a EhInfo<'b>, offset: u64, register_set: RegisterSet) -> Self {
         Self {
             eh_info,
             unwind_ctx: Default::default(),
@@ -95,18 +95,23 @@ impl<'a> Unwinder<'a> {
 
         match row.cfa() {
             CfaRule::RegisterAndOffset { register, offset } => {
+                println!(
+                    "Register and offset: CFA = {register:?} + {offset:x} = {:x}",
+                    self.cfa
+                );
                 let reg_val = self
                     .regs
                     .get(*register)
                     .ok_or(UnwinderError::CfaRuleUnknownRegister(*register))?;
                 self.cfa = (reg_val as i64 + offset) as u64;
-                // println!("Register and offset: {register:?}, {offset:x} = {:x}", self.cfa);
             }
             _ => return Err(UnwinderError::UnsupportedCfaRule),
         }
 
         for reg in RegisterSet::iter() {
-            match row.register(reg) {
+            let rule = row.register(reg);
+            println!("Rule for {reg:?}: {rule:?}");
+            match rule {
                 RegisterRule::Undefined => self.regs.undef(reg),
                 RegisterRule::SameValue => (),
                 RegisterRule::Offset(offset) => {
@@ -117,6 +122,8 @@ impl<'a> Unwinder<'a> {
                 _ => return Err(UnwinderError::UnimplementedRegisterRule),
             }
         }
+
+        println!("Updated regs: {:x?}", self.regs);
 
         let pc = self.regs.get_ret().ok_or(UnwinderError::NoReturnAddr)? - 1;
         self.regs.set_pc(pc);
@@ -131,21 +138,25 @@ pub fn backtrace() {
     if let Some(eh_info) = kinf.eh_info.as_ref() {
         let aprox_pc: u64;
         let sp: u64;
+        let fp: u64;
         unsafe {
             core::arch::asm!("
             lea {pc}, [rip]
             mov {sp}, rsp
-            ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, options(nomem,nostack));
+            mov {fp}, rbp
+            ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, fp = lateout(reg) fp, options(nomem,nostack));
         }
         println!("Current pc: {aprox_pc:x}");
         let mut register_set = RegisterSet::new(aprox_pc);
         register_set.set_stack_ptr(sp);
+        register_set.set(X86_64::RBP, fp).unwrap();
         let mut unwind = Unwinder::new(eh_info, kinf.kernel_image_offset, register_set);
         println!("Created unwinder");
         loop {
+            println!("UNWIND REGS: {:x?}", unwind.regs);
             match unwind.next() {
                 Ok(Some(frame)) => {
-                    let elf_addr = frame.pc - kinf.kernel_image_offset;
+                    let elf_addr = frame.pc - kinf.kernel_image_offset; // TODO detect and load userspace
                     let lock = kinf.addr2line.as_ref().map(|x| x.lock());
                     let location = lock
                         .as_ref()

@@ -5,4 +5,6 @@ rustflags = [
 	"-C", "link-arg=-T../exec_linker.ld",
     "-C", "link-arg=-nostdlib",
     "-C", "link-arg=-no-pie",
+	"-C", "force-unwind-tables=yes",
 ]
+

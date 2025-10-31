@@ -1,20 +1,26 @@
 use core::{alloc::Layout, ops::DerefMut};
 
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
+use addr2line::Context;
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use kernel_utils::maybe_boxed::MaybeBoxed;
 use object::{
     LittleEndian,
     read::elf::{ElfFile64, FileHeader, ProgramHeader},
 };
+use ouroboros::self_referencing;
+use spin::Once;
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB},
 };
 
 use crate::{
+    dwarf::{EndianSlice, load_dwarf},
+    multitask::lock::ReentrantMutex,
     println,
     setup::KERNEL_INFO,
     stack::{self, GeneralStack},
+    unwind::eh::EhInfo,
 };
 
 const TEST: &[u8] = include_bytes!("./progs/test_prog");
@@ -81,11 +87,36 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug)]
+#[self_referencing]
+pub struct ElfWithDataAndDwarf {
+    data: Box<[u8]>,
+    #[borrows(data)]
+    #[covariant]
+    elf: SystemElf<'this>,
+    #[borrows(elf)]
+    #[not_covariant]
+    addr2line: Once<Option<Arc<ReentrantMutex<Context<EndianSlice<'this>>>>>>,
+    #[borrows(elf)]
+    #[not_covariant]
+    eh_info: Once<Option<EhInfo<'this>>>,
+}
+
 pub struct LoadedProgram {
     // TODO mem
+    load_offset: u64,
     stack: GeneralStack,
     entry: VirtAddr,
+    elf: ElfWithDataAndDwarf,
+}
+
+impl core::fmt::Debug for LoadedProgram {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("LoadedProgram")
+            .field("load_offset", &self.load_offset)
+            .field("stack", &self.stack)
+            .field("entry", &self.entry)
+            .finish()
+    }
 }
 
 impl LoadedProgram {
@@ -96,6 +127,41 @@ impl LoadedProgram {
     pub const fn stack(&self) -> &GeneralStack {
         &self.stack
     }
+
+    pub fn elf(&self) -> &SystemElf<'_> {
+        self.elf.borrow_elf()
+    }
+
+    pub fn with_addr2line<T, F: FnOnce(&Context<EndianSlice<'_>>) -> T>(&self, f: F) -> Option<T> {
+        self.elf.with(|x| {
+            let r = x.addr2line.call_once(|| {
+                let dwarf = load_dwarf(x.elf)
+                    .inspect_err(|e| println!("[WARN] {e:?}"))
+                    .ok()?;
+
+                Context::from_dwarf(dwarf)
+                    .inspect_err(|e| println!("[WARN] {e:?}"))
+                    .ok()
+                    .map(ReentrantMutex::new)
+                    .map(Arc::new)
+            });
+
+            r.as_ref().map(|x| {
+                let lock = x.lock();
+                let res = f(&lock);
+                drop(lock);
+                res
+            })
+        })
+    }
+
+    pub fn eh_info(&self) -> Option<&EhInfo<'_>> {
+        self.elf.with(|x| {
+            x.eh_info
+                .call_once(|| EhInfo::from_elf(x.elf, self.load_offset))
+                .as_ref()
+        })
+    }
 }
 
 pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
@@ -103,10 +169,20 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     let aligned = realign_if_necessary(align, bytes);
 
-    let elf = SystemElf::parse(&aligned).expect("Correct ELF");
+    let elf_contained: ElfWithDataAndDwarf = ElfWithDataAndDwarfBuilder {
+        data: aligned.into_owned(),
+        elf_builder: |x| SystemElf::parse(x).expect("Correct ELF"),
+        addr2line_builder: |_| Once::new(),
+        eh_info_builder: |_| Once::new(),
+    }
+    .build();
+
+    let elf = elf_contained.borrow_elf();
     // TODO check if its executable
 
     // TODO verify general header
+
+    let offset = 0;
 
     println!("ELF type: {:x}", elf.elf_header().e_type(LittleEndian));
 
@@ -189,7 +265,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
                 mapped_pages.insert(p, page_flags);
             }
         }
-        let elf_start = VirtAddr::from_ptr(aligned.as_ptr()) + offset;
+        let elf_start = VirtAddr::from_ptr(elf_contained.borrow_data().as_ptr()) + offset;
         println!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
         unsafe {
             core::ptr::copy_nonoverlapping(
@@ -233,7 +309,12 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     let entry = VirtAddr::new(elf.elf_header().e_entry(LittleEndian));
     println!("ELF loaded with entry point {:p}", entry);
 
-    LoadedProgram { stack, entry }
+    LoadedProgram {
+        stack,
+        entry,
+        elf: elf_contained,
+        load_offset: offset,
+    }
 }
 
 pub const fn load_example_elf() -> &'static [u8] {

@@ -38,12 +38,12 @@ impl RegisterSet {
     }
 
     pub const fn undef(&mut self, reg: Register) {
-        *match reg {
-            X86_64::RSP => &mut self.rsp,
-            X86_64::RBP => &mut self.rbp,
-            X86_64::RA => &mut self.ret,
-            _ => return,
-        } = None;
+        // *match reg {
+        //     X86_64::RSP => &mut self.rsp,
+        //     X86_64::RBP => &mut self.rbp,
+        //     X86_64::RA => &mut self.ret,
+        //     _ => return,
+        // } = None;
     }
 
     pub const fn get_pc(&self) -> Option<u64> {

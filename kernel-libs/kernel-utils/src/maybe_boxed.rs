@@ -1,6 +1,6 @@
 use core::ops::Deref;
 
-use alloc::boxed::Box;
+use alloc::{borrow::ToOwned, boxed::Box};
 
 pub enum MaybeBoxed<'a, T: ?Sized, B: Deref<Target = T> = Box<T>> {
     Borrowed(&'a T),
@@ -13,6 +13,15 @@ impl<'a, T: ?Sized, B: Deref<Target = T>> Deref for MaybeBoxed<'a, T, B> {
     fn deref(&self) -> &Self::Target {
         match self {
             MaybeBoxed::Borrowed(a) => a,
+            MaybeBoxed::Boxed(b) => b,
+        }
+    }
+}
+
+impl<'a, T: ?Sized, B: From<&'a T> + Deref<Target = T>> MaybeBoxed<'a, T, B> {
+    pub fn into_owned(self) -> B {
+        match self {
+            MaybeBoxed::Borrowed(a) => a.into(),
             MaybeBoxed::Boxed(b) => b,
         }
     }

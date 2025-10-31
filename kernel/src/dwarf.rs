@@ -1,10 +1,10 @@
 use gimli::SectionId;
 use object::read::elf::SectionHeader;
 
-use crate::setup::KernelElfFile;
+use crate::{elf::SystemElf, setup::KernelElfFile};
 
-pub type EndianSlice = gimli::EndianSlice<'static, gimli::LittleEndian>;
-pub type Dwarf = gimli::Dwarf<EndianSlice>;
+pub type EndianSlice<'a> = gimli::EndianSlice<'a, gimli::LittleEndian>;
+pub type Dwarf<'a> = gimli::Dwarf<EndianSlice<'a>>;
 
 #[derive(Debug)]
 pub enum LoadError {
@@ -20,7 +20,9 @@ impl From<object::read::Error> for LoadError {
 
 const EMPTY: &[u8] = &[];
 
-fn dwarf_loader(elf: &KernelElfFile) -> impl FnMut(SectionId) -> Result<EndianSlice, LoadError> {
+fn dwarf_loader<'a>(
+    elf: &SystemElf<'a>,
+) -> impl FnMut(SectionId) -> Result<EndianSlice<'a>, LoadError> {
     |s| {
         if let Some(hdr) = elf
             .elf_section_table()
@@ -36,6 +38,6 @@ fn dwarf_loader(elf: &KernelElfFile) -> impl FnMut(SectionId) -> Result<EndianSl
     }
 }
 
-pub fn load_dwarf(elf: &KernelElfFile) -> Result<Dwarf, LoadError> {
+pub fn load_dwarf<'a>(elf: &SystemElf<'a>) -> Result<Dwarf<'a>, LoadError> {
     Dwarf::load(dwarf_loader(elf))
 }

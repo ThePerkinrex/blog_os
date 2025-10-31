@@ -75,8 +75,8 @@ pub struct KernelInfo {
     /// Virtual address of the loaded kernel image.
     pub kernel_image_offset: u64,
     pub kernel_elf: KernelElfFile,
-    pub eh_info: Option<EhInfo>,
-    pub addr2line: Option<ReentrantMutex<Context<EndianSlice>>>,
+    pub eh_info: Option<EhInfo<'static>>,
+    pub addr2line: Option<ReentrantMutex<Context<EndianSlice<'static>>>>,
 
     pub alloc_kinf: &'static ReentrantMutex<AllocKernelInfo>,
     pub stack_alloc: ReentrantMutex<StackAlloc>,

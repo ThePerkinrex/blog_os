@@ -21,7 +21,6 @@ use crate::{KERNEL_INFO, println, process::ProcessInfo, rand::uuid_v4, stack::Sl
 
 pub mod lock;
 
-#[derive(Debug)]
 pub struct TaskControlBlock {
     pub id: Uuid,
     pub name: Cow<'static, str>,
@@ -54,7 +53,6 @@ impl Hash for TaskControlBlock {
     }
 }
 
-#[derive(Debug)]
 pub struct Context {
     stack_pointer: VirtAddr,
     cr3: (PhysFrame, Cr3Flags),

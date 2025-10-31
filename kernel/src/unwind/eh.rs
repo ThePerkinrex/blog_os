@@ -1,22 +1,22 @@
 use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
 use object::read::elf::SectionHeader;
 
-use crate::{println, setup::KernelElfFile};
+use crate::{elf::SystemElf, println, setup::KernelElfFile};
 
 #[derive(Debug)]
-pub struct EhInfo {
+pub struct EhInfo<'a> {
     /// A set of base addresses used for relative addressing.
     pub(super) base_addrs: BaseAddresses,
 
     /// The parsed `.eh_frame_hdr` section.
-    pub(super) hdr: ParsedEhFrameHdr<EndianSlice<'static, LittleEndian>>,
+    pub(super) hdr: ParsedEhFrameHdr<EndianSlice<'a, LittleEndian>>,
 
     /// The parsed `.eh_frame` containing the call frame information.
-    pub(super) eh_frame: EhFrame<EndianSlice<'static, LittleEndian>>,
+    pub(super) eh_frame: EhFrame<EndianSlice<'a, LittleEndian>>,
 }
 
-impl EhInfo {
-    pub fn from_elf(elf: &KernelElfFile, kernel_image_offset: u64) -> Option<Self> {
+impl<'a> EhInfo<'a> {
+    pub fn from_elf(elf: &SystemElf<'a>, kernel_image_offset: u64) -> Option<Self> {
         let eh_frame_hdr_sect = elf
             .elf_section_table()
             .section_by_name(object::LittleEndian, b".eh_frame_hdr")?;
