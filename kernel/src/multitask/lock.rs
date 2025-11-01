@@ -1,9 +1,6 @@
 use lock_api::{GuardSend, RawMutex};
 
-use crate::{
-    multitask::{TaskId, get_current_task_id},
-    println,
-};
+use crate::multitask::{TaskId, get_current_task_id};
 
 pub struct ReentrantRawMutex {
     inner: spin::Mutex<ReentrantInner>,

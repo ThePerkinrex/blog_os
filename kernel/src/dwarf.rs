@@ -1,7 +1,7 @@
 use gimli::SectionId;
 use object::read::elf::SectionHeader;
 
-use crate::{elf::SystemElf, setup::KernelElfFile};
+use crate::elf::SystemElf;
 
 pub type EndianSlice<'a> = gimli::EndianSlice<'a, gimli::LittleEndian>;
 pub type Dwarf<'a> = gimli::Dwarf<EndianSlice<'a>>;

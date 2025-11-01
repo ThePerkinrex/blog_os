@@ -139,11 +139,16 @@ impl LoadedProgram {
                     .inspect_err(|e| println!("[WARN] {e:?}"))
                     .ok()?;
 
-                Context::from_dwarf(dwarf)
+                println!("Loaded DWARF for process");
+
+                let c = Context::from_dwarf(dwarf)
                     .inspect_err(|e| println!("[WARN] {e:?}"))
                     .ok()
                     .map(ReentrantMutex::new)
-                    .map(Arc::new)
+                    .map(Arc::new);
+
+                println!("Loaded addr2line context for process");
+                c
             });
 
             r.as_ref().map(|x| {
@@ -158,9 +163,17 @@ impl LoadedProgram {
     pub fn eh_info(&self) -> Option<&EhInfo<'_>> {
         self.elf.with(|x| {
             x.eh_info
-                .call_once(|| EhInfo::from_elf(x.elf, self.load_offset))
+                .call_once(|| {
+                    let e = EhInfo::from_elf(x.elf, self.load_offset);
+                    println!("Loaded eh_info for process");
+                    e
+                })
                 .as_ref()
         })
+    }
+
+    pub const fn load_offset(&self) -> u64 {
+        self.load_offset
     }
 }
 

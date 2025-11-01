@@ -37,7 +37,7 @@ impl RegisterSet {
         Ok(())
     }
 
-    pub const fn undef(&mut self, reg: Register) {
+    pub const fn undef(&self, _: Register) {
         // *match reg {
         //     X86_64::RSP => &mut self.rsp,
         //     X86_64::RBP => &mut self.rbp,

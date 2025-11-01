@@ -1,7 +1,4 @@
-use crate::{
-    multitask::{self, task_switch_safe},
-    println, unwind,
-};
+use crate::{multitask::task_switch_safe, println, unwind};
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 

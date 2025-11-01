@@ -1,7 +1,7 @@
 use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
 use object::read::elf::SectionHeader;
 
-use crate::{elf::SystemElf, println, setup::KernelElfFile};
+use crate::{elf::SystemElf, println};
 
 #[derive(Debug)]
 pub struct EhInfo<'a> {
@@ -37,11 +37,11 @@ impl<'a> EhInfo<'a> {
         // println!("eh_frame_hdr: {eh_frame_hdr:?}");
         // println!("eh_frame: {eh_frame:?}");
 
-        let base_addrs = BaseAddresses::default()
-            .set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64)
-            .set_eh_frame(eh_frame.as_ptr() as u64);
+        // let base_addrs = BaseAddresses::default()
+        //     .set_eh_frame_hdr(eh_frame_hdr.as_ptr() as u64)
+        //     .set_eh_frame(eh_frame.as_ptr() as u64);
 
-        println!("Base addresses: {base_addrs:?}");
+        // println!("Base addresses: {base_addrs:?}");
 
         let eh_frame_hdr_va = eh_frame_hdr_sect.1.sh_addr.get(object::LittleEndian);
         let eh_frame_va = eh_frame_sect.1.sh_addr.get(object::LittleEndian);
@@ -53,7 +53,7 @@ impl<'a> EhInfo<'a> {
             // optionally set a text base too (helps some lookups)
             .set_text(kernel_image_offset);
 
-        println!("New addresses: {base_addrs:?}");
+        println!("Base addresses: {base_addrs:?}");
 
         let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian)
             .parse(&base_addrs, 8)

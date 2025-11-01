@@ -8,12 +8,13 @@ use x86_64::{
 
 use crate::{
     gdt, hlt_loop, interrupts, multitask, print, println, process::get_process_kernel_stack_top,
-    setup::KERNEL_INFO, test_return,
+    setup::KERNEL_INFO, test_return, unwind::backtrace,
 };
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
+pub mod info;
 mod syscalls;
 
 pub static PICS: spin::Mutex<ChainedPics> =
@@ -115,7 +116,6 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
     core::arch::naked_asm!(
         "
         .cfi_startproc              // Start DWARF frame info
-        .cfi_signal_frame            // Mark as interrupt/signal frame (important!)
         // Save caller-saved registers
         push rbp
         mov rbp,rsp
@@ -248,7 +248,6 @@ unsafe extern "C" fn naked_syscall_tail() {
     core::arch::naked_asm!(
         "
         .cfi_startproc
-        .cfi_signal_frame
         .cfi_adjust_cfa_offset 112
         .cfi_offset rbp, -16
         .cfi_offset rcx, -24
@@ -358,12 +357,14 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
+    println!("EXCEPTION: PAGE FAULT");
+
+    backtrace();
+
     let current_task_arc = multitask::get_current_task();
     let current_task = current_task_arc.context.lock();
 
     let addr = Cr2::read();
-
-    println!("EXCEPTION: PAGE FAULT");
     println!(
         "Current task: {:?} ({})",
         current_task_arc.name, current_task_arc.id

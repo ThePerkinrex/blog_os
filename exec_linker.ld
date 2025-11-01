@@ -13,8 +13,6 @@ SECTIONS {
     /DISCARD/ : {
         *(.comment)
         *(.note*)
-        *(.eh_frame*)
-        *(.eh_frame_hdr*)
         *(.got*)
         *(.got.plt*)
         *(.dynamic)
@@ -31,6 +29,15 @@ SECTIONS {
 
     .rodata : ALIGN(4K) {
         *(.rodata .rodata.*)
+    } :text
+
+    .eh_frame_hdr : ALIGN(8) {
+        *(.eh_frame_hdr)
+    } :text
+
+    .eh_frame : ALIGN(8) {
+        *(.eh_frame)
+        *(.eh_frame.*)
     } :text
 
     .data : ALIGN(4K) {

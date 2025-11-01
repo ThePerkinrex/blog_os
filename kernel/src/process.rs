@@ -60,6 +60,10 @@ impl ProcessInfo {
             Arc::new(stack)
         })
     }
+
+    pub const fn program(&self) -> &Arc<LoadedProgram> {
+        &self.program
+    }
 }
 
 pub extern "C" fn get_process_kernel_stack_top() -> u64 {
