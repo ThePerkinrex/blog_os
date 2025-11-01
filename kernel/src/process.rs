@@ -1,13 +1,13 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::sync::Arc;
+use log::{debug, info, warn};
 
 use crate::{
     KERNEL_INFO,
     elf::{LoadedProgram, load_elf},
     gdt::get_esp0_stack_top,
     multitask::{change_current_process_info, set_current_process_info},
-    println,
     priviledge::jmp_to_usermode,
     stack::SlabStack,
 };
@@ -26,19 +26,19 @@ impl ProcessInfo {
             .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
-            println!("Not first proc, creating a new l4 table");
-            println!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
+            info!("Not first proc, creating a new l4 table");
+            debug!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
 
             KERNEL_INFO.get().unwrap().create_p4_table_and_switch();
 
-            println!("CR3: {:?}", x86_64::registers::control::Cr3::read());
+            info!("CR3: {:?}", x86_64::registers::control::Cr3::read());
         } else {
-            println!("Creating first proc, not creating a new l4 table");
+            info!("Creating first proc, not creating a new l4 table");
         }
 
-        println!("Loading elf");
+        debug!("Loading elf");
         let prog = load_elf(prog);
-        println!("Loaded elf");
+        info!("Loaded elf");
 
         Self {
             program: Arc::new(prog),
@@ -47,7 +47,7 @@ impl ProcessInfo {
     }
 
     pub fn start(self) {
-        println!("Starting process");
+        info!("Starting process");
         let prog = self.program.clone();
         set_current_process_info(self);
         jmp_to_usermode(&prog);
@@ -56,7 +56,7 @@ impl ProcessInfo {
     fn get_kernel_stack(&mut self) -> &Arc<SlabStack> {
         self.kernel_stack.get_or_insert_with(|| {
             let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
-            println!("Created a new stack for the process: {stack:?}");
+            info!("Created a new stack for the process: {stack:?}");
             Arc::new(stack)
         })
     }
@@ -70,12 +70,12 @@ pub extern "C" fn get_process_kernel_stack_top() -> u64 {
     change_current_process_info(|pi| {
         let top = pi.as_mut().map_or_else(
             || {
-                println!("[WARN] No current process, returning esp0 top");
+                warn!("No current process, returning esp0 top");
                 get_esp0_stack_top()
             },
             |pi| pi.get_kernel_stack().top(),
         );
-        println!("Returning stack top: {top:p}");
+        debug!("Returning stack top: {top:p}");
         top
     })
     .as_u64()

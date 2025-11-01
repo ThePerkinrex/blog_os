@@ -1,21 +1,24 @@
 use core::{fmt::Write, ops::DerefMut};
 
-use bootloader_x86_64_common::{framebuffer::FrameBufferWriter, serial::SerialPort};
+use bootloader_x86_64_common::framebuffer::FrameBufferWriter;
 use spin::Mutex;
 
+use crate::io::serial::SerialPort;
+
 pub mod framebuffer;
+pub mod logger;
 pub mod qemu;
 pub mod serial;
 
 #[macro_export]
-macro_rules! print {
+macro_rules! _print {
     ($($arg:tt)*) => ($crate::io::print(format_args!($($arg)*)));
 }
 
 #[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+macro_rules! _println {
+    () => ($crate::_print!("\n"));
+    ($($arg:tt)*) => ($crate::_print!("{}\n", format_args!($($arg)*)));
 }
 
 #[derive(Default)]

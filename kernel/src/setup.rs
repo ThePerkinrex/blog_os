@@ -1,5 +1,6 @@
 use addr2line::Context;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
+use log::{info, warn};
 use spin::Once;
 use x86_64::VirtAddr;
 
@@ -12,7 +13,6 @@ use crate::{
         self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
     },
     multitask::{self, lock::ReentrantMutex},
-    println,
     stack::{self, SlabStack, StackAlloc},
     unwind::eh::EhInfo,
 };
@@ -125,16 +125,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         io::framebuffer::init(fb);
     }
     io::serial::init();
+    io::logger::init();
     interrupts::init_pics();
 
-    println!(
-        "[INFO][SETUP] Kernel offset: {:x}",
-        boot_info.kernel_image_offset
-    );
-    println!("[INFO][SETUP] Kernel physaddr: {:x}", boot_info.kernel_addr);
-    println!("[INFO][SETUP] Kernel size: {:x}", boot_info.kernel_len);
+    info!("Kernel offset: {:x}", boot_info.kernel_image_offset);
+    info!("Kernel physaddr: {:x}", boot_info.kernel_addr);
+    info!("Kernel size: {:x}", boot_info.kernel_len);
 
-    println!("[INFO][SETUP] Minimum init done. Setting up memory");
+    info!("Minimum init done. Setting up memory");
 
     let physical_memory_offset = VirtAddr::new(
         *boot_info
@@ -144,9 +142,9 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     );
     let page_table = unsafe { memory::init_page_tables(physical_memory_offset) };
     let frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
-    println!("[INFO][SETUP] Initializing region allocator");
+    info!("Initializing region allocator");
     let virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
-    println!("[INFO][SETUP] Initialized region allocator");
+    info!("Initialized region allocator");
 
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {
@@ -155,9 +153,9 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
             virt_region_allocator,
         })
     });
-    println!("[INFO][SETUP] Initializing heap");
+    info!("Initializing heap");
     allocator::init_heap(alloc_kinf).expect("initialized heap");
-    println!("[INFO][SETUP] Initialized heap");
+    info!("Initialized heap");
 
     let mut stack_alloc;
 
@@ -189,19 +187,19 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
 
     let eh_info = EhInfo::from_elf(&kernel_elf, boot_info.kernel_image_offset);
     if eh_info.is_none() {
-        println!("[WARN] No eh_info");
+        warn!("No eh_info");
     } else {
-        println!("[INFO] Loaded eh_info");
+        info!("Loaded eh_info");
     }
     let dwarf = load_dwarf(&kernel_elf);
-    println!("[INFO] attempted to load DWARF");
+    info!("attempting to load DWARF");
 
     let addr2line = dwarf
-        .inspect_err(|e| println!("[WARN] Dwarf error: {e:?}"))
+        .inspect_err(|e| warn!("Dwarf error: {e:?}"))
         .ok()
         .and_then(|x| {
             Context::from_dwarf(x)
-                .inspect_err(|e| println!("[WARN] addr2line error: {e:?}"))
+                .inspect_err(|e| warn!("addr2line error: {e:?}"))
                 .ok()
         })
         .map(ReentrantMutex::new);

@@ -1,8 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{format, string::ToString, vec::Vec};
 use gimli::{
     CfaRule, Register, RegisterRule, UnwindContext, UnwindContextStorage, UnwindSection,
     UnwindTableRow, X86_64,
 };
+use log::{debug, error, info, trace, warn};
 use x86_64::{
     VirtAddr,
     structures::paging::{PageSize, Size4KiB},
@@ -11,7 +12,6 @@ use x86_64::{
 use crate::{
     interrupts::info::IH,
     multitask::get_current_process_info,
-    print, println,
     setup::KERNEL_INFO,
     unwind::{
         elf_debug::{OrderedUnwindable, UnwindTable, UnwindableElf},
@@ -23,10 +23,10 @@ pub mod eh;
 pub mod elf_debug;
 mod register;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct CallFrame {
     pub pc: u64,
-    pub sp: u64
+    pub sp: u64,
 }
 
 #[derive(Debug)]
@@ -94,9 +94,12 @@ impl<'a> Unwinder<'a> {
         // println!("Loaded eh_info");
 
         if self.is_first {
-            println!("IS FIRST");
+            debug!("IS FIRST");
             self.is_first = false;
-            return Ok(Some(CallFrame { pc, sp: self.regs.get(X86_64::RSP).unwrap_or(self.cfa) }));
+            return Ok(Some(CallFrame {
+                pc,
+                sp: self.regs.get(X86_64::RSP).unwrap_or(self.cfa),
+            }));
         }
 
         let fde = eh_info
@@ -110,7 +113,7 @@ impl<'a> Unwinder<'a> {
                 |section, bases, offset| section.cie_from_offset(bases, offset),
             )
             .map_err(|e| {
-                println!("Unwind error: {e}");
+                error!("Unwind error: {e}");
                 UnwinderError::NoUnwindInfo(pc)
             })?;
 
@@ -124,7 +127,7 @@ impl<'a> Unwinder<'a> {
                 pc,
             )
             .map_err(|e| {
-                println!("Unwind error: {e}");
+                error!("Unwind error: {e}");
                 UnwinderError::NoUnwindInfo(pc)
             })?;
         // println!("Gotten row");
@@ -161,7 +164,7 @@ impl<'a> Unwinder<'a> {
                         let top = pinf.program().stack().top();
                         if ptr >= top && ptr < top + Size4KiB::SIZE {
                             // Within guard page
-                            println!("REGISTER READ WITHIN PROCESS GUARD PAGE");
+                            trace!("REGISTER READ WITHIN PROCESS GUARD PAGE");
                             return Err(UnwinderError::NoUnwindInfo(pc));
                         }
                     }
@@ -176,14 +179,11 @@ impl<'a> Unwinder<'a> {
         let start = VirtAddr::new(fde.initial_address());
 
         if let Some(i) = IH.get(&start) {
-            println!("[INFO][UNWIND] IH: {i:?}");
+            debug!("IH: {i:?}");
             let saved_cs_ptr = (self.cfa) as *const u64;
             let saved_cs = unsafe { saved_cs_ptr.read() };
 
-            println!(
-                "[INFO][UNWIND] Saved cs: {saved_cs:x} (CPL: {:x})",
-                saved_cs & 0x3
-            );
+            debug!("Saved cs: {saved_cs:x} (CPL: {:x})", saved_cs & 0x3);
 
             let cpl = saved_cs & 0x3;
             if cpl == 3 {
@@ -191,13 +191,13 @@ impl<'a> Unwinder<'a> {
                 let saved_rsp_ptr = (self.cfa + 16) as *const u64;
                 let saved_rsp = unsafe { saved_rsp_ptr.read() };
 
-                println!("[UNWIND] Interrupt return to ring3, saved RSP = {saved_rsp:x}");
+                debug!("Interrupt return to ring3, saved RSP = {saved_rsp:x}");
 
                 self.cfa = saved_rsp;
                 // self.regs.set_stack_ptr(saved_rsp);
                 // let _ = self.regs.set(X86_64::RSP, saved_rsp);
             } else {
-                println!("[UNWIND] Interrupt return to ring0, no saved RSP");
+                debug!("Interrupt return to ring0, no saved RSP");
             }
         }
 
@@ -217,36 +217,39 @@ impl<'a> Unwinder<'a> {
 }
 
 fn single_backtrace_line(frame: CallFrame, unwind: &Unwinder<'_>) -> Result<(), UnwinderError> {
-    print!("Unwind frame: sp: {1:x}; ip: {0:x} ", frame.pc, frame.sp);
     let unwindable = unwind
         .current_unwindable()?
         .ok_or(UnwinderError::NoUnwindInfo(frame.pc))?;
+
     let (location, addr) = unwindable.find_location(frame.pc);
-    print!("(elf: {:x}) ", addr);
 
     let location = location
-        .inspect_err(|e| println!("[WARN] No location information: {e}"))
+        .inspect_err(|e| warn!("No location information: {e}"))
         .ok()
         .flatten();
-    if let Some(location) = location {
-        if let Some(file) = location.file {
-            print!("{file}:")
-        } else {
-            print!("<unknown file>:")
-        }
-        if let Some(line) = location.line {
-            print!("{line}:")
-        } else {
-            print!("<unknown line>:")
-        }
-        if let Some(column) = location.column {
-            println!("{column}")
-        } else {
-            println!("<unknown column>")
-        }
+
+    // Build location info string
+    let loc_str = if let Some(location) = location {
+        let file = location.file.unwrap_or("<unknown file>".into());
+        let line = location
+            .line
+            .map(|l| l.to_string())
+            .unwrap_or_else(|| "<unknown line>".into());
+        let col = location
+            .column
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "<unknown column>".into());
+
+        format!("{file}:{line}:{col}")
     } else {
-        println!("<unknown>")
-    }
+        "<unknown>".into()
+    };
+
+    info!(
+        "Unwind frame: sp: {:#x}; ip: {:#x} (elf: {:#x}) {}",
+        frame.sp, frame.pc, addr, loc_str
+    );
+
     Ok(())
 }
 
@@ -269,27 +272,27 @@ pub fn backtrace() {
             mov {fp}, rbp
             ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, fp = lateout(reg) fp, options(nomem,nostack));
     }
-    println!("Current pc: {aprox_pc:x}");
+    debug!("Current pc: {aprox_pc:x}");
     let mut register_set = RegisterSet::new(aprox_pc);
     register_set.set_stack_ptr(sp);
     register_set.set(X86_64::RBP, fp).unwrap();
     let mut unwind = Unwinder::new(unwind_table, register_set);
-    println!("Created unwinder");
+    debug!("Created unwinder");
     loop {
         // println!("UNWIND REGS: {:x?}", unwind.regs);
         match unwind.next() {
             Ok(Some(frame)) => {
                 if let Err(e) = single_backtrace_line(frame, &unwind) {
-                    println!();
-                    println!("[WARN][UNWIND] {e:x?}")
+                    info!("Unwind frame: sp: {:#x}; ip: {:#x}", frame.sp, frame.pc);
+                    warn!("{e:x?}")
                 }
             }
             Ok(None) => {
-                println!("No stack frame");
+                info!("No stack frame");
                 break;
             }
             Err(e) => {
-                println!("Unwind error: {e:x?}");
+                warn!("Unwind error: {e:x?}");
                 break;
             }
         }

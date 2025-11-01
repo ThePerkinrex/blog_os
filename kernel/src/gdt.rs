@@ -1,3 +1,4 @@
+use log::{debug, info};
 use spin::Lazy;
 use x86_64::{
     VirtAddr,
@@ -9,7 +10,7 @@ use x86_64::{
     },
 };
 
-use crate::{println, stack::SlabStack};
+use crate::stack::SlabStack;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const PAGE_FAULT_IST_INDEX: u16 = DOUBLE_FAULT_IST_INDEX;
@@ -77,23 +78,23 @@ pub fn selectors() -> &'static Selectors {
 pub extern "C" fn kernel_code_selector() -> u64 {
     let idx = selectors().kernel_code_selector.0 >> 3; // index in GDT
     let desc = &GDT.0.entries()[idx as usize];
-    println!(
+    debug!(
         "Kernel code descriptor: {:?} {:?}",
         desc,
         DescriptorFlags::from_bits(desc.raw())
     );
     let s = selectors().kernel_code_selector.0 as u64;
-    println!("Kernel CS: {s:x}");
+    debug!("Kernel CS: {s:x}");
     s
 }
 
 pub fn set_tss_guarded_stacks(esp0: SlabStack, ist_df: SlabStack) {
     interrupts::disable();
 
-    println!("Setting guarded stacks for TSS");
-    println!(" - ESP0 = {:p}", esp0.top());
-    println!(" - IST_DF = {:p}", ist_df.top());
-    println!(" - IST_PF = {:p}", ist_df.top());
+    info!("Setting guarded stacks for TSS");
+    info!(" - ESP0 = {:p}", esp0.top());
+    info!(" - IST_DF = {:p}", ist_df.top());
+    info!(" - IST_PF = {:p}", ist_df.top());
 
     let tss_mut = unsafe { TSS.as_mut_ptr().as_mut() }.unwrap();
     tss_mut.privilege_stack_table[0] = esp0.top();

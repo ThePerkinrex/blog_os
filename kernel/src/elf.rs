@@ -3,6 +3,7 @@ use core::{alloc::Layout, ops::DerefMut};
 use addr2line::Context;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use kernel_utils::maybe_boxed::MaybeBoxed;
+use log::{debug, info, warn};
 use object::{
     LittleEndian,
     read::elf::{ElfFile64, FileHeader, ProgramHeader},
@@ -17,7 +18,6 @@ use x86_64::{
 use crate::{
     dwarf::{EndianSlice, load_dwarf},
     multitask::lock::ReentrantMutex,
-    println,
     setup::KERNEL_INFO,
     stack::{self, GeneralStack},
     unwind::eh::EhInfo,
@@ -135,19 +135,17 @@ impl LoadedProgram {
     pub fn with_addr2line<T, F: FnOnce(&Context<EndianSlice<'_>>) -> T>(&self, f: F) -> Option<T> {
         self.elf.with(|x| {
             let r = x.addr2line.call_once(|| {
-                let dwarf = load_dwarf(x.elf)
-                    .inspect_err(|e| println!("[WARN] {e:?}"))
-                    .ok()?;
+                let dwarf = load_dwarf(x.elf).inspect_err(|e| warn!("{e:?}")).ok()?;
 
-                println!("Loaded DWARF for process");
+                info!("Loaded DWARF for process");
 
                 let c = Context::from_dwarf(dwarf)
-                    .inspect_err(|e| println!("[WARN] {e:?}"))
+                    .inspect_err(|e| warn!("{e:?}"))
                     .ok()
                     .map(ReentrantMutex::new)
                     .map(Arc::new);
 
-                println!("Loaded addr2line context for process");
+                info!("Loaded addr2line context for process");
                 c
             });
 
@@ -165,7 +163,7 @@ impl LoadedProgram {
             x.eh_info
                 .call_once(|| {
                     let e = EhInfo::from_elf(x.elf, self.load_offset);
-                    println!("Loaded eh_info for process");
+                    info!("Loaded eh_info for process");
                     e
                 })
                 .as_ref()
@@ -197,11 +195,11 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     let offset = 0;
 
-    println!("ELF type: {:x}", elf.elf_header().e_type(LittleEndian));
+    debug!("ELF type: {:x}", elf.elf_header().e_type(LittleEndian));
 
     // Show prog headers
     let mut loads = Vec::<((u64, u64), (VirtAddr, u64), ElfPhSegmentFlags)>::new();
-    println!(
+    debug!(
         "                type      flags     offset      vaddr      paddr     filesz      memsz      align"
     );
     for p in elf.elf_program_headers() {
@@ -212,7 +210,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         let memsz = p.p_memsz(LittleEndian);
         let flags = p.p_flags(LittleEndian);
         let flags = ElfPhSegmentFlags::from_bits_retain(flags);
-        println!(
+        debug!(
             "{:>20} {:>10?} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x}",
             alloc::format!("{:?}", p_type),
             flags,
@@ -234,7 +232,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     let mut highest_page: Option<Page> = None;
     let mut mapped_pages = BTreeMap::new();
     for ((offset, filesz), (vaddr, memsz), flags) in loads {
-        println!(
+        debug!(
             "Loading segment at offset {offset:x} (sz: {filesz:x}) to {vaddr:p} (sz: {memsz:x})"
         );
         let pages = Page::<Size4KiB>::range_inclusive(
@@ -254,14 +252,14 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
             }
 
             if let Some(x) = mapped_pages.get(&p) {
-                println!("Skipping {p:?}. Already mapped with flags {x:?}");
+                debug!("Skipping {p:?}. Already mapped with flags {x:?}");
                 if page_flags != *x {
-                    println!(
-                        "WARN Unexpected page flags ({page_flags:?}) different from already mapped ({x:?})"
+                    warn!(
+                        "Unexpected page flags ({page_flags:?}) different from already mapped ({x:?})"
                     )
                 }
             } else {
-                println!("Mapping {p:?} with flags {page_flags:?}");
+                debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
                     info.page_table.map_to(
@@ -279,7 +277,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
             }
         }
         let elf_start = VirtAddr::from_ptr(elf_contained.borrow_data().as_ptr()) + offset;
-        println!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
+        debug!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
         unsafe {
             core::ptr::copy_nonoverlapping(
                 elf_start.as_ptr::<u8>(),
@@ -317,10 +315,10 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     drop(info_lock);
 
-    println!("Setup stack {stack:?}");
+    debug!("Setup stack {stack:?}");
 
     let entry = VirtAddr::new(elf.elf_header().e_entry(LittleEndian));
-    println!("ELF loaded with entry point {:p}", entry);
+    info!("ELF loaded with entry point {:p}", entry);
 
     LoadedProgram {
         stack,

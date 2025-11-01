@@ -1,3 +1,4 @@
+use log::info;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -6,7 +7,7 @@ use x86_64::{
     },
 };
 
-use crate::{memory::pages::VirtRegionAllocator, println};
+use crate::memory::pages::VirtRegionAllocator;
 
 const STACK_PAGES: usize = 8; // 4KiB * 8 = 32KiB stacks
 
@@ -120,7 +121,7 @@ pub unsafe fn clear_stack<M: Mapper<Size4KiB> + CleanUp, F: FrameDeallocator<Siz
 ) {
     let pages = stack.pages;
     for p in pages {
-        println!("Freeing stack page at {pages:?}");
+        info!("Freeing stack page at {pages:?}");
         let (frame, flush) = mapper.unmap(p).expect("page should be mapped");
         flush.flush();
         unsafe {
@@ -165,7 +166,7 @@ impl StackAlloc {
         let stack =
             unsafe { create_stack_at(stack_bottom, mapper, frame_alloc, PageTableFlags::empty()) };
 
-        println!("Created stack: {stack:?}");
+        info!("Created stack: {stack:?}");
         // Return a Stack descriptor. You can expand this later (store VirtAddr top/bottom).
         Some(SlabStack {
             idx: stack_idx,
@@ -200,7 +201,7 @@ impl StackAlloc {
         mapper: &mut M,
         frame_dealloc: &mut F,
     ) {
-        println!("Cleaning up stack: {stack:?} at idx {}", stack.idx);
+        info!("Cleaning up stack: {stack:?} at idx {}", stack.idx);
 
         unsafe {
             clear_stack(stack.stack, mapper, frame_dealloc);

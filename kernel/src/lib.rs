@@ -10,8 +10,8 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 use alloc::boxed::Box;
+use log::info;
 use qemu_common::QemuExitCode;
-use x86_64::{VirtAddr, structures::paging::Translate};
 
 use crate::{process::ProcessInfo, setup::KERNEL_INFO};
 
@@ -33,38 +33,33 @@ pub mod unwind;
 pub mod util;
 
 pub fn kernel_main() -> ! {
-    println!("HELLO");
+    // let addresses = [
+    //     // the identity-mapped vga buffer page
+    //     0xb8000,
+    //     // some code page
+    //     0x201008,
+    //     // some stack page
+    //     0x0100_0020_1a10,
+    // ];
 
-    let addresses = [
-        // the identity-mapped vga buffer page
-        0xb8000,
-        // some code page
-        0x201008,
-        // some stack page
-        0x0100_0020_1a10,
-    ];
+    // let setup_info = KERNEL_INFO.get().unwrap();
+    // let setup_info = setup_info.alloc_kinf.lock();
+    // for &address in &addresses {
+    //     let virt = VirtAddr::new(address);
+    //     // new: use the `mapper.translate_addr` method
+    //     let phys = setup_info.page_table.translate_addr(virt);
+    //     println!("{:?} -> {:?}", virt, phys);
+    // }
+    // drop(setup_info);
 
-    let setup_info = KERNEL_INFO.get().unwrap();
-    let setup_info = setup_info.alloc_kinf.lock();
-    for &address in &addresses {
-        let virt = VirtAddr::new(address);
-        // new: use the `mapper.translate_addr` method
-        let phys = setup_info.page_table.translate_addr(virt);
-        println!("{:?} -> {:?}", virt, phys);
-    }
-    drop(setup_info);
-
-    let x = Box::new(41);
-    println!("heap_value at {x:p}");
-
-    println!("Adding new task to list");
+    info!("Adding new task to list");
     multitask::create_task(other_task, "other_task");
 
-    println!("DID NOT CRASH!");
-    println!("Switching");
+    info!("DID NOT CRASH!");
+    info!("Switching");
     multitask::task_switch_safe();
-    println!("Returned");
-    println!("Going back");
+    info!("Returned");
+    info!("Going back");
     multitask::task_switch_safe();
 
     multitask::create_task(switch_loop, "switch loop");
@@ -79,28 +74,28 @@ pub fn kernel_main() -> ! {
 }
 
 pub extern "C" fn other_task() {
-    println!("STarted other task");
-    println!("Switching back");
+    info!("STarted other task");
+    info!("Switching back");
     multitask::task_switch_safe();
-    println!("Should not be here");
+    info!("Should not be here");
 }
 
 pub extern "C" fn second_process() {
-    println!("Starting second process");
+    info!("Starting second process");
     let prog = elf::load_example_elf();
     let proc = ProcessInfo::new(prog);
     proc.start();
 }
 
 pub extern "C" fn test_return() -> ! {
-    println!("REturned here");
+    info!("REturned here");
     hlt_loop();
 }
 
 pub extern "C" fn switch_loop() {
     x86_64::instructions::interrupts::enable();
     loop {
-        println!("SWITCH LOOP");
+        info!("SWITCH LOOP");
         x86_64::instructions::hlt();
         multitask::task_switch_safe();
     }
@@ -127,14 +122,14 @@ where
     T: Fn(),
 {
     fn run(&self) {
-        print!("{}...\t", core::any::type_name::<T>());
+        _print!("{}...\t", core::any::type_name::<T>());
         self();
-        println!("[ok]");
+        _println!("[ok]");
     }
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) {
-    println!("Running {} tests", tests.len());
+    info!("Running {} tests", tests.len());
     for test in tests {
         test.run();
     }

@@ -2,12 +2,11 @@ use core::marker::PhantomData;
 
 use bootloader_api::BootInfo;
 use kernel_utils::no_heap_vec::NoHeapVec;
+use log::{debug, info};
 use x86_64::{
     VirtAddr,
     structures::paging::{PageSize, Size4KiB, Translate},
 };
-
-use crate::println;
 
 /// Represents a contiguous unmapped range in virtual space.
 #[derive(Debug, Clone)]
@@ -71,7 +70,7 @@ impl<const MAX_REGIONS: usize, S: PageSize> VirtRegionAllocator<MAX_REGIONS, S> 
         start: VirtAddr,
         end: VirtAddr,
     ) -> FreeRegions<MAX_REGIONS> {
-        println!("Performing region scan");
+        debug!("Performing region scan");
         let mut regions = FreeRegions::new();
         let mut cur = start.align_up(S::SIZE);
         let mut run_start: Option<VirtAddr> = None;
@@ -82,7 +81,7 @@ impl<const MAX_REGIONS: usize, S: PageSize> VirtRegionAllocator<MAX_REGIONS, S> 
             match (mapped, run_start) {
                 (false, None) => run_start = Some(cur),
                 (true, Some(s)) => {
-                    println!("Found empty region: {s:p} -> {cur:p}");
+                    debug!("Found empty region: {s:p} -> {cur:p}");
                     if regions.push(FreeRegion { start: s, end: cur }).is_err() {
                         return regions; // Early exit if full
                     }
@@ -95,7 +94,7 @@ impl<const MAX_REGIONS: usize, S: PageSize> VirtRegionAllocator<MAX_REGIONS, S> 
         }
 
         if let Some(s) = run_start {
-            println!("Found empty region: {s:p} -> {end:p}");
+            debug!("Found empty region: {s:p} -> {end:p}");
             let _ = regions.push(FreeRegion { start: s, end }); // Ignore if full
         }
 
@@ -155,7 +154,7 @@ pub fn init_region_allocator<S: PageSize, T: Translate>(
     )
     .expect("no free virtual window found");
 
-    println!(
+    info!(
         "virt region allocator window: {:#x} - {:#x}",
         start.as_u64(),
         end.as_u64()

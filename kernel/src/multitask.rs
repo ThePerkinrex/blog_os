@@ -5,6 +5,7 @@ use alloc::{
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
+use log::{debug, info, trace, warn};
 use spin::{
     Lazy, Once,
     lock_api::{Mutex, RwLock},
@@ -17,7 +18,7 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::{KERNEL_INFO, println, process::ProcessInfo, rand::uuid_v4, stack::SlabStack};
+use crate::{KERNEL_INFO, process::ProcessInfo, rand::uuid_v4, stack::SlabStack};
 
 pub mod lock;
 
@@ -107,7 +108,7 @@ unsafe fn task_switch() {
         .expect("next task has been dropped");
     let next_tcb = next_arc.context.lock();
 
-    println!(
+    info!(
         "Switching from {} ({}) to {} ({})",
         current_arc.name, current_arc.id, next_arc.name, next_arc.id
     );
@@ -121,8 +122,8 @@ unsafe fn task_switch() {
     let (next_frame, next_flags) = next_tcb.cr3;
     let read = Cr3::read();
     if read.0 != next_frame || read.1 != next_flags {
-        println!(
-            "[INFO][MULTITASK] Switching CR3 from {read:?} to {:?}",
+        info!(
+            "Switching CR3 from {read:?} to {:?}",
             (next_frame, next_flags)
         );
         unsafe {
@@ -137,6 +138,7 @@ unsafe fn task_switch() {
             .page_table
             .set_current_page_table();
     }
+    current_tcb.cr3 = read;
 
     // 5) Prepare pointers for asm:
     // Save pointer to current_tcb.stack_pointer so asm can write the current rsp into it.
@@ -152,8 +154,8 @@ unsafe fn task_switch() {
         __switch_asm(cur_sp_ptr, next_sp_ptr);
     }
 
-    println!("Current sp: {cur_sp_ptr:p}");
-    println!("Next sp: {next_sp_ptr:p}");
+    debug!("Current sp: {cur_sp_ptr:p}");
+    debug!("Next sp: {next_sp_ptr:p}");
     // after the asm returns, execution continues in the context of the next task.
 }
 
@@ -204,7 +206,7 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
 ) -> Arc<TaskControlBlock> {
     let _ = TASKS.is_locked(); // Force lazy init
     let _ = CURRENT_TASK.is_locked(); // Force lazy init
-    println!("Locks: {} {}", TASKS.is_locked(), CURRENT_TASK.is_locked());
+    debug!("Locks: {} {}", TASKS.is_locked(), CURRENT_TASK.is_locked());
 
     let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
     // // === 1) Allocate a stack ===
@@ -255,14 +257,14 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
     for w in words.into_iter().rev() {
         // Last is first to enter stack
         stack_ptr = unsafe { stack_ptr.sub(1) };
-        println!("{stack_ptr:p}: {w:p}");
+        trace!("{stack_ptr:p}: {w:p}");
         unsafe {
             core::ptr::write_volatile(stack_ptr, w);
         }
     }
     let name = name.into();
 
-    println!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
+    info!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
 
     Arc::new_cyclic(|weak_self| TaskControlBlock {
         name,
@@ -284,13 +286,13 @@ pub fn create_task(entry: extern "C" fn(), name: &'static str) {
     // === 3) Add to task list after current ===
     {
         let mut tasks = TASKS.lock();
-        println!("Locked tasks");
+        debug!("Locked tasks");
         let current = CURRENT_TASK.read().clone();
-        println!("Locked current task");
+        debug!("Locked current task");
         tasks.insert(tcb.clone());
         drop(tasks);
 
-        println!("Pushed tcb");
+        debug!("Pushed tcb");
 
         // Fix linked list
         let mut cur_tcb = current.context.lock();
@@ -302,7 +304,7 @@ pub fn create_task(entry: extern "C" fn(), name: &'static str) {
         drop(new_tcb);
     }
 
-    println!("Finished");
+    info!("Task creation finished");
 }
 
 static TASK_DEALLOC: Once<Arc<TaskControlBlock>> = Once::new();
@@ -317,7 +319,7 @@ pub fn init() {
 
 /// Switches to another task (and another stack) to deallloc the current task's pages
 extern "C" fn task_exit() -> ! {
-    println!("Ending task");
+    info!("Ending task");
     let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
     let current = CURRENT_TASK.read();
     let old_next = {
@@ -332,7 +334,7 @@ extern "C" fn task_exit() -> ! {
         dealloc.dealloc = Some(current.clone());
     }
     drop(current);
-    println!("Switching to dealloc");
+    info!("Switching to dealloc");
     task_switch_safe();
     unreachable!();
 }
@@ -343,18 +345,18 @@ extern "C" fn task_dealloc() {
             let mut dealloc_ptr_lock = dealloc_ptr.context.lock();
             if let Some(dealloc_task_ptr) = dealloc_ptr_lock.dealloc.take() {
                 let mut dealloc_task_lock = dealloc_task_ptr.context.lock();
-                println!(
+                info!(
                     "Cleaning up {} ({})",
                     dealloc_task_ptr.name, dealloc_task_ptr.id
                 );
                 let mut tasks = TASKS.lock();
                 tasks.remove(&dealloc_task_ptr);
-                println!("Removed task from list");
+                info!("Removed task from list");
                 for t in tasks.iter() {
                     if t != dealloc_ptr {
                         let mut lock = t.context.lock();
                         if lock.next_task.ptr_eq(&Arc::downgrade(&dealloc_task_ptr)) {
-                            println!(
+                            debug!(
                                 "{} ({}) pointed to this task, rerouting to my dealloc next",
                                 t.name, t.id
                             );
@@ -373,10 +375,10 @@ extern "C" fn task_dealloc() {
                 }
             } else {
                 drop(dealloc_ptr_lock);
-                println!("Nothing to clean up");
+                info!("Nothing to clean up");
             }
         } else {
-            println!("Dealloc not initialized");
+            warn!("Dealloc not initialized");
         }
         task_switch_safe();
     }

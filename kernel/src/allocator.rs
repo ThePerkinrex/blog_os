@@ -1,11 +1,12 @@
 use core::ops::DerefMut;
+use log::{debug, error, info};
 use spin::Mutex;
 use talc::{OomHandler, Span, Talc, Talck};
 use x86_64::structures::paging::{
     FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
 };
 
-use crate::{multitask::lock::ReentrantMutex, println, setup::AllocKernelInfo};
+use crate::{multitask::lock::ReentrantMutex, setup::AllocKernelInfo};
 
 // pub const HEAP_START: u64 = 0x_4444_4444_0000;
 pub const HEAP_PAGES: u64 = 1024;
@@ -16,18 +17,18 @@ pub const HEAP_SIZE: u64 = HEAP_PAGES * Size4KiB::SIZE; // 16 MiB
 pub fn init_heap(
     mutable_inf: &'static ReentrantMutex<AllocKernelInfo>,
 ) -> Result<(), MapToError<Size4KiB>> {
-    println!("[INFO][ALLOC] Locking alloc_inf");
+    debug!("Locking alloc_inf");
     let mut lock = mutable_inf.lock();
     let locked = lock.deref_mut();
 
-    println!("[INFO][ALLOC] Getting heap_start");
+    debug!("Getting heap_start");
     let heap_start = locked
         .virt_region_allocator
         .alloc_pages(HEAP_PAGES as usize)
         .expect("Heap region");
     // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
 
-    println!("[INFO][ALLOC] Getting page range");
+    debug!("Getting page range");
     let page_range = {
         let heap_end = heap_start + HEAP_SIZE - 1u64;
         let heap_start_page = Page::containing_address(heap_start);
@@ -35,7 +36,7 @@ pub fn init_heap(
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
 
-    println!("[INFO][ALLOC] Mapping pages");
+    debug!("Mapping pages");
     for page in page_range {
         let frame = locked
             .frame_allocator
@@ -55,12 +56,12 @@ pub fn init_heap(
 
     let mut lock = ALLOCATOR.lock();
 
-    println!("[INFO][ALLOC] Claiming heap");
+    debug!("Claiming heap");
     unsafe {
         lock.claim(span).expect("Claim heap");
     }
 
-    println!("[INFO][ALLOC] set mutable_inf");
+    debug!("set mutable_inf");
     lock.oom_handler.mutable_inf = Some(mutable_inf);
 
     drop(lock);
@@ -79,13 +80,13 @@ const GROW_PAGES: u64 = 1024;
 
 impl OomHandler for OomGrow {
     fn handle_oom(talc: &mut Talc<Self>, _layout: core::alloc::Layout) -> Result<(), ()> {
-        println!("[INFO] Growing the HEAP");
+        info!("Growing the HEAP");
 
         let mut lock = talc
             .oom_handler
             .mutable_inf
             .ok_or(())
-            .inspect_err(|_| println!("[ERR] No kernel to claim"))?
+            .inspect_err(|_| error!("No kernel to claim"))?
             .lock();
         let kinf = lock.deref_mut();
 

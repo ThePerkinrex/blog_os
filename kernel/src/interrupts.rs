@@ -1,3 +1,4 @@
+use log::{debug, error};
 use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
@@ -7,7 +8,7 @@ use x86_64::{
 };
 
 use crate::{
-    gdt, hlt_loop, interrupts, multitask, print, println, process::get_process_kernel_stack_top,
+    _print, gdt, hlt_loop, interrupts, multitask, process::get_process_kernel_stack_top,
     setup::KERNEL_INFO, test_return, unwind::backtrace,
 };
 
@@ -341,7 +342,7 @@ extern "C" fn int_80_handler() -> u64 {
 // }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+    log::info!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn double_fault_handler(
@@ -357,7 +358,7 @@ extern "x86-interrupt" fn page_fault_handler(
 ) {
     use x86_64::registers::control::Cr2;
 
-    println!("EXCEPTION: PAGE FAULT");
+    error!("EXCEPTION: PAGE FAULT");
 
     backtrace();
 
@@ -365,11 +366,12 @@ extern "x86-interrupt" fn page_fault_handler(
     let current_task = current_task_arc.context.lock();
 
     let addr = Cr2::read();
-    println!(
+    log::info!(
         "Current task: {:?} ({})",
-        current_task_arc.name, current_task_arc.id
+        current_task_arc.name,
+        current_task_arc.id
     );
-    println!("Current stack: {:?}", current_task.stack);
+    log::info!("Current stack: {:?}", current_task.stack);
     if let Ok(addr) = addr {
         if let Some(s) = &current_task.stack {
             let kinf = KERNEL_INFO.get().unwrap();
@@ -383,33 +385,33 @@ extern "x86-interrupt" fn page_fault_handler(
             #[allow(clippy::significant_drop_in_scrutinee)]
             match stack_alloc.lock().detect_guard_page_access(addr, s) {
                 crate::stack::GuardPageInfo::CurrentStackOverflow => {
-                    println!("[KSTACKS] Current stack overflow")
+                    log::info!("[KSTACKS] Current stack overflow")
                 }
                 crate::stack::GuardPageInfo::CurrentStack => {
-                    println!("[KSTACKS] Current stack access")
+                    log::info!("[KSTACKS] Current stack access")
                 }
                 crate::stack::GuardPageInfo::OtherGuardPage(idx, alloc) => {
-                    println!("[KSTACKS] Other stack overflow (idx: {idx}, alloc: {alloc})")
+                    log::info!("[KSTACKS] Other stack overflow (idx: {idx}, alloc: {alloc})")
                 }
                 crate::stack::GuardPageInfo::OtherStack(idx, alloc) => {
-                    println!("[KSTACKS] Other stack access (idx: {idx}, alloc: {alloc})")
+                    log::info!("[KSTACKS] Other stack access (idx: {idx}, alloc: {alloc})")
                 }
-                crate::stack::GuardPageInfo::Unknown => println!("[KSTACKS] Unknown access"),
+                crate::stack::GuardPageInfo::Unknown => log::info!("[KSTACKS] Unknown access"),
             }
         } else {
-            println!(
+            log::info!(
                 "[KSTACKS] Addr was err or stack was not present: {addr:?}, {:?}",
                 current_task.stack
             )
         }
         if let Some(pinf) = &current_task.process_info {
-            println!("[PROCESS] {pinf:#?}")
+            log::info!("[PROCESS] {pinf:#?}")
         }
     }
 
-    println!("Accessed Address: {:?}", addr);
-    println!("Error Code: {:?}", error_code);
-    println!("{:#?}", stack_frame);
+    log::info!("Accessed Address: {:?}", addr);
+    log::info!("Error Code: {:?}", error_code);
+    log::info!("{:#?}", stack_frame);
     drop(current_task);
     hlt_loop();
 }
@@ -465,7 +467,8 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    print!(".");
+    _print!(".");
+    // TODO advance a number
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -474,7 +477,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     // hlt_loop();
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(mut stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
     use spin::Mutex;
     use x86_64::instructions::port::Port;
@@ -495,23 +498,14 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(mut stack_frame: InterruptS
         && let Some(key) = keyboard.process_keyevent(key_event)
     {
         match key {
-            DecodedKey::Unicode(character) => print!("{}", character),
-            DecodedKey::RawKey(key) => print!("{:?}", key),
+            DecodedKey::Unicode(character) => debug!("{}", character),
+            DecodedKey::RawKey(key) => debug!("{:?}", key),
         }
     }
 
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
-    }
-    let addr = VirtAddr::from_ptr(test_return as *const ());
-
-    println!("Addr: {addr:?}");
-
-    unsafe {
-        stack_frame
-            .as_mut()
-            .update(|x| x.instruction_pointer = addr);
     }
 }
 

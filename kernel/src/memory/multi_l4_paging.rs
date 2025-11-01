@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use kernel_utils::smallmap::SmallBTreeMap;
+use log::{debug, info, trace};
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -7,8 +8,6 @@ use x86_64::{
         mapper::CleanUp, page::PageRangeInclusive,
     },
 };
-
-use crate::println;
 
 const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 
@@ -52,7 +51,7 @@ impl PageTables {
                 .get(frame)
                 .expect("the CR3 page table to be registered");
             self.current_frame = *frame;
-            println!("[INFO][PAGE_TABLES] Switching to page table with frame {frame:?}");
+            info!("Switching to page table with frame {frame:?}");
             self.current = unsafe {
                 OffsetPageTable::<'static>::new(
                     addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
@@ -77,11 +76,11 @@ impl PageTables {
         unsafe {
             core::arch::asm!("mov {0},rsp", lateout(reg) sp);
         }
-        println!("Creating process p4 to prepare for switch (current sp: {sp:x})");
+        debug!("Creating process p4 to prepare for switch (current sp: {sp:x})");
         let frame = self
             .create_process_p4(frame_alloc)
             .expect("A frame for the l4 table");
-        println!("Created: {frame:?}");
+        debug!("Created: {frame:?}");
         x86_64::instructions::interrupts::without_interrupts(|| {
             self.set_current_page_table_frame(&frame);
             unsafe {
@@ -94,17 +93,17 @@ impl PageTables {
     where
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
-        println!("Allocating frame for new p4");
+        debug!("Allocating frame for new p4");
         let frame = frame_alloc.allocate_frame()?;
-        println!("Allocated frame: {frame:?}");
+        debug!("Allocated frame: {frame:?}");
 
         let offset = self.current.phys_offset();
 
         let page_addr = offset + frame.start_address().as_u64();
-        println!("Getting a pointer to the frame virtaddr({page_addr:p})");
+        debug!("Getting a pointer to the frame virtaddr({page_addr:p})");
         let page_table = unsafe { page_addr.as_mut_ptr::<PageTable>().as_mut() }.unwrap();
         *page_table = PageTable::new(); // initialize it
-        println!("Initialized current p4 table here -> virtaddr({page_addr:p})");
+        debug!("Initialized current p4 table here -> virtaddr({page_addr:p})");
         for (a, b) in page_table
             .iter_mut()
             .zip(self.current.level_4_table().iter())
@@ -112,7 +111,7 @@ impl PageTables {
         {
             *a = b.clone();
         }
-        println!("Copied current p4 table here -> virtaddr({page_addr:p})");
+        info!("Copied current p4 table here -> virtaddr({page_addr:p})");
 
         self.l4_tables.insert(frame, page_addr);
 
@@ -217,7 +216,7 @@ impl Mapper<Size4KiB> for PageTables {
                 e[p4_index].clone_from(current_e);
             }
         } else {
-            println!(
+            trace!(
                 "Created mapping in userspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?})",
                 self.current_frame
             )

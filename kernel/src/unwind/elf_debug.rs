@@ -2,14 +2,13 @@ use addr2line::Location;
 use alloc::{boxed::Box, collections::binary_heap::BinaryHeap, string::String, sync::Arc};
 use kernel_utils::maybe_boxed::MaybeBoxed;
 
-use crate::{elf::LoadedProgram, println, setup::KernelInfo, unwind::eh::EhInfo};
+use crate::{elf::LoadedProgram, setup::KernelInfo, unwind::eh::EhInfo};
 
 pub struct ClonedLocation {
     pub file: Option<String>,
     pub line: Option<u32>,
     pub column: Option<u32>,
 }
-
 impl<'a> From<&Location<'a>> for ClonedLocation {
     fn from(value: &Location<'a>) -> Self {
         Self {

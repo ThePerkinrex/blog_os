@@ -1,7 +1,8 @@
 use gimli::{BaseAddresses, EhFrame, EhFrameHdr, EndianSlice, LittleEndian, ParsedEhFrameHdr};
+use log::debug;
 use object::read::elf::SectionHeader;
 
-use crate::{elf::SystemElf, println};
+use crate::elf::SystemElf;
 
 #[derive(Debug)]
 pub struct EhInfo<'a> {
@@ -23,8 +24,8 @@ impl<'a> EhInfo<'a> {
         let eh_frame_sect = elf
             .elf_section_table()
             .section_by_name(object::LittleEndian, b".eh_frame")?;
-        println!("eh_frame_hdr: {eh_frame_hdr_sect:?}");
-        println!("eh_frame: {eh_frame_sect:?}");
+        debug!("eh_frame_hdr: {eh_frame_hdr_sect:?}");
+        debug!("eh_frame: {eh_frame_sect:?}");
 
         let eh_frame_hdr = eh_frame_hdr_sect
             .1
@@ -53,7 +54,7 @@ impl<'a> EhInfo<'a> {
             // optionally set a text base too (helps some lookups)
             .set_text(kernel_image_offset);
 
-        println!("Base addresses: {base_addrs:?}");
+        debug!("Base addresses: {base_addrs:?}");
 
         let hdr = EhFrameHdr::new(eh_frame_hdr, LittleEndian)
             .parse(&base_addrs, 8)
