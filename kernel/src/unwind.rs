@@ -26,6 +26,7 @@ mod register;
 #[derive(Debug)]
 struct CallFrame {
     pub pc: u64,
+    pub sp: u64
 }
 
 #[derive(Debug)]
@@ -95,7 +96,7 @@ impl<'a> Unwinder<'a> {
         if self.is_first {
             println!("IS FIRST");
             self.is_first = false;
-            return Ok(Some(CallFrame { pc }));
+            return Ok(Some(CallFrame { pc, sp: self.regs.get(X86_64::RSP).unwrap_or(self.cfa) }));
         }
 
         let fde = eh_info
@@ -211,17 +212,17 @@ impl<'a> Unwinder<'a> {
         self.regs.set_stack_ptr(self.cfa);
         // println!("Set regs");
 
-        Ok(Some(CallFrame { pc }))
+        Ok(Some(CallFrame { pc, sp: self.cfa }))
     }
 }
 
 fn single_backtrace_line(frame: CallFrame, unwind: &Unwinder<'_>) -> Result<(), UnwinderError> {
-    print!("Unwind frame: {:x} ", frame.pc);
+    print!("Unwind frame: sp: {1:x}; ip: {0:x} ", frame.pc, frame.sp);
     let unwindable = unwind
         .current_unwindable()?
         .ok_or(UnwinderError::NoUnwindInfo(frame.pc))?;
     let (location, addr) = unwindable.find_location(frame.pc);
-    print!("({:x}) ", addr);
+    print!("(elf: {:x}) ", addr);
 
     let location = location
         .inspect_err(|e| println!("[WARN] No location information: {e}"))

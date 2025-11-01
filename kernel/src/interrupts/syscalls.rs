@@ -35,5 +35,7 @@ pub fn syscall_handle(
 pub extern "C" fn syscall_tail() {
     x86_64::instructions::interrupts::enable();
     println!("SYSCALL TAIL");
+    unwind::backtrace();
     task_switch_safe();
+    unwind::backtrace();
 }

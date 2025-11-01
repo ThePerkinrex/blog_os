@@ -248,19 +248,19 @@ unsafe extern "C" fn naked_syscall_tail() {
     core::arch::naked_asm!(
         "
         .cfi_startproc
-        .cfi_adjust_cfa_offset 112
-        .cfi_offset rbp, -16
-        .cfi_offset rcx, -24
-        .cfi_offset rdx, -32
-        .cfi_offset rsi, -40
-        .cfi_offset rdi, -48
-        .cfi_offset r8,  -56
-        .cfi_offset r9,  -64
-        .cfi_offset r10, -72
-        .cfi_offset r11, -80
-        .cfi_offset r12, -88
-        .cfi_offset r13, -96
-        .cfi_offset rax, -104
+        .cfi_adjust_cfa_offset 96
+        .cfi_offset rbp, -8
+        .cfi_offset rcx, -16
+        .cfi_offset rdx, -24
+        .cfi_offset rsi, -32
+        .cfi_offset rdi, -40
+        .cfi_offset r8,  -48
+        .cfi_offset r9,  -56
+        .cfi_offset r10, -64
+        .cfi_offset r11, -72
+        .cfi_offset r12, -80
+        .cfi_offset r13, -88
+        .cfi_offset rax, -96
 
 
         call {syscall_tail}
