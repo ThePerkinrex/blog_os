@@ -1,21 +1,11 @@
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
-
-fn exit() -> ! {
-    loop {}
-}
+use blog_std::println;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn main() -> ! {
     blog_std::nop(33);
+    println!("Hello World!");
     blog_std::exit(0);
-    exit()
-}
-
-// Required panic handler
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    exit()
 }

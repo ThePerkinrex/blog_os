@@ -1,5 +1,6 @@
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 use log::{debug, info, warn};
+use x86_64::VirtAddr;
 
 use crate::{
     multitask::{
@@ -10,7 +11,7 @@ use crate::{
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 
-const SYSCALL_HANDLERS: &[SyscallHandler] = &[nop, exit];
+const SYSCALL_HANDLERS: &[SyscallHandler] = &[nop, exit, write];
 
 fn nop(arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64, arg6: u64) -> u64 {
     debug!("NOP SYSCALL ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6})");
@@ -24,6 +25,19 @@ fn exit(code: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
         *pinf.status_mut() = ProcessStatus::Ending(code)
     });
     0
+}
+
+fn write(fd: u64, buf: u64, len: u64, _: u64, _: u64, _: u64) -> u64 {
+    if fd != 1 {
+        warn!("Tried to write an fd different from 1 ({fd})");
+    }
+    let buf =
+        unsafe { core::slice::from_raw_parts(VirtAddr::new(buf).as_ptr::<u8>(), len as usize) };
+    let s = String::from_utf8_lossy(buf);
+    for l in s.lines() {
+        info!("[STDOUT] {l}");
+    }
+    len
 }
 
 pub fn syscall_handle(

@@ -2,6 +2,7 @@ macro_rules! generate_syscall {
     ($name:ident, $(($reg_str:tt, $reg:ident),)*) => {
         /// # Safety
         /// The caller must ensure that the syscall number exists, and that it accepts that number of args
+        #[allow(dead_code)]
         pub unsafe fn $name(code: u64, $($reg: u64,)*) -> u64 {
             let ret: u64;
             unsafe {core::arch::asm!(
