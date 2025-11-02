@@ -18,6 +18,7 @@ pub mod allocator;
 pub mod config;
 pub mod dwarf;
 
+pub mod bus;
 #[allow(clippy::future_not_send)]
 pub mod elf;
 pub mod gdt;

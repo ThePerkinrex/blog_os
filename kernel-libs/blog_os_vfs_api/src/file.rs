@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
+use blog_os_device_api::DeviceId;
 
-use crate::{IOError, device::DeviceId, inode::FsINodeRef};
+use crate::{IOError, inode::FsINodeRef};
 
 pub trait File {
     // TODO standard ops

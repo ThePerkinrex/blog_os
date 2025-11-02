@@ -42,11 +42,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
+name = "blog_os-device"
+version = "0.1.0"
+dependencies = [
+ "blog_os-device-api",
+]
+
+[[package]]
+name = "blog_os-device-api"
+version = "0.1.0"
+
+[[package]]
 name = "blog_os_kernel"
 version = "0.1.0"
 dependencies = [
  "addr2line",
  "bitflags 2.10.0",
+ "blog_os-device",
  "blog_os_vfs",
  "bootloader-x86_64-common",
  "bootloader_api",
@@ -80,6 +92,7 @@ dependencies = [
 name = "blog_os_vfs_api"
 version = "0.1.0"
 dependencies = [
+ "blog_os-device-api",
  "itertools",
  "kernel-utils",
  "smallvec",

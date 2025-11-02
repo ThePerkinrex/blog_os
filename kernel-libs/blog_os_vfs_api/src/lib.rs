@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-pub mod device;
 pub mod file;
 pub mod fs;
 pub mod inode;

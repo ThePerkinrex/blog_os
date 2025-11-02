@@ -1,4 +1,4 @@
-use crate::device::DeviceId;
+use blog_os_device_api::DeviceId;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Stat {

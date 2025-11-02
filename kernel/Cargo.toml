@@ -13,6 +13,7 @@ pic8259 = "0.11.0"
 qemu-common = {path = "../qemu-common"}
 kernel-utils = {path = "../kernel-libs/kernel-utils"}
 blog_os_vfs = {path = "../kernel-libs/blog_os_vfs"}
+blog_os-device = {path = "../kernel-libs/blog_os-device"}
 pc-keyboard = "0.8.0"
 talc = "4.4.3"
 object = { version = "0.37.3", default-features = false, features = ["read_core", "elf", "core", "alloc"] }
