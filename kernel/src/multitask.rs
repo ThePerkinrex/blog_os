@@ -99,14 +99,24 @@ unsafe fn task_switch() {
     // 1) Grab the current Arc<Mutex<TaskControlBlock>>
     let mut current_arc_guard = CURRENT_TASK.write();
     let current_arc = current_arc_guard.clone(); // Arc clone of current
+    debug!("Locking current tcb");
     let mut current_tcb = current_arc.context.lock();
+    debug!("Locked current tcb");
 
     // 2) Find the next task (upgrade Weak -> Arc)
     let next_arc: Arc<_> = current_tcb
         .next_task
         .upgrade()
         .expect("next task has been dropped");
+
+    if Arc::ptr_eq(&current_arc, &next_arc) {
+        info!("Called task switch on a cylic task, returning");
+        return;
+    }
+
+    debug!("Locking next tcb");
     let next_tcb = next_arc.context.lock();
+    debug!("Locked next tcb");
 
     info!(
         "Switching from {} ({}) to {} ({})",
@@ -130,13 +140,14 @@ unsafe fn task_switch() {
             Cr3::write(next_frame, next_flags);
         }
 
-        KERNEL_INFO
-            .get()
-            .unwrap()
-            .alloc_kinf
-            .lock()
-            .page_table
-            .set_current_page_table();
+        {
+            let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+            let mem = &mut *lock;
+
+            mem.page_table
+                .set_current_page_table(&mut mem.frame_allocator);
+            drop(lock);
+        }
     }
     current_tcb.cr3 = read;
 
@@ -318,7 +329,7 @@ pub fn init() {
 }
 
 /// Switches to another task (and another stack) to deallloc the current task's pages
-extern "C" fn task_exit() -> ! {
+pub extern "C" fn task_exit() -> ! {
     info!("Ending task");
     let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
     let current = CURRENT_TASK.read();
@@ -398,6 +409,10 @@ pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U)
 
 pub fn get_current_process_info() -> Option<ProcessInfo> {
     CURRENT_TASK.read().context.lock().process_info.clone()
+}
+
+pub fn try_get_current_process_info() -> Option<ProcessInfo> {
+    CURRENT_TASK.read().context.try_lock()?.process_info.clone()
 }
 
 pub fn get_current_task_id() -> TaskId {

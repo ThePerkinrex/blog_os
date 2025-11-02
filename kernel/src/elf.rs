@@ -12,7 +12,10 @@ use ouroboros::self_referencing;
 use spin::Once;
 use x86_64::{
     VirtAddr,
-    structures::paging::{FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB},
+    structures::paging::{
+        FrameAllocator, FrameDeallocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB,
+        mapper::CleanUp,
+    },
 };
 
 use crate::{
@@ -107,6 +110,7 @@ pub struct LoadedProgram {
     stack: GeneralStack,
     entry: VirtAddr,
     elf: ElfWithDataAndDwarf,
+    mapped_pages: BTreeMap<Page, PageTableFlags>,
 }
 
 impl core::fmt::Debug for LoadedProgram {
@@ -172,6 +176,41 @@ impl LoadedProgram {
 
     pub const fn load_offset(&self) -> u64 {
         self.load_offset
+    }
+
+    /// # Safety
+    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
+    /// and the page table used must be the one used to map the pages
+    pub unsafe fn unload(self) {
+        // Unload the stack
+        let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+        let mem = &mut *lock;
+        unsafe { stack::clear_stack(self.stack, &mut mem.page_table, &mut mem.frame_allocator) };
+
+        let mut min_max = None;
+        for page in self.mapped_pages.keys() {
+            let (frame, flush) = mem.page_table.unmap(*page).expect("Mapped page");
+            flush.flush();
+            unsafe { mem.frame_allocator.deallocate_frame(frame) };
+            if let Some((min, max)) = &mut min_max {
+                if *min > *page {
+                    *min = *page
+                } else if *max < *page {
+                    *max = *page
+                }
+            } else {
+                min_max = Some((*page, *page));
+            }
+        }
+
+        if let Some((min, max)) = min_max {
+            unsafe {
+                mem.page_table
+                    .clean_up_addr_range(Page::range_inclusive(min, max), &mut mem.frame_allocator)
+            };
+        }
+
+        drop(lock);
     }
 }
 
@@ -325,6 +364,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         entry,
         elf: elf_contained,
         load_offset: offset,
+        mapped_pages,
     }
 }
 

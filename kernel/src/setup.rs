@@ -27,9 +27,11 @@ pub struct AllocKernelInfo {
 }
 
 impl AllocKernelInfo {
-    pub fn create_p4_table_and_switch(&mut self) {
+    pub fn create_p4_table_and_switch(
+        &mut self,
+    ) -> alloc::sync::Arc<memory::multi_l4_paging::PageTableToken> {
         self.page_table
-            .create_process_p4_and_switch(&mut self.frame_allocator);
+            .create_process_p4_and_switch(&mut self.frame_allocator)
     }
 }
 
@@ -109,8 +111,10 @@ impl KernelInfo {
         drop(lock);
     }
 
-    pub fn create_p4_table_and_switch(&self) {
-        self.alloc_kinf.lock().create_p4_table_and_switch();
+    pub fn create_p4_table_and_switch(
+        &self,
+    ) -> alloc::sync::Arc<memory::multi_l4_paging::PageTableToken> {
+        self.alloc_kinf.lock().create_p4_table_and_switch()
     }
 }
 

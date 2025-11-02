@@ -1,14 +1,21 @@
+use core::borrow::Borrow;
+
 use x86_64::{VirtAddr, instructions::interrupts, structures::gdt::SegmentSelector};
 
 use crate::{elf::LoadedProgram, gdt::selectors};
 
-pub fn jmp_to_usermode(prog: &LoadedProgram) {
+pub fn jmp_to_usermode<T: Borrow<LoadedProgram>>(prog: T) {
     let selectors = selectors();
+    let prog_ref = prog.borrow();
+    let entry = prog_ref.entry();
+    let stack_top = prog_ref.stack().top();
+
+    drop(prog);
 
     unsafe {
         jump_to_ring3(
-            prog.entry(),
-            prog.stack().top(),
+            entry,
+            stack_top,
             selectors.user_data_selector,
             selectors.user_code_selector,
         );

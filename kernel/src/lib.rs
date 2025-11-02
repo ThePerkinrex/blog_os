@@ -9,7 +9,6 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-use alloc::boxed::Box;
 use log::info;
 use qemu_common::QemuExitCode;
 
@@ -18,6 +17,8 @@ use crate::{process::ProcessInfo, setup::KERNEL_INFO};
 pub mod allocator;
 pub mod config;
 pub mod dwarf;
+
+#[allow(clippy::future_not_send)]
 pub mod elf;
 pub mod gdt;
 pub mod interrupts;
@@ -87,16 +88,17 @@ pub extern "C" fn second_process() {
     proc.start();
 }
 
-pub extern "C" fn test_return() -> ! {
-    info!("REturned here");
-    hlt_loop();
-}
+// pub extern "C" fn test_return() -> ! {
+//     info!("REturned here");
+//     hlt_loop();
+// }
 
 pub extern "C" fn switch_loop() {
     x86_64::instructions::interrupts::enable();
     loop {
-        info!("SWITCH LOOP");
-        x86_64::instructions::hlt();
+        info!("SWITCH LOOP - Waiting");
+        x86_64::instructions::interrupts::enable_and_hlt();
+        info!("SWITCH LOOP - Switching");
         multitask::task_switch_safe();
     }
 }

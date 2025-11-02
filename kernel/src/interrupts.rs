@@ -2,14 +2,13 @@ use log::{debug, error};
 use pic8259::ChainedPics;
 use spin::Lazy;
 use x86_64::{
-    VirtAddr,
     instructions::port::Port,
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
 use crate::{
     _print, gdt, hlt_loop, interrupts, multitask, process::get_process_kernel_stack_top,
-    setup::KERNEL_INFO, test_return, unwind::backtrace,
+    setup::KERNEL_INFO, unwind::backtrace,
 };
 
 pub const PIC_1_OFFSET: u8 = 32;

@@ -1,82 +1,160 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::sync::Arc;
-use log::{debug, info, warn};
+use log::{debug, info};
 
 use crate::{
     KERNEL_INFO,
     elf::{LoadedProgram, load_elf},
-    gdt::get_esp0_stack_top,
-    multitask::{change_current_process_info, set_current_process_info},
+    memory::multi_l4_paging::PageTableToken,
+    multitask::{get_current_task, set_current_process_info},
     priviledge::jmp_to_usermode,
-    stack::SlabStack,
+    rand::uuid_v4,
+    unwind,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
+pub enum ProcessStatus {
+    #[default]
+    Ok,
+    Ending(u64),
+}
+
+#[derive(Debug)]
 pub struct ProcessInfo {
     program: Arc<LoadedProgram>,
-    kernel_stack: Option<Arc<SlabStack>>,
+    status: ProcessStatus,
+    id: uuid::Uuid,
+    original: uuid::Uuid,
+    pt_token: Option<Arc<PageTableToken>>,
+}
+
+impl Clone for ProcessInfo {
+    fn clone(&self) -> Self {
+        let id = uuid_v4();
+        let refs = Arc::strong_count(&self.program);
+        debug!(
+            "CLONING PROCESS INFO {} -> {id} (refs: {} -> {})",
+            self.id,
+            refs,
+            refs + 1
+        );
+        unwind::backtrace();
+        Self {
+            program: self.program.clone(),
+            status: self.status.clone(),
+            id,
+            original: self.original,
+            pt_token: self.pt_token.clone(),
+        }
+    }
+}
+
+impl Drop for ProcessInfo {
+    fn drop(&mut self) {
+        let refs = Arc::strong_count(self.program());
+        debug!(
+            "Dropping {} ({}) (refs {refs} -> {})",
+            self.id,
+            self.original,
+            refs - 1
+        )
+    }
 }
 
 static FIRST_PROC: AtomicBool = AtomicBool::new(true);
 
 impl ProcessInfo {
     pub fn new(prog: &[u8]) -> Self {
+        let id = uuid_v4();
+        let token;
         if FIRST_PROC
             .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
-            info!("Not first proc, creating a new l4 table");
-            debug!("Before CR3: {:?}", x86_64::registers::control::Cr3::read());
+            info!("[{id}] Not first proc, creating a new l4 table");
+            debug!(
+                "[{id}] Before CR3: {:?}",
+                x86_64::registers::control::Cr3::read()
+            );
 
-            KERNEL_INFO.get().unwrap().create_p4_table_and_switch();
+            token = Some(KERNEL_INFO.get().unwrap().create_p4_table_and_switch());
 
-            info!("CR3: {:?}", x86_64::registers::control::Cr3::read());
+            info!("[{id}] CR3: {:?}", x86_64::registers::control::Cr3::read());
         } else {
-            info!("Creating first proc, not creating a new l4 table");
+            info!("[{id}] Creating first proc, not creating a new l4 table");
+            token = None;
         }
 
-        debug!("Loading elf");
+        debug!("[{id}] Loading elf");
         let prog = load_elf(prog);
-        info!("Loaded elf");
+        info!("[{id}] Loaded elf");
 
         Self {
             program: Arc::new(prog),
-            kernel_stack: None,
+            status: ProcessStatus::default(),
+            id,
+            original: id,
+            pt_token: token,
         }
     }
 
     pub fn start(self) {
-        info!("Starting process");
+        info!(
+            "[{} from {}] Starting process (refs: {})",
+            self.id,
+            self.original,
+            Arc::strong_count(&self.program)
+        );
         let prog = self.program.clone();
         set_current_process_info(self);
-        jmp_to_usermode(&prog);
+        jmp_to_usermode(prog);
     }
 
-    fn get_kernel_stack(&mut self) -> &Arc<SlabStack> {
-        self.kernel_stack.get_or_insert_with(|| {
-            let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
-            info!("Created a new stack for the process: {stack:?}");
-            Arc::new(stack)
-        })
-    }
+    // fn get_kernel_stack(&mut self) -> &Arc<SlabStack> {
+    //     self.kernel_stack.get_or_insert_with(|| {
+    //         get_current_task().
+    //         let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
+    //         info!("Created a new stack for the process: {stack:?}");
+    //         Arc::new(stack)
+    //     })
+    // }
 
-    pub const fn program(&self) -> &Arc<LoadedProgram> {
+    pub fn program(&self) -> &Arc<LoadedProgram> {
+        info!(
+            "[{} from {}] Getting program (refs: {})",
+            self.id,
+            self.original,
+            Arc::strong_count(&self.program)
+        );
+
         &self.program
+    }
+
+    pub const fn status(&self) -> &ProcessStatus {
+        &self.status
+    }
+
+    pub const fn status_mut(&mut self) -> &mut ProcessStatus {
+        &mut self.status
     }
 }
 
+/// Uses the task stack if possible
 pub extern "C" fn get_process_kernel_stack_top() -> u64 {
-    change_current_process_info(|pi| {
-        let top = pi.as_mut().map_or_else(
-            || {
-                warn!("No current process, returning esp0 top");
-                get_esp0_stack_top()
-            },
-            |pi| pi.get_kernel_stack().top(),
-        );
-        debug!("Returning stack top: {top:p}");
-        top
-    })
-    .as_u64()
+    let tcb = get_current_task();
+
+    let mut ctx = tcb.context.lock();
+
+    let stack = ctx.stack.get_or_insert_with(|| {
+        let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
+        info!("Created a new stack for the process: {stack:?}");
+        stack
+    });
+
+    let stack = stack.top();
+
+    drop(ctx);
+
+    stack.as_u64()
 }

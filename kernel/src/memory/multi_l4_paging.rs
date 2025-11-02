@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use kernel_utils::smallmap::SmallBTreeMap;
 use log::{debug, info, trace};
 use x86_64::{
@@ -11,10 +11,21 @@ use x86_64::{
 
 const KERNEL_P4_START: u16 = 1; // adjust: index where higher-half begins
 
+#[derive(Debug)]
+pub struct PageTableToken {
+    #[allow(unused)]
+    inner: PhysFrame,
+}
+
+struct PageTableInfo {
+    addr: VirtAddr,
+    token: Option<Arc<PageTableToken>>,
+}
+
 pub struct PageTables {
     current: OffsetPageTable<'static>,
     current_frame: PhysFrame,
-    l4_tables: SmallBTreeMap<1, PhysFrame, VirtAddr>,
+    l4_tables: SmallBTreeMap<1, PhysFrame, PageTableInfo>,
 }
 
 impl PageTables {
@@ -30,7 +41,13 @@ impl PageTables {
                     virt_addr,
                     "Current CR3 does not match current Page Table"
                 );
-                map.insert(phys_f, virt_addr);
+                map.insert(
+                    phys_f,
+                    PageTableInfo {
+                        addr: virt_addr,
+                        token: None,
+                    },
+                );
 
                 map
             },
@@ -39,13 +56,23 @@ impl PageTables {
         }
     }
 
-    pub fn set_current_page_table(&mut self) {
+    pub fn set_current_page_table<A>(&mut self, frame_alloc: &mut A)
+    where
+        A: x86_64::structures::paging::FrameDeallocator<Size4KiB> + ?Sized,
+    {
         let (frame, _) = x86_64::registers::control::Cr3::read();
-        self.set_current_page_table_frame(&frame);
+        self.set_current_page_table_frame(&frame, frame_alloc);
     }
 
-    fn set_current_page_table_frame(&mut self, frame: &PhysFrame) {
+    fn set_current_page_table_frame<A>(&mut self, frame: &PhysFrame, frame_alloc: &mut A)
+    where
+        A: x86_64::structures::paging::FrameDeallocator<Size4KiB> + ?Sized,
+    {
         x86_64::instructions::interrupts::without_interrupts(|| {
+            let old = self.l4_tables.get(&self.current_frame).unwrap();
+            let old_frame = self.current_frame;
+            let old_refs = old.token.as_ref().map(Arc::strong_count);
+            info!("Old frame ({:?}) refs: {:?}", self.current_frame, old_refs);
             let addr = self
                 .l4_tables
                 .get(frame)
@@ -54,10 +81,17 @@ impl PageTables {
             info!("Switching to page table with frame {frame:?}");
             self.current = unsafe {
                 OffsetPageTable::<'static>::new(
-                    addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
+                    addr.addr.as_mut_ptr::<PageTable>().as_mut().unwrap(),
                     self.current.phys_offset(),
                 )
             };
+            if old_refs == Some(1) && frame.start_address() != old_frame.start_address() {
+                // old frame is unused and we switched to something else
+                info!("Old CR3 is unused, cleaning up");
+                let _ = self.l4_tables.remove(&old_frame).unwrap();
+                // No need to unmap the page as we're accessing the frame through the memory mapping
+                unsafe { frame_alloc.deallocate_frame(old_frame) };
+            }
         });
     }
 
@@ -68,28 +102,34 @@ impl PageTables {
         }
     }
 
-    pub fn create_process_p4_and_switch<A>(&mut self, frame_alloc: &mut A)
+    pub fn create_process_p4_and_switch<A>(&mut self, frame_alloc: &mut A) -> Arc<PageTableToken>
     where
-        A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
+        A: x86_64::structures::paging::FrameAllocator<Size4KiB>
+            + x86_64::structures::paging::FrameDeallocator<Size4KiB>
+            + ?Sized,
     {
         let sp: u64;
         unsafe {
             core::arch::asm!("mov {0},rsp", lateout(reg) sp);
         }
         debug!("Creating process p4 to prepare for switch (current sp: {sp:x})");
-        let frame = self
+        let (frame, token) = self
             .create_process_p4(frame_alloc)
             .expect("A frame for the l4 table");
         debug!("Created: {frame:?}");
         x86_64::instructions::interrupts::without_interrupts(|| {
-            self.set_current_page_table_frame(&frame);
+            self.set_current_page_table_frame(&frame, frame_alloc);
             unsafe {
                 Self::switch_to_frame(frame);
             }
         });
+        token
     }
 
-    fn create_process_p4<A>(&mut self, frame_alloc: &mut A) -> Option<PhysFrame>
+    fn create_process_p4<A>(
+        &mut self,
+        frame_alloc: &mut A,
+    ) -> Option<(PhysFrame, Arc<PageTableToken>)>
     where
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
@@ -112,19 +152,26 @@ impl PageTables {
             *a = b.clone();
         }
         info!("Copied current p4 table here -> virtaddr({page_addr:p})");
+        let token = Arc::new(PageTableToken { inner: frame });
 
-        self.l4_tables.insert(frame, page_addr);
+        self.l4_tables.insert(
+            frame,
+            PageTableInfo {
+                addr: page_addr,
+                token: Some(token.clone()),
+            },
+        );
 
-        Some(frame)
+        Some((frame, token))
     }
 
     fn all_but_current_internal<'a>(
-        tables: impl Iterator<Item = (&'a PhysFrame, &'a VirtAddr)>,
+        tables: impl Iterator<Item = (&'a PhysFrame, &'a PageTableInfo)>,
         frame: &'a PhysFrame,
     ) -> impl Iterator<Item = &'a mut PageTable> {
         tables
             .filter(move |(i, _)| **i != *frame)
-            .map(|(_, x)| unsafe { x.as_mut_ptr::<PageTable>().as_mut() }.unwrap())
+            .map(|(_, x)| unsafe { x.addr.as_mut_ptr::<PageTable>().as_mut() }.unwrap())
     }
 
     #[allow(clippy::needless_pass_by_ref_mut)]

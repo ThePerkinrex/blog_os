@@ -11,7 +11,7 @@ use x86_64::{
 
 use crate::{
     interrupts::info::IH,
-    multitask::get_current_process_info,
+    multitask::{get_current_process_info, try_get_current_process_info},
     setup::KERNEL_INFO,
     unwind::{
         elf_debug::{OrderedUnwindable, UnwindTable, UnwindableElf},
@@ -159,7 +159,7 @@ impl<'a> Unwinder<'a> {
                     // println!("OFFSET: {reg:?}: {:x} + {offset:x} = {ptr:p}", self.cfa);
                     // Check if weve reached the bottom of stack.
                     // Most probable culprit: bottom of process stack
-                    if let Some(pinf) = get_current_process_info() {
+                    if let Some(pinf) = try_get_current_process_info() {
                         let ptr = VirtAddr::from_ptr(ptr);
                         let top = pinf.program().stack().top();
                         if ptr >= top && ptr < top + Size4KiB::SIZE {
@@ -230,7 +230,7 @@ fn single_backtrace_line(frame: CallFrame, unwind: &Unwinder<'_>) -> Result<(), 
 
     // Build location info string
     let loc_str = if let Some(location) = location {
-        let file = location.file.unwrap_or("<unknown file>".into());
+        let file = location.file.unwrap_or_else(|| "<unknown file>".into());
         let line = location
             .line
             .map(|l| l.to_string())
@@ -258,7 +258,7 @@ pub fn backtrace() {
     let mut unwind_table = UnwindTable::default();
     unwind_table.push_ref(kinf, "kernel");
 
-    if let Some(pinf) = get_current_process_info() {
+    if let Some(pinf) = try_get_current_process_info() {
         unwind_table.push_owned(pinf.program().clone(), "process");
     }
 
