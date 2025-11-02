@@ -11,7 +11,7 @@ use x86_64::{
 
 use crate::{
     interrupts::info::IH,
-    multitask::{get_current_process_info, try_get_current_process_info},
+    multitask::try_get_current_process_info,
     setup::KERNEL_INFO,
     unwind::{
         elf_debug::{OrderedUnwindable, UnwindTable, UnwindableElf},
@@ -30,6 +30,7 @@ struct CallFrame {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum UnwinderError {
     UnexpectedRegister(Register),
     UnsupportedCfaRule,
