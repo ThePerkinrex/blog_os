@@ -1,4 +1,4 @@
-use crate::block::FsBlockRef;
+use crate::{IOError, stat::Stat};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FsINodeRef(pub usize);
@@ -16,6 +16,6 @@ pub enum INodeType {
 
 pub trait INode {
     fn get_type(&self) -> INodeType;
-    fn get_data_blocks(&self) -> &[FsBlockRef];
     fn lookup(&self, component: &str) -> Option<FsINodeRef>;
+    fn stat(&self) -> Result<Stat, IOError>;
 }

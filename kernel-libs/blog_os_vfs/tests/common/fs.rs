@@ -1,15 +1,14 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use blog_os_vfs::{
-    api::block::{Block, FsBlockRef},
     api::fs::Superblock,
     api::inode::{FsINodeRef, INode, INodeType},
 };
-use blog_os_vfs_api::{IOError, file::File};
+use blog_os_vfs_api::{IOError, file::File, stat::Stat};
 
 enum CustomINode {
     Regular {
-        data: Vec<FsBlockRef>,
+        data: Vec<usize>,
     },
     Directory {
         inodes: HashMap<Cow<'static, str>, FsINodeRef>,
@@ -24,18 +23,15 @@ impl INode for CustomINode {
         }
     }
 
-    fn get_data_blocks(&self) -> &[FsBlockRef] {
-        match self {
-            Self::Regular { data } => data.as_slice(),
-            _ => &[],
-        }
-    }
-
     fn lookup(&self, component: &str) -> Option<FsINodeRef> {
         match self {
             Self::Directory { inodes } => inodes.get(component).copied(),
             _ => None,
         }
+    }
+
+    fn stat(&self) -> Result<Stat, IOError> {
+        todo!()
     }
 }
 
@@ -51,14 +47,6 @@ impl Superblock for CustomFs {
 
     fn get_inode(&self, inode: FsINodeRef) -> Option<&dyn INode> {
         self.inodes.get(inode.0).map(|x| x as &dyn INode)
-    }
-
-    fn get_block(&self, block: FsBlockRef) -> Option<&Block> {
-        self.data_blocks.get(block.0).map(|x| x.as_slice())
-    }
-
-    fn get_mut_block(&mut self, block: FsBlockRef) -> Option<&mut Block> {
-        self.data_blocks.get_mut(block.0).map(|x| x.as_mut_slice())
     }
 
     fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {

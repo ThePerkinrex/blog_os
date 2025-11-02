@@ -58,4 +58,3 @@ fn panic(info: &PanicInfo) -> ! {
     println!("{info}");
     exit(!0);
 }
-

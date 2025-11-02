@@ -1,6 +1,5 @@
 use blog_os_vfs::{
     VFS,
-    api::block::{Block, FsBlockRef},
     api::fs::Superblock,
     api::inode::{FsINodeRef, INode},
     api::path::PathBuf,
@@ -20,14 +19,6 @@ pub fn simple_root_fs() {
         }
 
         fn get_inode(&self, _: FsINodeRef) -> Option<&dyn INode> {
-            todo!()
-        }
-
-        fn get_block(&self, _: FsBlockRef) -> Option<&Block> {
-            todo!()
-        }
-
-        fn get_mut_block(&mut self, _: FsBlockRef) -> Option<&mut Block> {
             todo!()
         }
 
