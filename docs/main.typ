@@ -30,9 +30,9 @@
 
 This is an OS that initially was based on Philipp Oppermann's `blog_os` #footnote[https://os.phil-opp.com/] and was later expanded through different sources, mainly from OSDev Wiki #footnote[https://wiki.osdev.org/Expanded_Main_Page].
 
-== Code Structure
+// == Code Structure
 
-#lorem(100)
+// #lorem(100)
 
 == Functionality
 

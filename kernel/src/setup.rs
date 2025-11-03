@@ -230,9 +230,4 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     KERNEL_INFO.call_once(|| setup_info);
     multitask::init();
 
-    let pci_bus = PciBus::new();
-    for dev in pci_bus.devices() {
-        info!("PCI {dev}");
-    }
-    loop {}
 }
