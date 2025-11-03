@@ -28,9 +28,7 @@
 
 = Introduction
 
-#lorem(120)
-
-#lorem(150)
+This is an OS that initially was based on Philipp Oppermann's `blog_os` #footnote[https://os.phil-opp.com/] and was later expanded through different sources, mainly from OSDev Wiki #footnote[https://wiki.osdev.org/Expanded_Main_Page].
 
 == Code Structure
 
@@ -38,7 +36,27 @@
 
 == Functionality
 
-#lorem(80)
+The kernel currently has the following features:
+ - VGA framebuffer printing
+ - Serial printing
+ - Memory paging
+ - Cooperative kernel multitasking with stack switching
+ - Userspace process execution in ring3, with ELF loading
+ - Userspace calls into the kernel, with syscalls (`int 0x80`), and process switching on those syscalls.
+ - Process & task exiting.
+
+The current WIP features are:
+ - VFS and user FS API
+ - Device buses & PCI
+ - Driver API
+
+Future expected features are:
+ - StdIO for processes, that could be redirected to different outputs (serial terminals, files...) 
+ - Preemptive task switching
+ - Advanced task scheduler
+ - RAM disk support
+ - Devices on FS tree
+ - Simple shell & utilities
 
 = Packages and crates
 
