@@ -1,5 +1,9 @@
 #![no_std]
 
+extern crate alloc;
+
+pub mod bus;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {
     pub major: u64,

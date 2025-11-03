@@ -1,14 +1,17 @@
+use alloc::{borrow::Cow, boxed::Box};
+use blog_os_device::api::bus::BusDriver;
+
 pub mod pci;
 
-pub trait BusDriver {
-    type For: Bus;
-
-    fn notice_device(&mut self, name: &str);
-}
+#[derive(Debug)]
+pub struct PatternParseError;
 
 pub trait Bus {
-    const NAME: &str;
-
-    fn devices(&self) -> impl Iterator<Item = &str>;
-    fn register_driver<D: BusDriver<For = Self>>(&mut self, pattern: &str, driver: D);
+    fn name(&self) -> &'static str;
+    fn devices(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
+    fn register_driver(
+        &mut self,
+        pattern: &str,
+        driver: Box<dyn BusDriver>,
+    ) -> Result<(), PatternParseError>;
 }

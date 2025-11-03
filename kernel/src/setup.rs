@@ -6,6 +6,7 @@ use x86_64::VirtAddr;
 
 use crate::{
     allocator,
+    bus::{Bus, pci::PciBus},
     dwarf::{EndianSlice, load_dwarf},
     elf::SystemElf,
     gdt, interrupts, io,
@@ -228,4 +229,10 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     };
     KERNEL_INFO.call_once(|| setup_info);
     multitask::init();
+
+    let pci_bus = PciBus::new();
+    for dev in pci_bus.devices() {
+        info!("PCI {dev}");
+    }
+    loop {}
 }
