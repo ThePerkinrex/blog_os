@@ -48,4 +48,3 @@ pub trait RustBus {
 
     fn free(self);
 }
-

@@ -229,5 +229,4 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     };
     KERNEL_INFO.call_once(|| setup_info);
     multitask::init();
-
 }
