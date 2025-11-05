@@ -6,7 +6,7 @@ use x86_64::VirtAddr;
 
 use crate::{
     allocator,
-    bus::{Bus, pci::PciBus},
+    // bus::{Bus, pci::PciBus},
     dwarf::{EndianSlice, load_dwarf},
     elf::SystemElf,
     gdt, interrupts, io,

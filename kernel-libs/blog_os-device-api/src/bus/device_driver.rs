@@ -2,45 +2,43 @@ use core::ffi::CStr;
 
 use alloc::boxed::Box;
 
-pub mod device_driver;
-
 #[repr(C)]
-pub struct Bus {
+pub struct BusDeviceDriver {
     _data: (),
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
 #[repr(C)]
-pub struct BusOps {
+pub struct BusDeviceDriverOps {
     pub name: *const CStr,
-    pub data: *mut Bus,
-    free_bus: extern "C" fn(*mut Bus),
+    pub data: *mut BusDeviceDriver,
+    free: extern "C" fn(*mut BusDeviceDriver),
 }
 
-impl Drop for BusOps {
+impl Drop for BusDeviceDriverOps {
     fn drop(&mut self) {
-        (self.free_bus)(self.data)
+        (self.free)(self.data)
     }
 }
 
-impl<B: RustBus + 'static> From<B> for BusOps {
+impl<B: RustBusDeviceDriver + 'static> From<B> for BusDeviceDriverOps {
     fn from(value: B) -> Self {
         let data = Box::leak::<'static>(Box::new(value));
         let p = core::ptr::from_mut(data);
-        extern "C" fn free_bus<B: RustBus + 'static>(bus: *mut Bus) {
+        extern "C" fn free<B: RustBusDeviceDriver + 'static>(bus: *mut BusDeviceDriver) {
             let bus = unsafe { Box::from_raw(bus as *mut B) };
             bus.free();
         }
 
         Self {
             name: B::NAME,
-            data: p as *mut Bus,
-            free_bus: free_bus::<B>,
+            data: p as *mut BusDeviceDriver,
+            free: free::<B>,
         }
     }
 }
 
-pub trait RustBus {
+pub trait RustBusDeviceDriver {
     const NAME: &'static CStr;
 
     fn free(self);
