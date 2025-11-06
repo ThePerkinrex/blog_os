@@ -9,7 +9,9 @@ use crate::{
     // bus::{Bus, pci::PciBus},
     dwarf::{EndianSlice, load_dwarf},
     elf::SystemElf,
-    gdt, interrupts, io,
+    gdt,
+    interrupts,
+    io,
     memory::{
         self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
     },
