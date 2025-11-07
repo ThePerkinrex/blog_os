@@ -1,14 +1,24 @@
 use heck::ToSnakeCase;
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use syn::{Ident, ItemTrait, Type, parse2, spanned::Spanned};
+use syn::{Ident, ItemTrait, TraitItemFn, Type, TypeGroup, parse2, spanned::Spanned};
 
 fn rust_to_iface_type(ty: &Type) -> proc_macro2::TokenStream {
     match ty {
-        Type::BareFn(type_bare_fn) => todo!(),
-        Type::Reference(type_reference) => todo!(),
-        Type::Array(type_array) => todo!(),
-        Type::Group(type_group) => todo!(),
+        Type::BareFn(type_bare_fn) => quote_spanned! {type_bare_fn.span() => compile_error!("bare fns not supported in C interfaces")},
+        Type::Reference(type_reference) => {
+            if let Some(lifetime) = type_reference.lifetime.as_ref() && lifetime.ident == "static" {
+                let m = type_reference.mutability.as_ref().map_or_else(|| quote! {*const}, |m| quote_spanned! {m.span() => *mut});
+                let t = type_reference.elem.as_ref();
+                quote! {#m #t}
+            }else{
+                quote_spanned! {type_reference.span() => compile_error!("only &'static refs are supported in C interfaces")}
+            }
+        }
+        Type::Array(type_array) => quote_spanned! {type_array.span() => compile_error!("arrays not supported in C interfaces")},
+        Type::Group(type_group) => {
+            rust_to_iface_type(&type_group.elem)
+        },
         Type::ImplTrait(type_impl_trait) => {
             quote_spanned! {type_impl_trait.span() => compile_error!("impl traits not supported in C interfaces")}
         }
@@ -21,9 +31,16 @@ fn rust_to_iface_type(ty: &Type) -> proc_macro2::TokenStream {
         Type::Never(type_never) => {
             quote_spanned! {type_never.span() => compile_error!("never types not supported in C interfaces")}
         }
-        Type::Paren(type_paren) => todo!(),
-        Type::Path(type_path) => todo!(),
-        Type::Ptr(type_ptr) => todo!(),
+        Type::Paren(type_paren) => rust_to_iface_type(&type_paren.elem),
+        Type::Path(type_path) => {
+            type_path.qself
+            .as_ref()
+            .map_or_else(
+                || type_path.path.to_token_stream(),
+                |qself| quote_spanned! {qself.span() => compile_error!("Qualified self types types not supported in C interfaces")}
+            )
+        },
+        Type::Ptr(type_ptr) => type_ptr.to_token_stream(),
         Type::Slice(type_slice) => {
             quote_spanned! {type_slice.span() => compile_error!("Slices not supported in C interfaces")}
         }
@@ -37,6 +54,53 @@ fn rust_to_iface_type(ty: &Type) -> proc_macro2::TokenStream {
             quote_spanned! {token_stream.span() => compile_error!("Unknown type")}
         }
         x => x.to_token_stream(),
+    }
+}
+
+fn trait_fn_to_iface(f: &TraitItemFn, data_name: &Ident) -> proc_macro2::TokenStream {
+    let sig = &f.sig;
+    if let Some(abi) = &sig.abi {
+        return quote_spanned! {abi.span() => compile_error!("Custom abis in signatures not allowed")};
+    }
+    if let Some(asyncness) = &sig.asyncness {
+        return quote_spanned! {asyncness.span() => compile_error!("Async in signatures not allowed")};
+    }
+    if let Some(unsafety) = &sig.unsafety {
+        return quote_spanned! {unsafety.span() => compile_error!("Unsafe in signatures not yet allowed")};
+    }
+    if let Some(variadic) = &sig.variadic {
+        return quote_spanned! {variadic.span() => compile_error!("Variadic signatures not allowed")};
+    }
+    if sig.generics.const_params().count() > 0 {
+        return quote_spanned! {sig.generics.span() => compile_error!("Const generics in signatures not allowed")};
+    }
+    if sig.generics.type_params().count() > 0 {
+        return quote_spanned! {sig.generics.span() => compile_error!("Type generics in signatures not allowed")};
+    }
+
+    let ident = format_ident!("{}_iface", &sig.ident);
+
+    let args: proc_macro2::TokenStream = sig.inputs.iter().map(|x| {
+        match x {
+            syn::FnArg::Receiver(receiver) => {
+                if receiver.reference.is_none() {
+                    quote_spanned! {receiver.span() => compile_error!("Owned receviers in signatures not allowed"),}
+                }else if receiver.colon_token.is_some() {
+                    quote_spanned! {receiver.span() => compile_error!("Non shorthand receivers in signatures not allowed"),}
+                }else {
+                    let m = receiver.mutability.as_ref().map_or_else(|| quote! {*const}, |m| quote_spanned! {m.span() => *mut});
+                    quote! {
+                        #m #data_name,
+                    }
+
+                }
+            },
+            syn::FnArg::Typed(pat_type) => todo!(),
+        }
+    }).collect();
+
+    quote! {
+        #ident: extern "C" fn(#args)
     }
 }
 
@@ -88,6 +152,7 @@ fn testable_c_interface(
         }
     }
 
+    let container_name = format_ident!("{name}Container");
     let data_name = format_ident!("{name}Data");
     let ops_name = format_ident!("{name}Ops");
 
@@ -96,6 +161,14 @@ fn testable_c_interface(
         #vis struct #data_name {
             _data: (),
             _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+        }
+    };
+
+    let container = quote! {
+        #[repr(C)]
+        #vis struct #container_name {
+            #vis data: *mut #data_name,
+            #vis ops: *const #ops_name
         }
     };
 
@@ -108,10 +181,17 @@ fn testable_c_interface(
         })
         .collect();
 
+    let ops_fns: proc_macro2::TokenStream = fns
+        .iter()
+        .map(|x| trait_fn_to_iface(x, &data_name))
+        .map(|f| quote! {#vis #f,})
+        .collect();
+
     let ops = quote! {
         #[repr(C)]
         #vis struct #ops_name {
             #ops_constants
+            #ops_fns
 
             #vis free: extern "C" fn(*mut #data_name),
         }
@@ -122,6 +202,8 @@ fn testable_c_interface(
         #data
 
         #ops
+
+        #container
 
         // ...
         #input
@@ -149,6 +231,8 @@ mod test {
             quote! {
                 pub trait A {
                     const NAME: &'static CStr;
+
+                    fn device_count(&self) -> usize;
                 }
             },
         );
