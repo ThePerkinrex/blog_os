@@ -34,6 +34,7 @@ pub mod setup;
 pub mod stack;
 pub mod unwind;
 pub mod util;
+pub mod fs;
 
 pub fn kernel_main() -> ! {
     // let addresses = [
@@ -55,13 +56,13 @@ pub fn kernel_main() -> ! {
     // }
     // drop(setup_info);
 
-    let pci = PciBus::new();
+    // let pci = PciBus::new();
 
-    for (id, metadata, drv) in pci.connected_devices() {
-        log::info!("PCI {id} -> {:?} ({metadata})", drv.map(|drv| drv.name()));
-    }
+    // for (id, metadata, drv) in pci.connected_devices() {
+    //     log::info!("PCI {id} -> {:?} ({metadata})", drv.map(|drv| drv.name()));
+    // }
 
-    hlt_loop();
+    // hlt_loop();
 
     info!("Adding new task to list");
     multitask::create_task(other_task, "other_task");

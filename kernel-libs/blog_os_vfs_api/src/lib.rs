@@ -8,6 +8,7 @@ pub mod inode;
 pub mod path;
 pub mod stat;
 
+#[repr(C)]
 pub enum IOError {
-    NotFound,
+    NotFound = 0,
 }
