@@ -78,3 +78,7 @@ script_runner = "@duckscript"
 script = '''
 exec typst compile --input version=${1} docs/main.typ docs/docs.pdf
 '''
+
+[tasks.bindings]
+workspace = false
+dependencies = [{name = "bindings", path = "./kernel-libs"}]

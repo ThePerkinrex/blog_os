@@ -1,34 +1,17 @@
-use core::ffi::CStr;
-
 use alloc::collections::btree_map::BTreeMap;
-use blog_os_device_api::bus::BusOps;
-
-pub trait BusOpsSafe {
-    fn name(&self) -> &'static CStr;
-    fn free(self);
-}
-
-impl BusOpsSafe for BusOps {
-    fn name(&self) -> &'static CStr {
-        unsafe { self.name.as_ref() }.unwrap()
-    }
-
-    fn free(self) {
-        drop(self)
-    }
-}
+use blog_os_device_api::bus::{Bus, cglue_bus::BusBox};
 
 #[derive(Default)]
 pub struct BusRegistry {
-    buses: BTreeMap<&'static CStr, BusOps>,
+    buses: BTreeMap<&'static str, BusBox<'static>>,
 }
 
 impl BusRegistry {
-    pub fn register(&mut self, bus: BusOps) {
+    pub fn register(&mut self, bus: BusBox<'static>) {
         self.buses.insert(bus.name(), bus);
     }
 
-    pub fn unregister(&mut self, name: &CStr) -> Option<BusOps> {
+    pub fn unregister(&mut self, name: &str) -> Option<BusBox<'static>> {
         self.buses.remove(name)
     }
 }

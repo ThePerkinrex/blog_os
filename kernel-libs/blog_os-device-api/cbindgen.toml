@@ -1,0 +1,11 @@
+language = "C"
+
+[parse]
+parse_deps = true
+include = ["cglue", "blog_os-device-api"]
+
+[parse.expand]
+crates = ["cglue", "blog_os-device-api"]
+
+[export]
+include = ["BusBox"]
