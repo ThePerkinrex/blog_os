@@ -8,4 +8,4 @@ include = ["cglue", "blog_os-device-api"]
 crates = ["cglue", "blog_os-device-api"]
 
 [export]
-include = ["BusBox"]
+include = ["BusBox","BusRef","BusDeviceIdBox","BusDeviceIdRef","BusDevicePatternBox","BusDevicePatternRef","BusDeviceDriverBox","BusDeviceDriverRef"]

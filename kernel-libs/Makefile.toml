@@ -6,7 +6,7 @@ args = ["llvm-cov", "@@split(COV_ARGS,;)"]
 
 [tasks.bindings]
 workspace = false
-dependencies = [{name = "cbindgen", path = "./blog_os-device-api"}]
+dependencies = [{name = "cbindgen", path = "blog_os-device-api"}]
 script_runner = "@duckscript"
 script = '''
 rm -r target/bindings/
