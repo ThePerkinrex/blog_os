@@ -1,0 +1,13 @@
+[package]
+name = "blog_os-pci"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+api-utils = {path = "../api-utils"}
+blog_os-device-api = {path = "../blog_os-device-api"}
+num-traits = { version = "0.2.19", default-features = false }
+bitfield-struct = "0.12.1"
+spin = "0.10.0"
+x86_64 = "0.15.2"
+pci-ids = "0.2.6"

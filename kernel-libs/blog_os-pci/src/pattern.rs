@@ -2,7 +2,7 @@ use core::{fmt::Display, str::FromStr};
 
 use num_traits::Num;
 
-use crate::bus::pci::class::PciClass;
+use crate::class::PciClass;
 
 #[derive(Debug)]
 pub struct PatternParseError;

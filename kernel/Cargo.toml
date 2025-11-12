@@ -28,6 +28,8 @@ uart_16550 = "0.4.0"
 log = "0.4.28"
 num-traits = { version = "0.2.19", default-features = false }
 bitfield-struct = "0.12.1"
+api-utils = {path = "../kernel-libs/api-utils"}
+blog_os-pci = {path = "../kernel-libs/blog_os-pci"}
 
 [[bin]]
 name = "blog_os_kernel"

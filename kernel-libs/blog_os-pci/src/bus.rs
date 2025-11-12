@@ -1,21 +1,28 @@
 use alloc::{collections::btree_map::BTreeMap, vec::Vec};
-use blog_os_device::api::{
-    bus::{Bus, cglue_busdevicedriver::*, cglue_busdeviceid::*},
-    cglue::{
-        self,
-        iter::{AsCIterator, CIterator},
-        trait_obj,
-    },
+use api_utils::{
+    cglue::{self, trait_obj},
+    iter::CMaybeOwnedIterator,
+};
+use blog_os_device_api::bus::{
+    Bus, cglue_busdevicedriver::*, cglue_busdeviceid::*, cglue_busdevicemetadatagroup::*,
 };
 
-use crate::bus::pci::{
+use crate::{
     BUS_NAME,
     config::{PciCommonHeader, PciHeaderPCIPCIBridge},
     id::PciId,
+    metadata::PciMetadata,
 };
 
 pub struct PciBus {
-    devices: BTreeMap<PciId, (PciCommonHeader, Option<BusDeviceDriverArcBox<'static>>)>,
+    devices: BTreeMap<
+        PciId,
+        (
+            PciCommonHeader,
+            PciMetadata,
+            Option<BusDeviceDriverArcBox<'static>>,
+        ),
+    >,
     drivers: Vec<BusDeviceDriverArcBox<'static>>,
 }
 
@@ -71,7 +78,8 @@ impl PciBus {
             device,
             function,
         };
-        self.devices.insert(id, (header, None)); // TODO check for drivers
+        let metadata = PciMetadata::from_common_header(&header);
+        self.devices.insert(id, (header, metadata, None)); // TODO check for drivers
 
         if header.class.class() == 0x6
             && header.class.subclass() == 0x4
@@ -102,16 +110,21 @@ impl Bus for PciBus {
 
     fn connected_devices(
         &self,
-    ) -> CIterator<'_, (BusDeviceIdRef<'_>, Option<BusDeviceDriverRef<'_>>)> {
-        self.devices
-            .iter()
-            .map(|(id, (_, b))| {
-                (
-                    trait_obj!(id as BusDeviceId),
-                    b.as_ref()
-                        .map(|driver| trait_obj!(driver as BusDeviceDriver)),
-                )
-            })
-            .as_citer()
+    ) -> CMaybeOwnedIterator<
+        '_,
+        (
+            BusDeviceIdRef<'_>,
+            BusDeviceMetadataGroupRef<'_>,
+            Option<BusDeviceDriverRef<'_>>,
+        ),
+    > {
+        CMaybeOwnedIterator::new_owned(self.devices.iter().map(|(id, (_, m, b))| {
+            (
+                trait_obj!(id as BusDeviceId),
+                trait_obj!(m as BusDeviceMetadataGroup),
+                b.as_ref()
+                    .map(|driver| trait_obj!(driver as BusDeviceDriver)),
+            )
+        }))
     }
 }

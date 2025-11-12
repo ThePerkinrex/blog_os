@@ -1,9 +1,8 @@
-use blog_os_device::api::{
-    bus::{BusDeviceIdData, BusDeviceIdOpaque, cglue_busdeviceid::*},
-    cglue,
-};
+use blog_os_device_api::bus::{BusDeviceIdData, BusDeviceIdOpaque, cglue_busdeviceid::*};
 
-use crate::bus::pci::BUS_NAME;
+use api_utils::cglue;
+
+use crate::BUS_NAME;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]

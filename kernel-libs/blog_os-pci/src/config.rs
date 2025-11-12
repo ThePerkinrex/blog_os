@@ -2,7 +2,7 @@ use bitfield_struct::bitfield;
 use spin::Mutex;
 use x86_64::instructions::port::{Port, PortWriteOnly};
 
-use crate::bus::pci::class::PciClass;
+use crate::class::PciClass;
 
 struct Ports {
     config: PortWriteOnly<u32>,
@@ -45,16 +45,16 @@ fn read_pci_dword(bus: u8, device: u8, function: u8, offset: u8) -> u32 {
 
 #[bitfield(u32)]
 pub struct PciReg0 {
-    pub device: u16,
     pub vendor: u16,
+    pub device: u16,
 }
 
 #[bitfield(u32)]
 pub struct PciReg3 {
-    pub bist: u8,
-    pub header_type: u8,
-    pub latency_timer: u8,
     pub cache_line_size: u8,
+    pub latency_timer: u8,
+    pub header_type: u8,
+    pub bist: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -85,10 +85,10 @@ impl PciCommonHeader {
 
 #[bitfield(u32)]
 pub struct PciReg6PCIPCIBridge {
-    pub secondary_latency_timer: u8,
-    pub subordinate_bus: u8,
-    pub secondary_bus: u8,
     pub primary_bus: u8,
+    pub secondary_bus: u8,
+    pub subordinate_bus: u8,
+    pub secondary_latency_timer: u8,
 }
 
 pub struct PciHeaderPCIPCIBridge {

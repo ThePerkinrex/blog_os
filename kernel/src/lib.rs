@@ -9,6 +9,8 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+use blog_os_device::api::bus::{Bus, BusDeviceDriver};
+use blog_os_pci::bus::PciBus;
 use log::info;
 use qemu_common::QemuExitCode;
 
@@ -18,7 +20,6 @@ pub mod allocator;
 pub mod config;
 pub mod dwarf;
 
-pub mod bus;
 #[allow(clippy::future_not_send)]
 pub mod elf;
 pub mod gdt;
@@ -54,6 +55,14 @@ pub fn kernel_main() -> ! {
     // }
     // drop(setup_info);
 
+    let pci = PciBus::new();
+
+    for (id, metadata, drv) in pci.connected_devices() {
+        log::info!("PCI {id} -> {:?} ({metadata})", drv.map(|drv| drv.name()));
+    }
+
+    hlt_loop();
+
     info!("Adding new task to list");
     multitask::create_task(other_task, "other_task");
 
@@ -72,7 +81,8 @@ pub fn kernel_main() -> ! {
     let prog = elf::load_example_elf();
     let proc = ProcessInfo::new(prog);
     proc.start();
-    hlt_loop()
+
+    hlt_loop();
 }
 
 pub extern "C" fn other_task() {

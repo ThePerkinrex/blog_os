@@ -2,8 +2,6 @@
 
 extern crate alloc;
 
-pub use cglue;
-
 pub mod bus;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

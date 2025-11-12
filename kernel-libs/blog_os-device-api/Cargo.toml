@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-cglue = { version = "0.3.5", default-features = false }
+api-utils = {path = "../api-utils"}
