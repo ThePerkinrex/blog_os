@@ -132,6 +132,8 @@ fn main() {
             .arg(format!("format=raw,file={}", path.display()));
         cmd.arg("-device")
             .arg("isa-debug-exit,iobase=0xf4,iosize=0x04");
+        cmd.arg("-device").arg("pci-serial");
+        cmd.arg("-device").arg("pci-serial");
 
         cmd.arg("-serial").arg("stdio");
 
