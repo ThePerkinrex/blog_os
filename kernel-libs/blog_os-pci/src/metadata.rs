@@ -1,6 +1,6 @@
 use api_utils::cglue;
 use blog_os_device_api::bus::{
-    BusDeviceMetadata, BusDeviceMetadataOpaque, cglue_busdevicemetadatagroup::*,
+    AssociatedBusData, BusDeviceMetadataOpaque, cglue_busdevicemetadata::*,
 };
 use pci_ids::{Device, FromId, Vendor};
 
@@ -42,7 +42,7 @@ impl PciMetadata {
     }
 }
 
-impl BusDeviceMetadata for PciMetadata {
+impl AssociatedBusData<BusDeviceMetadataOpaque> for PciMetadata {
     fn bus(&self) -> &'static str {
         BUS_NAME
     }
@@ -74,4 +74,4 @@ impl PciMetadata {
     }
 }
 
-cglue::cglue_impl_group!(PciMetadata, BusDeviceMetadataGroup);
+cglue::cglue_impl_group!(PciMetadata, BusDeviceMetadata);

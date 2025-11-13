@@ -1,5 +1,10 @@
 use alloc::{borrow::Cow, collections::btree_map::BTreeMap, vec::Vec};
-use blog_os_vfs::api::{IOError, fs::Superblock, inode::{FsINodeRef, INode, INodeType}, stat::Stat};
+use blog_os_vfs::api::{
+    IOError,
+    fs::Superblock,
+    inode::{FsINodeRef, INode, INodeType},
+    stat::Stat,
+};
 
 enum RamFSINode {
     Regular {
@@ -30,20 +35,25 @@ impl INode for RamFSINode {
     }
 }
 
-pub struct RamFS {
-
-}
+pub struct RamFS {}
 
 impl Superblock for RamFS {
-	fn get_root_inode_ref(&self) -> blog_os_vfs::api::inode::FsINodeRef {
-		FsINodeRef(0)
-	}
+    fn get_root_inode_ref(&self) -> blog_os_vfs::api::inode::FsINodeRef {
+        FsINodeRef(0)
+    }
 
-	fn get_inode(&self, inode: blog_os_vfs::api::inode::FsINodeRef) -> Option<&dyn blog_os_vfs::api::inode::INode> {
-		todo!()
-	}
+    fn get_inode(
+        &self,
+        inode: blog_os_vfs::api::inode::FsINodeRef,
+    ) -> Option<&dyn blog_os_vfs::api::inode::INode> {
+        todo!()
+    }
 
-	fn open(&mut self, inode: blog_os_vfs::api::inode::FsINodeRef) -> Result<alloc::boxed::Box<dyn blog_os_vfs::api::file::File>, blog_os_vfs::api::IOError> {
-		todo!()
-	}
+    fn open(
+        &mut self,
+        inode: blog_os_vfs::api::inode::FsINodeRef,
+    ) -> Result<alloc::boxed::Box<dyn blog_os_vfs::api::file::File>, blog_os_vfs::api::IOError>
+    {
+        todo!()
+    }
 }

@@ -3,33 +3,25 @@ use api_utils::{
     iter::CMaybeOwnedIterator,
 };
 
-#[repr(C)]
-pub struct BusDeviceIdOpaque {
-    _data: (),
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
+use crate::opaque_ptr;
 
 #[cglue_trait]
-pub trait BusDeviceIdData {
+pub trait AssociatedBusData<T> {
     fn bus(&self) -> &'static str;
-    fn data(&self) -> &BusDeviceIdOpaque;
+    fn data(&self) -> &T;
 }
 
-cglue_trait_group!(BusDeviceId, {BusDeviceIdData, Display}, {});
+opaque_ptr!(BusDeviceIdOpaque);
 
-#[repr(C)]
-pub struct BusDeviceMetadataOpaque {
-    _data: (),
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
+cglue_trait_group!(BusDeviceId, {AssociatedBusData<BusDeviceIdOpaque>, Display}, {});
 
-#[cglue_trait]
-pub trait BusDeviceMetadata {
-    fn bus(&self) -> &'static str;
-    fn data(&self) -> &BusDeviceMetadataOpaque;
-}
+opaque_ptr!(BusDeviceMetadataOpaque);
 
-cglue_trait_group!(BusDeviceMetadataGroup, {BusDeviceMetadata, Display}, {});
+cglue_trait_group!(BusDeviceMetadata, {AssociatedBusData<BusDeviceMetadataOpaque>, Display}, {});
+
+opaque_ptr!(BusDeviceInfoOpaque);
+
+cglue_trait_group!(BusDeviceInfo, {AssociatedBusData<BusDeviceInfoOpaque>, Display}, {});
 
 #[cglue_trait]
 pub trait Bus {
@@ -40,7 +32,7 @@ pub trait Bus {
         '_,
         (
             BusDeviceIdRef<'_>,
-            BusDeviceMetadataGroupRef<'_>,
+            BusDeviceMetadataRef<'_>,
             Option<BusDeviceDriverRef<'_>>,
         ),
     >;
@@ -51,4 +43,11 @@ pub trait Bus {
 pub trait BusDeviceDriver {
     fn name(&self) -> &'static str;
     fn bus(&self) -> &'static str;
+    fn matches(&self, metadata: BusDeviceMetadataRef<'_>) -> bool;
+    fn register_device(
+        &self,
+        id: BusDeviceIdRef<'_>,
+        metadata: BusDeviceMetadataRef<'_>,
+        info: BusDeviceInfoRef<'_>,
+    );
 }

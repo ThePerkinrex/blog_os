@@ -4,7 +4,7 @@ use api_utils::{
     iter::CMaybeOwnedIterator,
 };
 use blog_os_device_api::bus::{
-    Bus, cglue_busdevicedriver::*, cglue_busdeviceid::*, cglue_busdevicemetadatagroup::*,
+    Bus, cglue_busdevicedriver::*, cglue_busdeviceid::*, cglue_busdevicemetadata::*,
 };
 
 use crate::{
@@ -114,14 +114,14 @@ impl Bus for PciBus {
         '_,
         (
             BusDeviceIdRef<'_>,
-            BusDeviceMetadataGroupRef<'_>,
+            BusDeviceMetadataRef<'_>,
             Option<BusDeviceDriverRef<'_>>,
         ),
     > {
         CMaybeOwnedIterator::new_owned(self.devices.iter().map(|(id, (_, m, b))| {
             (
                 trait_obj!(id as BusDeviceId),
-                trait_obj!(m as BusDeviceMetadataGroup),
+                trait_obj!(m as BusDeviceMetadata),
                 b.as_ref()
                     .map(|driver| trait_obj!(driver as BusDeviceDriver)),
             )

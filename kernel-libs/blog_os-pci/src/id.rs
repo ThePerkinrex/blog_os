@@ -1,4 +1,4 @@
-use blog_os_device_api::bus::{BusDeviceIdData, BusDeviceIdOpaque, cglue_busdeviceid::*};
+use blog_os_device_api::bus::{AssociatedBusData, BusDeviceIdOpaque, cglue_busdeviceid::*};
 
 use api_utils::cglue;
 
@@ -22,7 +22,7 @@ impl core::fmt::Display for PciId {
     }
 }
 
-impl BusDeviceIdData for PciId {
+impl AssociatedBusData<BusDeviceIdOpaque> for PciId {
     fn bus(&self) -> &'static str {
         BUS_NAME
     }

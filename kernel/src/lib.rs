@@ -22,6 +22,7 @@ pub mod dwarf;
 
 #[allow(clippy::future_not_send)]
 pub mod elf;
+pub mod fs;
 pub mod gdt;
 pub mod interrupts;
 pub mod io;
@@ -34,7 +35,6 @@ pub mod setup;
 pub mod stack;
 pub mod unwind;
 pub mod util;
-pub mod fs;
 
 pub fn kernel_main() -> ! {
     // let addresses = [
