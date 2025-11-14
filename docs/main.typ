@@ -82,6 +82,40 @@ To run this OS, `cargo-make` can also be used. QEMU for x86-64 needs to be insta
 
 == `kernel`: The Kernel
 
+This crate contains all the main code related with the kernel, and the custom test harness for running it. It is split in many modules:
+- `lib.rs`: The base, this contains the initial function for the normal and test execution paths, as well as the panic handlers.
+- `main.rs`: It contains the entry point for the OS from the bootloader.
+- `allocator.rs`: The heap allocator implementation, based on the _talc_ allocator, with heap growth
+- `config.rs`: The static config to be provided to the bootloader for memory mappings.
+- `dwarf.rs`: DWARF debug format loading utilities for ELF executables.
+- `elf.rs`: ELF loading utilities.
+- `fs.rs`: root module for any OS filesystems:
+	- `fs/ramfs.rs`: The initial _RamFS_ implementation
+- `gdt.rs`: TSS and GDT setup code, and reloading for custom allocated stacks setup with guard pages.
+- `interrupts.rs`: Interrupt handlers and setup (PICS, GPF, PF, `int 0x80`...)
+	- `interrupts/info.rs`: Static info about the pointers to Interrupt Handlers, for backtracing.
+	- `interrupts/syscalls.rs`: _Syscall_ handlers and syscall tail code.
+- `io.rs`: All the code related to printing to the screen and serial port. Hopefully it will be replaced somewhat by terminals in the VFS (char devices).
+	- `io/framebuffer.rs`: Printing to the VGA framebuffer
+	- `io/logging.rs`: Logging infrastructure of the kernel
+	- `io/qemu.rs`: Utility for using the QEMU provided io-port for existing with a code.
+	- `io/serial.rs`: Printing to the UART serial port
+- `memory.rs`: Paging setup and frame allocator/deallocator
+	- `memory/multi_l4_paging.rs`: A page table manager that handles multiple L4 page tables with shared kernel tables, and different userspace tables.
+	- `memory/pages.rs`: Virtual memory region allocator, to allocate regions of virtual pages, without mapping them, for different usages.
+- `multitask.rs`: Kernel task (with multiple kernel stacks) switching infrastructure.
+	- `multitask/lock.rs`: Kernel reentrant locking for tasks (without task switching or waiting)
+- `priviledge.rs`: Ring 3 jump code from ring 0
+- `process.rs`: Data structures and management for userspace processes linked to kernel tasks.
+- `progs/`: Copied userspace programs for loading.
+- `rand.rs`: PRNG utilities.
+- `setup.rs`: Kernel startup code.
+- `stack.rs`: Stack creation utility and stack allocator for kernel stacks.
+- `unwind.rs`: Backtracing and unwinding infrastructure.
+	- `unwind/eh.rs`: Exception handling info extraction from ELFs.
+	- `unwind/elf_debug.rs`: Abstractions and helpers for unwinding, in relation with ELF/DWARF info.
+	- `unwind/register.rs`: Helper for dealing with register info.
+
 == `kernel-libs`: Libraries used by the kernel
 
 This workspace contains crates that will be used by the kernel, but also some that can also be used by external drivers. This split is useful for code that doesn't necessarily depend on other kernel code, allowing the use of the standard testing framework, and better compile times.

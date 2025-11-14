@@ -34,7 +34,6 @@ pub mod rand;
 pub mod setup;
 pub mod stack;
 pub mod unwind;
-pub mod util;
 
 pub fn kernel_main() -> ! {
     // let addresses = [
