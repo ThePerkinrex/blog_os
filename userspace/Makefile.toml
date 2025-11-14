@@ -59,3 +59,6 @@ end
 # condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
 workspace = false
 dependencies = [{name = "build"}, {name = "copy-bin"}]
+
+[tasks.docs]
+toolchain = "nightly"

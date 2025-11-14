@@ -1,7 +1,7 @@
 use crate::{IOError, stat::Stat};
 
 #[derive(Debug, Clone, Copy)]
-pub struct FsINodeRef(pub usize);
+pub struct FsINodeRef(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum INodeType {

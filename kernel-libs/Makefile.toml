@@ -19,3 +19,7 @@ mv target/bindings/bindings target/bindings/blog_os-device-api
 
 [tasks.build]
 toolchain = "nightly"
+
+
+[tasks.docs]
+toolchain = "nightly"

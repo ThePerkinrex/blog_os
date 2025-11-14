@@ -115,6 +115,7 @@ dependencies = [
  "pc-keyboard",
  "pic8259",
  "qemu-common",
+ "slotmap",
  "smallvec",
  "spin",
  "talc",

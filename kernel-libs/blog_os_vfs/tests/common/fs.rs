@@ -46,7 +46,7 @@ impl Superblock for CustomFs {
     }
 
     fn get_inode(&self, inode: FsINodeRef) -> Option<&dyn INode> {
-        self.inodes.get(inode.0).map(|x| x as &dyn INode)
+        self.inodes.get(inode.0 as usize).map(|x| x as &dyn INode)
     }
 
     fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {

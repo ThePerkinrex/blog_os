@@ -11,4 +11,5 @@ pub mod stat;
 #[repr(C)]
 pub enum IOError {
     NotFound = 0,
+    OperationNotPermitted,
 }
