@@ -143,6 +143,10 @@ This is a utility that is used as a cargo runner and a separate binary. It build
 
 == `userspace`: Anything userspace
 
+Here there lies the `blog_std` crate, for making syscalls and interfacing with the OS.
+
+It also includes a simple test program `test_prog` for testing userspace processes.
+
 = Kernel startup
 
 = Simple I/O
