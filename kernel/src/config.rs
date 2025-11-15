@@ -1,4 +1,5 @@
 use bootloader_api::config::{BootloaderConfig, Mapping, Mappings};
+use qemu_common::KERNEL_START;
 
 // Define a new Mappings struct based on the default
 const MAPPINGS_CONFIG: Mappings = {
@@ -7,6 +8,7 @@ const MAPPINGS_CONFIG: Mappings = {
     // Set the physical_memory field
     // This is the equivalent of the `map_physical_memory` feature
     mappings.physical_memory = Some(Mapping::Dynamic);
+    mappings.kernel_base = Mapping::FixedAddress(KERNEL_START.as_u64());
 
     // Optionally, you can set a fixed virtual address for the physical map:
     // mappings.physical_memory = Some(Mapping::FixedAddress(0xFFFF_8000_0000_0000));

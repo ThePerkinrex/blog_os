@@ -2,14 +2,16 @@
 
 use core::{fmt::Write, panic::PanicInfo};
 
+use blog_os_syscalls::SyscallNumber;
+
 mod syscalls;
 
 pub fn nop(code: u64) {
-    unsafe { syscalls::syscall_arg1(0x0, code) };
+    unsafe { syscalls::syscall_arg1(SyscallNumber::NOP.into(), code) };
 }
 
 pub fn exit(code: u64) -> ! {
-    unsafe { syscalls::syscall_arg1(0x1, code) };
+    unsafe { syscalls::syscall_arg1(SyscallNumber::EXIT.into(), code) };
     unreachable!()
 }
 
@@ -17,7 +19,12 @@ pub fn write(fd: u64, buf: &[u8]) -> u64 {
     let raw = buf.as_ptr() as u64;
     let len = buf.len() as u64;
 
-    unsafe { syscalls::syscall_arg3(0x2, len, raw, fd) }
+    unsafe { syscalls::syscall_arg3(SyscallNumber::WRITE.into(), len, raw, fd) }
+}
+
+
+pub fn brk(offset: i64) -> *mut u8 {
+    (unsafe { syscalls::syscall_arg1(SyscallNumber::BRK.into(), offset as u64) } ) as *mut u8
 }
 
 pub fn print(s: &str) {

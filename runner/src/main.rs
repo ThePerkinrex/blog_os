@@ -1,14 +1,13 @@
 use std::{
-    io::{IsTerminal, Read},
+    io::IsTerminal,
     path::PathBuf,
     process::{Command, Stdio},
     thread,
     time::Duration,
 };
 
-use bootloader::BootConfig;
 use clap::Parser;
-use qemu_common::QemuExitCode;
+use qemu_common::{KERNEL_START, QemuExitCode};
 use serde::Deserialize;
 
 #[derive(Parser)]
@@ -157,8 +156,9 @@ fn main() {
             let mut cmd = Command::new("gdb");
             cmd.arg("-ex").arg("target remote localhost:1234");
             cmd.arg("-ex").arg(format!(
-                "add-symbol-file {:?} -o 0x8000000000",
-                kernel.display()
+                "add-symbol-file {:?} -o 0x{:x}",
+                kernel.display(),
+                KERNEL_START
             ));
             cmd.arg("-ex").arg("set disassemble-next-line on");
             // cmd.arg("-ex").arg("display /-16i $pc");

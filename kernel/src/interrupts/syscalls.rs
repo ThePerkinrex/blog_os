@@ -1,6 +1,9 @@
-use alloc::{string::String, sync::Arc};
+use core::ops::{Index, IndexMut};
+
+use alloc::sync::Arc;
+use blog_os_syscalls::SyscallNumber;
 use log::{debug, info, warn};
-use x86_64::VirtAddr;
+use spin::Lazy;
 
 use crate::{
     multitask::{
@@ -9,36 +12,39 @@ use crate::{
     process::ProcessStatus,
 };
 
+mod exit;
+mod nop;
+mod write;
+mod brk;
+
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 
-const SYSCALL_HANDLERS: &[SyscallHandler] = &[nop, exit, write];
+struct SyscallHandlers([SyscallHandler; SyscallNumber::MAX_PRIMITIVE]);
 
-fn nop(arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64, arg6: u64) -> u64 {
-    debug!("NOP SYSCALL ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6})");
-    0
-}
+impl Index<SyscallNumber> for SyscallHandlers {
+    type Output = SyscallHandler;
 
-fn exit(code: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
-    debug!("EXIT SYSCALL ({code})");
-    change_current_process_info(|p| {
-        let pinf = p.as_mut().unwrap(); // Process info must be there if a syscall was made.
-        *pinf.status_mut() = ProcessStatus::Ending(code)
-    });
-    0
-}
-
-fn write(fd: u64, buf: u64, len: u64, _: u64, _: u64, _: u64) -> u64 {
-    if fd != 1 {
-        warn!("Tried to write an fd different from 1 ({fd})");
+    fn index(&self, index: SyscallNumber) -> &Self::Output {
+        &self.0[usize::from(index)]
     }
-    let buf =
-        unsafe { core::slice::from_raw_parts(VirtAddr::new(buf).as_ptr::<u8>(), len as usize) };
-    let s = String::from_utf8_lossy(buf);
-    for l in s.lines() {
-        info!("[STDOUT] {l}");
-    }
-    len
 }
+
+impl IndexMut<SyscallNumber> for SyscallHandlers {
+    fn index_mut(&mut self, index: SyscallNumber) -> &mut Self::Output {
+        &mut self.0[usize::from(index)]
+    }
+}
+
+static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
+    let mut nums = SyscallHandlers([nop::nop; SyscallNumber::MAX_PRIMITIVE]);
+
+    nums[SyscallNumber::NOP] = nop::nop;
+    nums[SyscallNumber::EXIT] = exit::exit;
+    nums[SyscallNumber::WRITE] = write::write;
+    nums[SyscallNumber::BRK] = brk::brk;
+
+    nums
+});
 
 pub fn syscall_handle(
     code: u64,
@@ -49,11 +55,14 @@ pub fn syscall_handle(
     arg5: u64,
     arg6: u64,
 ) -> u64 {
-    if code < SYSCALL_HANDLERS.len() as u64 {
-        SYSCALL_HANDLERS[code as usize](arg1, arg2, arg3, arg4, arg5, arg6)
-    } else {
-        warn!("Unknown syscall {code} ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6})");
-        u64::MAX
+    match SyscallNumber::try_from(code) {
+        Ok(code) => SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6),
+        Err(e) => {
+            warn!(
+                "Unknown syscall {code} ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6}) [error: {e:?}]"
+            );
+            u64::MAX
+        }
     }
 }
 

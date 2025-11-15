@@ -155,7 +155,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
 
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {
-            page_table: PageTables::new(page_table),
+            page_table: PageTables::new(page_table, VirtAddr::new(boot_info.kernel_image_offset)),
             frame_allocator,
             virt_region_allocator,
         })

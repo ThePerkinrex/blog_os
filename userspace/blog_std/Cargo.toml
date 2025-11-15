@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 paste = "1.0.15"
+blog_os-syscalls = {path = "../../kernel-libs/blog_os-syscalls"}
 
 [lib]
 test = false
