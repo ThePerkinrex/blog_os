@@ -12,10 +12,10 @@ use crate::{
     process::ProcessStatus,
 };
 
+mod brk;
 mod exit;
 mod nop;
 mod write;
-mod brk;
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 

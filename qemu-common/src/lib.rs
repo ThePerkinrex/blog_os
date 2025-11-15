@@ -10,4 +10,4 @@ pub enum QemuExitCode {
     PanicWriterFailed = 0x12,
 }
 
-pub const KERNEL_START: VirtAddr = VirtAddr::new_truncate(1<<39); // Leaves 512GB bellow for userspace
+pub const KERNEL_START: VirtAddr = VirtAddr::new_truncate(1 << 39); // Leaves 512GB bellow for userspace

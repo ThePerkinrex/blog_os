@@ -104,6 +104,63 @@ pub struct ElfWithDataAndDwarf {
     eh_info: Once<Option<EhInfo<'this>>>,
 }
 
+pub struct UserHeap {
+    size: u64,
+    brk: VirtAddr,
+    mapped_pages: BTreeMap<Page, PageTableFlags>,
+}
+
+impl UserHeap {
+    pub const fn new(brk: VirtAddr) -> Self {
+        Self {
+            size: 0,
+            brk,
+            mapped_pages: BTreeMap::new(),
+        }
+    }
+
+    pub fn change_brk(&mut self, offset: i64) -> Option<VirtAddr> {
+        if offset == 0 {
+            return Some(self.brk);
+        }
+        todo!("implement brk updates")
+    }
+
+    /// # Safety
+    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
+    /// and the page table used must be the one used to map the pages
+    pub unsafe fn unload(self) {
+        // Unload the stack
+        let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+        let mem = &mut *lock;
+
+        let mut min_max = None;
+        for page in self.mapped_pages.keys() {
+            let (frame, flush) = mem.page_table.unmap(*page).expect("Mapped page");
+            flush.flush();
+            unsafe { mem.frame_allocator.deallocate_frame(frame) };
+            if let Some((min, max)) = &mut min_max {
+                if *min > *page {
+                    *min = *page
+                } else if *max < *page {
+                    *max = *page
+                }
+            } else {
+                min_max = Some((*page, *page));
+            }
+        }
+
+        if let Some((min, max)) = min_max {
+            unsafe {
+                mem.page_table
+                    .clean_up_addr_range(Page::range_inclusive(min, max), &mut mem.frame_allocator)
+            };
+        }
+
+        drop(lock);
+    }
+}
+
 pub struct LoadedProgram {
     // TODO mem
     load_offset: u64,
@@ -111,6 +168,7 @@ pub struct LoadedProgram {
     entry: VirtAddr,
     elf: ElfWithDataAndDwarf,
     mapped_pages: BTreeMap<Page, PageTableFlags>,
+    heap: ReentrantMutex<UserHeap>,
 }
 
 impl core::fmt::Debug for LoadedProgram {
@@ -211,6 +269,8 @@ impl LoadedProgram {
         }
 
         drop(lock);
+
+        unsafe { self.heap.into_inner().unload() };
     }
 }
 
@@ -342,10 +402,12 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     }
 
     let highest_page = highest_page.unwrap();
-    let stack_bottom = highest_page.start_address() + Size4KiB::SIZE;
+    let brk = highest_page.start_address() + Size4KiB::SIZE;
+
+    let stack_top = qemu_common::KERNEL_START;
     let stack = unsafe {
-        stack::create_stack_at(
-            stack_bottom,
+        stack::create_stack_from_top(
+            stack_top,
             &mut info.page_table,
             &mut info.frame_allocator,
             PageTableFlags::USER_ACCESSIBLE,
@@ -365,6 +427,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         elf: elf_contained,
         load_offset: offset,
         mapped_pages,
+        heap: ReentrantMutex::new(UserHeap::new(brk)),
     }
 }
 

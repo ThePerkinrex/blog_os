@@ -67,6 +67,20 @@ impl SlabStack {
         self.stack.top()
     }
 }
+/// # Safety
+/// Must ensure that the previous STACK_PAGES (4) are unmapped
+pub unsafe fn create_stack_from_top<
+    M: Mapper<Size4KiB> + Translate,
+    F: FrameAllocator<Size4KiB>,
+>(
+    top: VirtAddr,
+    mapper: &mut M,
+    frame_alloc: &mut F,
+    extra_flags: PageTableFlags,
+) -> GeneralStack {
+    let bottom = top - (STACK_PAGES as u64) * Size4KiB::SIZE;
+    unsafe { create_stack_at(bottom, mapper, frame_alloc, extra_flags) }
+}
 
 /// # Safety
 /// Must ensure that the next STACK_PAGES (4) are unmapped

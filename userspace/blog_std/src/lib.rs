@@ -22,9 +22,8 @@ pub fn write(fd: u64, buf: &[u8]) -> u64 {
     unsafe { syscalls::syscall_arg3(SyscallNumber::WRITE.into(), len, raw, fd) }
 }
 
-
 pub fn brk(offset: i64) -> *mut u8 {
-    (unsafe { syscalls::syscall_arg1(SyscallNumber::BRK.into(), offset as u64) } ) as *mut u8
+    (unsafe { syscalls::syscall_arg1(SyscallNumber::BRK.into(), offset as u64) }) as *mut u8
 }
 
 pub fn print(s: &str) {
