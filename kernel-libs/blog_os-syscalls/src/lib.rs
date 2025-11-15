@@ -55,6 +55,7 @@ enum_with_max! {
         EXIT,
         WRITE,
         BRK,
+        YIELD,
     }
 }
 

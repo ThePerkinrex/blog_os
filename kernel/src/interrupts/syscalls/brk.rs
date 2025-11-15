@@ -1,7 +1,17 @@
 use log::debug;
 
-pub fn brk(code: u64, offset: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
-    debug!("BRK SYSCALL ({code})");
+use crate::multitask::get_current_process_info;
+
+pub fn brk(offset: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
+    debug!("BRK SYSCALL ({offset})");
     let offset = offset as i64;
-    0
+    let Some(pinf) = get_current_process_info() else {
+        return 0;
+    };
+
+    pinf.program()
+        .heap()
+        .lock()
+        .change_brk(offset)
+        .map_or(-1i64 as u64, |addr| addr.as_u64())
 }

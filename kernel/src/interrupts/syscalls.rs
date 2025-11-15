@@ -16,10 +16,11 @@ mod brk;
 mod exit;
 mod nop;
 mod write;
+mod yield_syscall;
 
 type SyscallHandler = fn(u64, u64, u64, u64, u64, u64) -> u64;
 
-struct SyscallHandlers([SyscallHandler; SyscallNumber::MAX_PRIMITIVE]);
+struct SyscallHandlers([SyscallHandler; SyscallNumber::MAX_PRIMITIVE + 1]);
 
 impl Index<SyscallNumber> for SyscallHandlers {
     type Output = SyscallHandler;
@@ -36,12 +37,13 @@ impl IndexMut<SyscallNumber> for SyscallHandlers {
 }
 
 static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
-    let mut nums = SyscallHandlers([nop::nop; SyscallNumber::MAX_PRIMITIVE]);
+    let mut nums = SyscallHandlers([nop::nop; SyscallNumber::MAX_PRIMITIVE + 1]);
 
     nums[SyscallNumber::NOP] = nop::nop;
     nums[SyscallNumber::EXIT] = exit::exit;
     nums[SyscallNumber::WRITE] = write::write;
     nums[SyscallNumber::BRK] = brk::brk;
+    nums[SyscallNumber::YIELD] = yield_syscall::yield_syscall;
 
     nums
 });

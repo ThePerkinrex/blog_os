@@ -121,9 +121,12 @@ impl UserHeap {
 
     pub fn change_brk(&mut self, offset: i64) -> Option<VirtAddr> {
         if offset == 0 {
-            return Some(self.brk);
+            Some(self.brk)
+        } else if offset < 0 {
+            todo!("implement brk shinking (0x{offset:x} - {offset})")
+        } else {
+            todo!("implement brk growth (0x{offset:x} - {offset})")
         }
-        todo!("implement brk updates")
     }
 
     /// # Safety
@@ -271,6 +274,10 @@ impl LoadedProgram {
         drop(lock);
 
         unsafe { self.heap.into_inner().unload() };
+    }
+
+    pub const fn heap(&self) -> &ReentrantMutex<UserHeap> {
+        &self.heap
     }
 }
 
