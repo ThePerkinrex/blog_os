@@ -243,6 +243,7 @@ impl Mapper<Size4KiB> for PageTables {
         Self: Sized,
         A: x86_64::structures::paging::FrameAllocator<Size4KiB> + ?Sized,
     {
+        let p4_index = page.p4_index();
         let flush = unsafe {
             self.current.map_to_with_table_flags(
                 page,
@@ -251,9 +252,13 @@ impl Mapper<Size4KiB> for PageTables {
                 parent_table_flags,
                 frame_allocator,
             )
-        }?;
+        }.inspect_err(|e| {
+            trace!(
+                "Failed to map page (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?} ({e:?})",
+                self.current_frame
+            )
+        })?;
 
-        let p4_index = page.p4_index();
 
         if p4_index >= self.kernel_start.p4_index() {
             // println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
@@ -262,9 +267,13 @@ impl Mapper<Size4KiB> for PageTables {
             for e in Self::all_but_current_internal(self.l4_tables.iter(), &self.current_frame) {
                 e[p4_index].clone_from(current_e);
             }
+            trace!(
+                "Created mapping in kernelspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?}",
+                self.current_frame
+            )
         } else {
             trace!(
-                "Created mapping in userspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?})",
+                "Created mapping in userspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?}",
                 self.current_frame
             )
         }

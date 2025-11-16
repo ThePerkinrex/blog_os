@@ -138,9 +138,37 @@ impl UserHeap {
             if new_pages.end >= Page::containing_address(stack.bottom()) {
                 panic!("Memory overflow, cannot allocate more heap: {new_pages:?} -> {stack:?}")
             }
-            todo!(
-                "implement brk growth (0x{offset:x} - {offset}): NEW PAGES: {new_pages:?} ... {stack:?}"
-            )
+
+            let info = KERNEL_INFO.get().unwrap();
+            let mut info_lock = info.alloc_kinf.lock();
+            let info = info_lock.deref_mut();
+
+            let page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE; // For now with one page table we should be able to write to it
+
+            for p in new_pages {
+                let frame = info.frame_allocator.allocate_frame().expect("A frame");
+                unsafe {
+                    info.page_table.map_to(
+                        p,
+                        frame,
+                        PageTableFlags::PRESENT
+                            | PageTableFlags::WRITABLE
+                            | PageTableFlags::USER_ACCESSIBLE,
+                        &mut info.frame_allocator,
+                    )
+                }
+                .unwrap()
+                .flush();
+                self.mapped_pages.insert(p, page_flags);
+            }
+
+            drop(info_lock);
+
+            let growth = new_brk - self.brk;
+            self.size += growth;
+
+            self.brk = new_brk;
+            Some(self.brk)
         }
     }
 
