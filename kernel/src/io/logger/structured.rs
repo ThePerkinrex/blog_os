@@ -1,11 +1,10 @@
 use core::fmt::{self, Write};
 use core::marker::PhantomData;
-use log::kv::{Error as KvError, Key, Source, Value as KvValue, VisitSource, VisitValue};
-use log::{Level, Log, Metadata, Record};
-use sval::{Stream, Tag, Value as SvalValue};
-use sval_json::stream_to_fmt_write;
+use log::kv::{Error as KvError, Key, Value as KvValue, VisitSource};
+use log::Record;
+use sval::{Stream, Value as SvalValue};
 
-struct RecordSval<'a> {
+pub struct RecordSval<'a> {
     record: &'a Record<'a>,
 }
 
@@ -16,7 +15,7 @@ fn stream_text_value<'sval, S: Stream<'sval> + ?Sized>(
 }
 
 fn stream_text<'sval, S: Stream<'sval> + ?Sized>(stream: &mut S, text: &'sval str) -> sval::Result {
-    stream.text_begin(Some(text.as_bytes().len()))?; // because level is &str
+    stream.text_begin(Some(text.len()))?; // because level is &str
     stream.text_fragment(text)?;
     stream.text_end()?;
     Ok(())
@@ -26,7 +25,7 @@ fn stream_text_computed<'sval, S: Stream<'sval> + ?Sized>(
     stream: &mut S,
     text: &str,
 ) -> sval::Result {
-    stream.text_begin(Some(text.as_bytes().len()))?; // because level is &str
+    stream.text_begin(Some(text.len()))?; // because level is &str
     stream.text_fragment_computed(text)?;
     stream.text_end()?;
     Ok(())
@@ -45,7 +44,7 @@ fn stream_text_args<'sval, S: Stream<'sval> + ?Sized>(
         fn write_str(&mut self, s: &str) -> fmt::Result {
             self.stream
                 .text_fragment_computed(s)
-                .map_err(|_| core::fmt::Error);
+                .map_err(|_| core::fmt::Error)?;
             Ok(())
         }
     }
@@ -55,7 +54,7 @@ fn stream_text_args<'sval, S: Stream<'sval> + ?Sized>(
         stream,
         _marker: PhantomData,
     };
-    w.write_fmt(*text).map_err(|_| sval::Error::new());
+    w.write_fmt(*text).map_err(|_| sval::Error::new())?;
     stream.text_end()?;
     Ok(())
 }
