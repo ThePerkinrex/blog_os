@@ -119,13 +119,28 @@ impl UserHeap {
         }
     }
 
-    pub fn change_brk(&mut self, offset: i64) -> Option<VirtAddr> {
+    pub fn change_brk(&mut self, stack: &GeneralStack, offset: i64) -> Option<VirtAddr> {
         if offset == 0 {
             Some(self.brk)
         } else if offset < 0 {
-            todo!("implement brk shinking (0x{offset:x} - {offset})")
+            let new_brk = (self.brk - offset.unsigned_abs()).align_up(Size4KiB::SIZE);
+            if new_brk == self.brk {
+                Some(self.brk)
+            } else {
+                todo!("implement brk shinking (0x{offset:x} - {offset})")
+            }
         } else {
-            todo!("implement brk growth (0x{offset:x} - {offset})")
+            let new_brk = (self.brk + offset.unsigned_abs()).align_up(Size4KiB::SIZE);
+            let new_pages = Page::<Size4KiB>::range(
+                Page::containing_address(self.brk),
+                Page::containing_address(new_brk),
+            );
+            if new_pages.end >= Page::containing_address(stack.bottom()) {
+                panic!("Memory overflow, cannot allocate more heap: {new_pages:?} -> {stack:?}")
+            }
+            todo!(
+                "implement brk growth (0x{offset:x} - {offset}): NEW PAGES: {new_pages:?} ... {stack:?}"
+            )
         }
     }
 

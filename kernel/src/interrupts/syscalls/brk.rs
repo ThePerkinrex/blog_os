@@ -9,9 +9,10 @@ pub fn brk(offset: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
         return 0;
     };
 
-    pinf.program()
-        .heap()
+    let prog = pinf.program();
+
+    prog.heap()
         .lock()
-        .change_brk(offset)
+        .change_brk(prog.stack(), offset)
         .map_or(-1i64 as u64, |addr| addr.as_u64())
 }
