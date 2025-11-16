@@ -135,6 +135,7 @@ fn main() {
         cmd.arg("-device").arg("pci-serial");
 
         cmd.arg("-serial").arg("stdio");
+        cmd.arg("-serial").arg("file:out.json.log");
 
         if is_test || (args.no_display && (!args.gdb || args.no_start_gdb)) {
             cmd.arg("-display").arg("none");

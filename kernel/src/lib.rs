@@ -152,9 +152,10 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 pub fn panic_handler(info: &PanicInfo) -> ! {
     use core::fmt::Write;
 
-    if io::writer(|mut w| writeln!(w, "{info}")).is_err() {
-        io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
-    }
+    log::error!("{info}");
+    // if io::writer(|mut w| writeln!(w, "{info}")).is_err() {
+    //     io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);
+    // }
     hlt_loop()
 }
 

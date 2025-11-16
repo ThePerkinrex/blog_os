@@ -2,7 +2,7 @@ use blog_os_log::Logger;
 
 pub mod structured;
 
-use crate::_println;
+use crate::{_println, io::serial::print_json};
 
 macro_rules! print {
     ($($arg:tt)*) => ($crate::io::print(format_args!($($arg)*)));
@@ -17,8 +17,8 @@ fn print_sink(record: &log::Record) {
     )
 }
 
-static LOGGER: Logger<1> = Logger {
-    sinks: [print_sink],
+static LOGGER: Logger<2> = Logger {
+    sinks: [print_sink, print_json],
 };
 
 pub fn init() {

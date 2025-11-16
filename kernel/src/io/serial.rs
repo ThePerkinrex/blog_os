@@ -1,9 +1,8 @@
-use core::sync::atomic::AtomicBool;
+use core::{fmt::Write, sync::atomic::AtomicBool};
 
-use log::Record;
-use spin::{Lazy, Once};
+use spin::{Lazy, Mutex};
 
-use crate::io::STACK;
+use crate::io::{STACK, logger::structured::RecordSval};
 
 use core::fmt;
 
@@ -50,4 +49,16 @@ pub fn init() {
     }
 }
 
-static JSON_SINK: Lazy<SerialPort> = Lazy::new(|| unsafe { SerialPort::new(0x2F8) });
+static JSON_SINK: Lazy<Mutex<SerialPort>> = Lazy::new(|| {
+    let mut serial = unsafe { SerialPort::new(0x2F8) };
+    serial.write_str("===\n\n\n=== START ===\n\n\n").unwrap();
+
+    Mutex::new(serial)
+});
+
+pub fn print_json(record: &log::Record) {
+    let mut lock = JSON_SINK.lock();
+    sval_json::stream_to_fmt_write(&mut *lock, RecordSval { record }).unwrap();
+    lock.write_char('\n');
+    drop(lock);
+}

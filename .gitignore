@@ -1,3 +1,4 @@
 target
 /imgs
-out.log
+
+*.log

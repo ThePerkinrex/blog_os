@@ -1,11 +1,11 @@
 use core::fmt::{self, Write};
 use core::marker::PhantomData;
-use log::kv::{Error as KvError, Key, Value as KvValue, VisitSource};
 use log::Record;
+use log::kv::{Error as KvError, Key, Value as KvValue, VisitSource};
 use sval::{Stream, Value as SvalValue};
 
 pub struct RecordSval<'a> {
-    record: &'a Record<'a>,
+    pub record: &'a Record<'a>,
 }
 
 fn stream_text_value<'sval, S: Stream<'sval> + ?Sized>(
@@ -139,6 +139,7 @@ where
 
             // Visit each kv pair
             struct KvToSval<'r, 'a, S: Stream<'a> + ?Sized> {
+                #[allow(unused)]
                 record: &'r Record<'a>,
                 stream: &'r mut S,
             }
