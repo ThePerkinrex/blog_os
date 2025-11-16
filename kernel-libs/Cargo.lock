@@ -53,6 +53,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blog_os-log"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "blog_os-pci"
 version = "0.1.0"
 dependencies = [
@@ -193,6 +200,12 @@ checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
 ]
+
+[[package]]
+name = "log"
+version = "0.4.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
 name = "memchr"

@@ -1,5 +1,8 @@
 use core::sync::atomic::AtomicBool;
 
+use log::Record;
+use spin::{Lazy, Once};
+
 use crate::io::STACK;
 
 use core::fmt;
@@ -13,7 +16,14 @@ impl SerialPort {
     ///
     /// unsafe because this function must only be called once
     pub unsafe fn init() -> Self {
-        let mut port = unsafe { uart_16550::SerialPort::new(0x3F8) };
+        unsafe { Self::new(0x3F8) }
+    }
+
+    /// # Safety
+    ///
+    /// unsafe because this function must only be called once for each port
+    unsafe fn new(base: u16) -> Self {
+        let mut port = unsafe { uart_16550::SerialPort::new(base) };
         port.init();
         Self { port }
     }
@@ -39,3 +49,5 @@ pub fn init() {
         STACK.lock().add(serial).expect("init serial");
     }
 }
+
+static JSON_SINK: Lazy<SerialPort> = Lazy::new(|| unsafe { SerialPort::new(0x2F8) });

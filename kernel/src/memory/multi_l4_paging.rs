@@ -259,7 +259,6 @@ impl Mapper<Size4KiB> for PageTables {
             )
         })?;
 
-
         if p4_index >= self.kernel_start.p4_index() {
             // println!("Created mapping in kernelspace (P4 idx: {p4_index:?} - {page:?})");
             let current_e = &self.current.level_4_table()[p4_index];
