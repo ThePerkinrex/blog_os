@@ -59,6 +59,6 @@ static JSON_SINK: Lazy<Mutex<SerialPort>> = Lazy::new(|| {
 pub fn print_json(record: &log::Record) {
     let mut lock = JSON_SINK.lock();
     sval_json::stream_to_fmt_write(&mut *lock, RecordSval { record }).unwrap();
-    lock.write_char('\n');
+    lock.write_char('\n').unwrap();
     drop(lock);
 }

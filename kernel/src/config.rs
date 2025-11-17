@@ -9,6 +9,7 @@ const MAPPINGS_CONFIG: Mappings = {
     // This is the equivalent of the `map_physical_memory` feature
     mappings.physical_memory = Some(Mapping::Dynamic);
     mappings.kernel_base = Mapping::FixedAddress(KERNEL_START.as_u64());
+    mappings.dynamic_range_start = Some(KERNEL_START.as_u64()); // leave bottom half empty
 
     // Optionally, you can set a fixed virtual address for the physical map:
     // mappings.physical_memory = Some(Mapping::FixedAddress(0xFFFF_8000_0000_0000));

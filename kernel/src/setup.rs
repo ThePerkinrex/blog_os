@@ -1,8 +1,9 @@
 use addr2line::Context;
+use alloc::vec::Vec;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
-use log::{info, warn};
+use log::{info, trace, warn};
 use spin::Once;
-use x86_64::VirtAddr;
+use x86_64::{VirtAddr, structures::paging::Mapper};
 
 use crate::{
     allocator,
@@ -153,9 +154,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     let virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
     info!("Initialized region allocator");
 
+    let page_table = PageTables::new(page_table, VirtAddr::new(boot_info.kernel_image_offset));
+
+    
+
+
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {
-            page_table: PageTables::new(page_table, VirtAddr::new(boot_info.kernel_image_offset)),
+            page_table,
             frame_allocator,
             virt_region_allocator,
         })
@@ -163,6 +169,17 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     info!("Initializing heap");
     allocator::init_heap(alloc_kinf).expect("initialized heap");
     info!("Initialized heap");
+
+    // unmap userspace pages. Should only be the old gdt mapping
+    let mut alloc_kinf_lock = alloc_kinf.lock();
+    #[allow(clippy::needless_collect)]
+    for page in alloc_kinf_lock.page_table.mapped_pages_in_range(VirtAddr::new(0), VirtAddr::new(boot_info.kernel_image_offset)).collect::<Vec<_>>() {
+        trace!(event = "unmap_user_pages", subevent = "before", page:?; "Unmapping {page:?}");
+        let (frame, flush) = alloc_kinf_lock.page_table.unmap(page).expect("Unmap page");
+        flush.flush();
+        trace!(event = "unmap_user_pages", subevent = "after", page:?, frame:?; "Unmapped {page:?} from {frame:?}");
+    }
+    drop(alloc_kinf_lock);
 
     let mut stack_alloc;
 

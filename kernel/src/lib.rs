@@ -9,8 +9,8 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-use blog_os_device::api::bus::{Bus, BusDeviceDriver};
-use blog_os_pci::bus::PciBus;
+// use blog_os_device::api::bus::{Bus, BusDeviceDriver};
+// use blog_os_pci::bus::PciBus;
 use log::info;
 use qemu_common::QemuExitCode;
 
@@ -150,7 +150,6 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 }
 
 pub fn panic_handler(info: &PanicInfo) -> ! {
-    use core::fmt::Write;
 
     log::error!("{info}");
     // if io::writer(|mut w| writeln!(w, "{info}")).is_err() {

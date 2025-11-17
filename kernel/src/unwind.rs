@@ -198,7 +198,9 @@ impl<'a> Unwinder<'a> {
                 // self.regs.set_stack_ptr(saved_rsp);
                 // let _ = self.regs.set(X86_64::RSP, saved_rsp);
             } else {
+                // TODO is this correct?
                 debug!("Interrupt return to ring0, no saved RSP");
+                
             }
         }
 
