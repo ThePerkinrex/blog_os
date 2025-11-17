@@ -396,10 +396,10 @@ impl Mapper<Size4KiB> for PageTables {
             for e in Self::all_but_current_internal(self.l4_tables.iter(), &self.current_frame) {
                 e[p4_index].clone_from(current_e);
             }
-            trace!(event = "map_page", subevent = "map_kernel", current_frame:? = self.current_frame, frame:?, page:?;
-                "Created mapping in kernelspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?}",
-                self.current_frame
-            )
+            // trace!(event = "map_page", subevent = "map_kernel", current_frame:? = self.current_frame, frame:?, page:?;
+            //     "Created mapping in kernelspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?}",
+            //     self.current_frame
+            // )
         } else {
             trace!(event = "map_page", subevent = "map_user", current_frame:? = self.current_frame, frame:?, page:?;
                 "Created mapping in userspace (Current frame: {:?} / P4 idx: {p4_index:?} - {page:?}) to frame {frame:?}",

@@ -38,6 +38,7 @@ pub fn print(s: &str) {
     let mut buf = s.as_bytes();
     while !buf.is_empty() {
         let bytes = write(1, buf) as usize;
+        nop(bytes as u64);
         buf = &buf[bytes..]
     }
 }

@@ -1,13 +1,13 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 use log::{debug, info};
 
 use crate::{
     KERNEL_INFO,
     elf::{LoadedProgram, load_elf},
     memory::multi_l4_paging::PageTableToken,
-    multitask::{get_current_task, set_current_process_info},
+    multitask::{get_current_task, get_current_task_id, set_current_process_info},
     priviledge::jmp_to_usermode,
     rand::uuid_v4,
     unwind,
@@ -20,6 +20,43 @@ pub enum ProcessStatus {
     Ending(u64),
 }
 
+#[derive(Debug, Clone)]
+pub struct Stdout {
+    buf: String,
+}
+
+impl Stdout {
+    pub fn write(&mut self, data: &str) -> usize {
+        let combined = core::mem::take(&mut self.buf) + data;
+
+        let lines = combined.split_inclusive('\n');
+
+
+        
+        let task_id = get_current_task_id();
+
+        let mut sum = 0;
+        for line in lines {
+            sum += line.len();
+            if line.ends_with('\n') {
+                info!("[{task_id:?}] [STDOUT] {}", line.trim_end_matches('\n'));
+            }else{
+                self.buf += line;
+            }
+        }
+
+        sum
+        
+    }
+
+    pub fn flush(&mut self) {
+        let task_id = get_current_task_id();
+        let data = core::mem::take(&mut self.buf);
+        
+        info!("[{task_id:?}] [FLUSHED] [STDOUT] {data}");
+    }
+}
+
 #[derive(Debug)]
 pub struct ProcessInfo {
     program: Arc<LoadedProgram>,
@@ -27,6 +64,7 @@ pub struct ProcessInfo {
     id: uuid::Uuid,
     original: uuid::Uuid,
     pt_token: Option<Arc<PageTableToken>>,
+    stdout: Stdout
 }
 
 impl Clone for ProcessInfo {
@@ -46,6 +84,7 @@ impl Clone for ProcessInfo {
             id,
             original: self.original,
             pt_token: self.pt_token.clone(),
+            stdout: self.stdout.clone()
         }
     }
 }
@@ -96,6 +135,7 @@ impl ProcessInfo {
             id,
             original: id,
             pt_token: token,
+            stdout: Stdout { buf: String::new() }
         }
     }
 
@@ -137,6 +177,10 @@ impl ProcessInfo {
 
     pub const fn status_mut(&mut self) -> &mut ProcessStatus {
         &mut self.status
+    }
+    
+    pub const fn stdout_mut(&mut self) -> &mut Stdout {
+        &mut self.stdout
     }
 }
 
