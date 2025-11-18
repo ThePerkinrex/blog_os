@@ -96,7 +96,7 @@ impl<'a> SvalValue for RecordSval<'a>
 where
     Self: 'a,
 {
-    fn stream<'sval, S: Stream<'sval> + ?Sized>(&self, stream: &mut S) -> sval::Result
+    fn stream<'sval, S: Stream<'sval> + ?Sized>(&'sval self, stream: &mut S) -> sval::Result
     where
         'a: 'sval,
     {
@@ -134,6 +134,10 @@ where
             // FIX: Use stream_map_kv and stream the u64 value
             stream_map_kv(stream, "line", |stream| stream.u64(line as u64))?;
         }
+
+        stream_map_kv(stream, "extra", |stream| {
+            self.data.stream(stream)
+        })?;
 
         // Now the kv data under "data" key
         stream_map_kv(stream, "data", |stream| {

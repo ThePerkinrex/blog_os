@@ -412,12 +412,16 @@ pub fn get_current_process_info() -> Option<ProcessInfo> {
 }
 
 pub fn try_get_current_process_info() -> Option<ProcessInfo> {
-    CURRENT_TASK.read().context.try_lock()?.process_info.clone()
+    if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
+        CURRENT_TASK.try_read().and_then(|x| x.context.try_lock()?.process_info.clone())
+    } else {
+        None
+    }
 }
 
 pub fn get_current_task_id() -> TaskId {
     if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
-        Some(CURRENT_TASK.read().id)
+        CURRENT_TASK.try_read().map(|x| x.id)
     } else {
         None
     }

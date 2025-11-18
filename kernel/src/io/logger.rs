@@ -2,8 +2,9 @@ use blog_os_log::Logger;
 use log::Record;
 
 pub mod structured;
+pub mod data;
 
-use crate::{_println, io::serial::print_json, multitask::get_current_task_id};
+use crate::{_println, io::{logger::data::RecordOptionalId, serial::print_json}, multitask::{get_current_task_id, try_get_current_process_info}};
 
 macro_rules! print {
     ($($arg:tt)*) => ($crate::io::print(format_args!($($arg)*)));
@@ -11,17 +12,19 @@ macro_rules! print {
 
 fn print_sink<'a, 'b>(record: &'a log::Record<'b>, data: RecordData) {
     print!(
-        "[task: {:?}][{}][{}] {}\n",
+        "[T{}][P{}][{}][{}] {}\n",
         data.task_id,
+        data.process_id,
         record.level(),
         record.target(),
         record.args()
     )
 }
 
-#[derive(Debug, sval::Value)]
+#[derive(sval::Value)]
 pub struct RecordData {
-    pub task_id: Option<uuid::Uuid>,
+    pub task_id: RecordOptionalId,
+    pub process_id: RecordOptionalId
 }
 
 pub struct ExtendedRecord<'a, 'b> {
@@ -30,7 +33,8 @@ pub struct ExtendedRecord<'a, 'b> {
 
 fn transform<'a, 'b>(_: &'a log::Record<'b>) -> RecordData {
     RecordData {
-        task_id: get_current_task_id(),
+        task_id: RecordOptionalId::from(get_current_task_id()),
+        process_id: RecordOptionalId::from(try_get_current_process_info().map(|x| x.process_id())),
     }
 }
 

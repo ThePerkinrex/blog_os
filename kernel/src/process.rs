@@ -7,10 +7,9 @@ use crate::{
     KERNEL_INFO,
     elf::{LoadedProgram, load_elf},
     memory::multi_l4_paging::PageTableToken,
-    multitask::{get_current_task, get_current_task_id, set_current_process_info},
+    multitask::{get_current_task, set_current_process_info},
     priviledge::jmp_to_usermode,
     rand::uuid_v4,
-    unwind,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -31,13 +30,11 @@ impl Stdout {
 
         let lines = combined.split_inclusive('\n');
 
-        let task_id = get_current_task_id();
-
         let mut sum = 0;
         for line in lines {
             sum += line.len();
             if line.ends_with('\n') {
-                info!("[{task_id:?}] [STDOUT] {}", line.trim_end_matches('\n'));
+                info!("[STDOUT] {}", line.trim_end_matches('\n'));
             } else {
                 self.buf += line;
             }
@@ -47,10 +44,12 @@ impl Stdout {
     }
 
     pub fn flush(&mut self) {
-        let task_id = get_current_task_id();
         let data = core::mem::take(&mut self.buf);
+        if !data.is_empty() {
 
-        info!("[{task_id:?}] [FLUSHED] [STDOUT] {data}");
+            info!("[FLUSHED] [STDOUT] {data}");
+        }
+
     }
 }
 
@@ -67,14 +66,14 @@ pub struct ProcessInfo {
 impl Clone for ProcessInfo {
     fn clone(&self) -> Self {
         let id = uuid_v4();
-        let refs = Arc::strong_count(&self.program);
-        debug!(
-            "CLONING PROCESS INFO {} -> {id} (refs: {} -> {})",
-            self.id,
-            refs,
-            refs + 1
-        );
-        unwind::backtrace();
+        // let refs = Arc::strong_count(&self.program);
+        // debug!(
+        //     "CLONING PROCESS INFO {} -> {id} (refs: {} -> {})",
+        //     self.id,
+        //     refs,
+        //     refs + 1
+        // );
+        // unwind::backtrace();
         Self {
             program: self.program.clone(),
             status: self.status.clone(),
@@ -88,13 +87,13 @@ impl Clone for ProcessInfo {
 
 impl Drop for ProcessInfo {
     fn drop(&mut self) {
-        let refs = Arc::strong_count(self.program());
-        debug!(
-            "Dropping {} ({}) (refs {refs} -> {})",
-            self.id,
-            self.original,
-            refs - 1
-        )
+        // let refs = Arc::strong_count(self.program());
+        // debug!(
+        //     "Dropping {} ({}) (refs {refs} -> {})",
+        //     self.id,
+        //     self.original,
+        //     refs - 1
+        // )
     }
 }
 
@@ -178,6 +177,14 @@ impl ProcessInfo {
 
     pub const fn stdout_mut(&mut self) -> &mut Stdout {
         &mut self.stdout
+    }
+    
+    pub const fn process_id(&self) -> uuid::Uuid {
+        self.original
+    }
+    
+    pub const fn info_id(&self) -> uuid::Uuid {
+        self.id
     }
 }
 
