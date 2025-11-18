@@ -39,7 +39,11 @@ pub fn print(s: &str) {
     while !buf.is_empty() {
         let bytes = write(1, buf) as usize;
         nop(bytes as u64);
-        buf = &buf[bytes..]
+        if let Some(s) = buf.get(bytes..) {
+            buf = s;
+        }else{
+            break;
+        }
     }
 }
 

@@ -2,7 +2,7 @@ use core::{fmt::Write, sync::atomic::AtomicBool};
 
 use spin::{Lazy, Mutex};
 
-use crate::io::{STACK, logger::structured::RecordSval};
+use crate::io::{STACK, logger::{RecordData, structured::RecordSval}};
 
 use core::fmt;
 
@@ -56,9 +56,10 @@ static JSON_SINK: Lazy<Mutex<SerialPort>> = Lazy::new(|| {
     Mutex::new(serial)
 });
 
-pub fn print_json(record: &log::Record) {
+pub fn print_json<'a, 'b>(record: &'a log::Record<'b>, data: RecordData) {
+    let _ = data;
     let mut lock = JSON_SINK.lock();
-    sval_json::stream_to_fmt_write(&mut *lock, RecordSval { record }).unwrap();
+    sval_json::stream_to_fmt_write(&mut *lock, RecordSval { record, data }).unwrap();
     lock.write_char('\n').unwrap();
     drop(lock);
 }

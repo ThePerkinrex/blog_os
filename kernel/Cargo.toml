@@ -32,7 +32,7 @@ blog_os-pci = {path = "../kernel-libs/blog_os-pci"}
 slotmap = { version = "1.0.7", default-features = false }
 blog_os-syscalls = {path = "../kernel-libs/blog_os-syscalls"}
 log = { version = "0.4.28", features = ["kv", "kv_sval"] }
-sval = { version = "2.16.0" }
+sval = { version = "2.16.0", features = ["derive"]}
 sval_json = "2.16.0"
 blog_os-log ={ path = "../kernel-libs/blog_os-log"}
 

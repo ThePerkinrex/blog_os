@@ -753,6 +753,9 @@ name = "sval"
 version = "2.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "502b8906c4736190684646827fbab1e954357dfe541013bbd7994d033d53a1ca"
+dependencies = [
+ "sval_derive_macros",
+]
 
 [[package]]
 name = "sval_buffer"
@@ -762,6 +765,17 @@ checksum = "c4b854348b15b6c441bdd27ce9053569b016a0723eab2d015b1fd8e6abe4f708"
 dependencies = [
  "sval",
  "sval_ref",
+]
+
+[[package]]
+name = "sval_derive_macros"
+version = "2.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c855576b719497b925e9646ec865ffb79122027aeafee855b18f0612cc998947"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]

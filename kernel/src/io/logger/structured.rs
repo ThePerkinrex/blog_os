@@ -4,8 +4,11 @@ use log::Record;
 use log::kv::{Error as KvError, Key, Value as KvValue, VisitSource};
 use sval::{Stream, Value as SvalValue};
 
+use crate::io::logger::RecordData;
+
 pub struct RecordSval<'a> {
     pub record: &'a Record<'a>,
+    pub data: RecordData
 }
 
 fn stream_text_value<'sval, S: Stream<'sval> + ?Sized>(
