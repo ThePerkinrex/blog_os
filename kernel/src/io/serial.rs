@@ -2,7 +2,10 @@ use core::{fmt::Write, sync::atomic::AtomicBool};
 
 use spin::{Lazy, Mutex};
 
-use crate::io::{STACK, logger::{RecordData, structured::RecordSval}};
+use crate::io::{
+    STACK,
+    logger::{RecordData, structured::RecordSval},
+};
 
 use core::fmt;
 

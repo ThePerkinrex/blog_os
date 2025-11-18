@@ -21,22 +21,22 @@ fn print_sink<'a, 'b>(record: &'a log::Record<'b>, data: RecordData) {
 
 #[derive(Debug, sval::Value)]
 pub struct RecordData {
-    pub task_id: Option<uuid::Uuid>
+    pub task_id: Option<uuid::Uuid>,
 }
 
 pub struct ExtendedRecord<'a, 'b> {
-    pub record: &'a Record<'b>
+    pub record: &'a Record<'b>,
 }
 
 fn transform<'a, 'b>(_: &'a log::Record<'b>) -> RecordData {
-    RecordData { 
-        task_id: get_current_task_id()
-     }
+    RecordData {
+        task_id: get_current_task_id(),
+    }
 }
 
 static LOGGER: Logger<2, RecordData> = Logger {
     sinks: [print_sink, print_json],
-    transform 
+    transform,
 };
 
 pub fn init() {

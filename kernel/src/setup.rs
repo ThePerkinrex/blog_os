@@ -156,9 +156,6 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
 
     let page_table = PageTables::new(page_table, VirtAddr::new(boot_info.kernel_image_offset));
 
-    
-
-
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {
             page_table,
@@ -173,7 +170,14 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     // unmap userspace pages. Should only be the old gdt mapping
     let mut alloc_kinf_lock = alloc_kinf.lock();
     #[allow(clippy::needless_collect)]
-    for page in alloc_kinf_lock.page_table.mapped_pages_in_range(VirtAddr::new(0), VirtAddr::new(boot_info.kernel_image_offset)).collect::<Vec<_>>() {
+    for page in alloc_kinf_lock
+        .page_table
+        .mapped_pages_in_range(
+            VirtAddr::new(0),
+            VirtAddr::new(boot_info.kernel_image_offset),
+        )
+        .collect::<Vec<_>>()
+    {
         trace!(event = "unmap_user_pages", subevent = "before", page:?; "Unmapping {page:?}");
         let (frame, flush) = alloc_kinf_lock.page_table.unmap(page).expect("Unmap page");
         flush.flush();

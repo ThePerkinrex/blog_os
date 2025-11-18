@@ -200,7 +200,6 @@ impl<'a> Unwinder<'a> {
             } else {
                 // TODO is this correct?
                 debug!("Interrupt return to ring0, no saved RSP");
-                
             }
         }
 

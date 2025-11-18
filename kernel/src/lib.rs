@@ -150,7 +150,6 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 }
 
 pub fn panic_handler(info: &PanicInfo) -> ! {
-
     log::error!("{info}");
     // if io::writer(|mut w| writeln!(w, "{info}")).is_err() {
     //     io::qemu::exit_qemu(QemuExitCode::PanicWriterFailed);

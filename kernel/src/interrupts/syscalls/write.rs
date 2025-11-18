@@ -2,9 +2,7 @@ use alloc::string::String;
 use log::{trace, warn};
 use x86_64::VirtAddr;
 
-use crate::multitask::{
-    change_current_process_info, get_current_task_id,
-};
+use crate::multitask::{change_current_process_info, get_current_task_id};
 
 pub fn write(fd: u64, buf: u64, len: u64, _: u64, _: u64, _: u64) -> u64 {
     let task_id = get_current_task_id();

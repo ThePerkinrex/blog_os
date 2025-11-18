@@ -41,7 +41,7 @@ pub fn print(s: &str) {
         nop(bytes as u64);
         if let Some(s) = buf.get(bytes..) {
             buf = s;
-        }else{
+        } else {
             break;
         }
     }

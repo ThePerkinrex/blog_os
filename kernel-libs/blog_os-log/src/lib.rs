@@ -2,7 +2,7 @@
 
 pub struct Logger<const N: usize, T> {
     pub sinks: [fn(&log::Record, T); N],
-    pub transform: fn(&log::Record) -> T
+    pub transform: fn(&log::Record) -> T,
 }
 
 impl<const N: usize, T> log::Log for Logger<N, T> {

@@ -8,7 +8,7 @@ use crate::io::logger::RecordData;
 
 pub struct RecordSval<'a> {
     pub record: &'a Record<'a>,
-    pub data: RecordData
+    pub data: RecordData,
 }
 
 fn stream_text_value<'sval, S: Stream<'sval> + ?Sized>(
