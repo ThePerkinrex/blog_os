@@ -413,7 +413,9 @@ pub fn get_current_process_info() -> Option<ProcessInfo> {
 
 pub fn try_get_current_process_info() -> Option<ProcessInfo> {
     if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
-        CURRENT_TASK.try_read().and_then(|x| x.context.try_lock()?.process_info.clone())
+        CURRENT_TASK
+            .try_read()
+            .and_then(|x| x.context.try_lock()?.process_info.clone())
     } else {
         None
     }

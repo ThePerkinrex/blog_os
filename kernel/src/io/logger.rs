@@ -1,10 +1,14 @@
 use blog_os_log::Logger;
 use log::Record;
 
-pub mod structured;
 pub mod data;
+pub mod structured;
 
-use crate::{_println, io::{logger::data::RecordOptionalId, serial::print_json}, multitask::{get_current_task_id, try_get_current_process_info}};
+use crate::{
+    _println,
+    io::{logger::data::RecordOptionalId, serial::print_json},
+    multitask::{get_current_task_id, try_get_current_process_info},
+};
 
 macro_rules! print {
     ($($arg:tt)*) => ($crate::io::print(format_args!($($arg)*)));
@@ -24,7 +28,7 @@ fn print_sink<'a, 'b>(record: &'a log::Record<'b>, data: RecordData) {
 #[derive(sval::Value)]
 pub struct RecordData {
     pub task_id: RecordOptionalId,
-    pub process_id: RecordOptionalId
+    pub process_id: RecordOptionalId,
 }
 
 pub struct ExtendedRecord<'a, 'b> {

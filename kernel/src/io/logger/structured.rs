@@ -135,9 +135,7 @@ where
             stream_map_kv(stream, "line", |stream| stream.u64(line as u64))?;
         }
 
-        stream_map_kv(stream, "extra", |stream| {
-            self.data.stream(stream)
-        })?;
+        stream_map_kv(stream, "extra", |stream| self.data.stream(stream))?;
 
         // Now the kv data under "data" key
         stream_map_kv(stream, "data", |stream| {

@@ -46,10 +46,8 @@ impl Stdout {
     pub fn flush(&mut self) {
         let data = core::mem::take(&mut self.buf);
         if !data.is_empty() {
-
             info!("[FLUSHED] [STDOUT] {data}");
         }
-
     }
 }
 
@@ -178,11 +176,11 @@ impl ProcessInfo {
     pub const fn stdout_mut(&mut self) -> &mut Stdout {
         &mut self.stdout
     }
-    
+
     pub const fn process_id(&self) -> uuid::Uuid {
         self.original
     }
-    
+
     pub const fn info_id(&self) -> uuid::Uuid {
         self.id
     }
