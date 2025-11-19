@@ -10,6 +10,7 @@ use crate::{
         change_current_process_info, get_current_process_info, task_exit, task_switch_safe,
     },
     process::ProcessStatus,
+    unwind,
 };
 
 mod brk;
@@ -57,6 +58,7 @@ pub fn syscall_handle(
     arg5: u64,
     arg6: u64,
 ) -> u64 {
+    unwind::backtrace();
     match SyscallNumber::try_from(code) {
         Ok(code) => SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6),
         Err(e) => {

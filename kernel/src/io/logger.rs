@@ -19,8 +19,8 @@ fn print_sink<'a, 'b>(record: &'a log::Record<'b>, data: RecordData) {
         "[T{}][P{}][{}][{}] {}\n",
         data.task_id,
         data.process_id,
-        record.level(),
         record.target(),
+        record.level(),
         record.args()
     )
 }
