@@ -7,7 +7,7 @@ use alloc::boxed::Box;
 use blog_std::println;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub extern "C" fn _start() -> ! {
     blog_std::nop(33);
     let x = 22;
     println!("Hello World! {x}");

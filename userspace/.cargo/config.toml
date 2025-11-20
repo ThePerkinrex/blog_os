@@ -4,16 +4,16 @@ build-std = ["core", "compiler_builtins", "alloc"]
 [build]
 target = ["x86_64-unknown-none"]
 rustflags = [
-	"-C", "link-arg=-T../exec_linker.ld",
+	# "-C", "link-arg=-T../exec_linker.ld",
 	"-C", "force-unwind-tables=yes",
-	"-C", "relocation-model=static",   # No PIC
-    "-C", "code-model=kernel",         # Large absolute addresses allowed
-    "-C", "codegen-units=1",           # Single compilation unit to allow cross-crate inlining
-	"-C", "embed-bitcode=yes",
-    "-C", "lto",                        # Link-time optimization resolves all calls
-    "-C", "panic=abort",                # Avoid unwinding tables that need relocations
-    "-C", "link-arg=-nostdlib",         # Don't link system libraries
-    "-C", "link-arg=-no-pie",           # Don't produce position-independent executable
-    "-C", "link-arg=-static",           # Link all libs statically
+	# "-C", "relocation-model=static",   # No PIC
+    # "-C", "code-model=kernel",         # Large absolute addresses allowed
+    # "-C", "codegen-units=1",           # Single compilation unit to allow cross-crate inlining
+	# "-C", "embed-bitcode=yes",
+    # "-C", "lto",                        # Link-time optimization resolves all calls
+    # "-C", "panic=abort",                # Avoid unwinding tables that need relocations
+    # "-C", "link-arg=-nostdlib",         # Don't link system libraries
+    # "-C", "link-arg=-no-pie",           # Don't produce position-independent executable
+    # "-C", "link-arg=-static",           # Link all libs statically
 ]
 

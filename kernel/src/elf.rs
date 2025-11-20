@@ -78,8 +78,31 @@ impl From<u32> for PHType {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u16)]
+#[allow(non_camel_case_types)]
+pub enum EType {
+    ET_NONE = 0, // An unknown type.
+    ET_REL,      // A relocatable file.
+    ET_EXEC,     // An executable file.
+    ET_DYN,      // A shared object.
+    ET_CORE,     // A core file.
+}
+
+impl From<u16> for EType {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => Self::ET_REL,
+            2 => Self::ET_EXEC,
+            3 => Self::ET_DYN,
+            4 => Self::ET_CORE,
+            _ => Self::ET_NONE,
+        }
+    }
+}
+
 bitflags::bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct ElfPhSegmentFlags: u32 {
         /// Executable
         const E = 0b00000001;
@@ -213,7 +236,7 @@ pub struct LoadedProgram {
     stack: GeneralStack,
     entry: VirtAddr,
     elf: ElfWithDataAndDwarf,
-    mapped_pages: BTreeMap<Page, PageTableFlags>,
+    mapped_pages: BTreeMap<Page, ElfPhSegmentFlags>,
     heap: ReentrantMutex<UserHeap>,
 }
 
@@ -344,7 +367,18 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     let offset = 0;
 
-    debug!("ELF type: {:x}", elf.elf_header().e_type(LittleEndian));
+    let e_type: EType = elf.elf_header().e_type(LittleEndian).into();
+
+    debug!("ELF type: {:?} ({:x})", e_type, e_type as u16);
+
+    let mut base_addr = VirtAddr::zero(); // For ET_EXEC, keep base_addr at 0
+
+    if e_type == EType::ET_DYN {
+        // TODO randomize base address
+        base_addr += Size4KiB::SIZE; // Skip first page
+    } else if e_type != EType::ET_EXEC {
+        panic!("{e_type:?} is not a valid ELF executable")
+    }
 
     // Show prog headers
     let mut loads = Vec::<((u64, u64), (VirtAddr, u64), ElfPhSegmentFlags)>::new();
@@ -371,7 +405,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
             p.p_align(LittleEndian)
         );
         if p_type == PHType::Load {
-            loads.push(((offset, filesz), (VirtAddr::new(vaddr), memsz), flags));
+            loads.push(((offset, filesz), (base_addr + vaddr, memsz), flags));
         }
     }
 
@@ -390,24 +424,33 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         );
         for p in pages {
             let mut page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE; // For now with one page table we should be able to write to it
-            if !flags.contains(ElfPhSegmentFlags::E) {
-                page_flags |= PageTableFlags::NO_EXECUTE
-            }
-            if flags.contains(ElfPhSegmentFlags::W) {
-                page_flags |= PageTableFlags::WRITABLE
-            }
-            if flags.contains(ElfPhSegmentFlags::R) {
-                page_flags |= PageTableFlags::USER_ACCESSIBLE
-            }
 
             if let Some(x) = mapped_pages.get(&p) {
-                debug!("Skipping {p:?}. Already mapped with flags {x:?}");
-                if page_flags != *x {
-                    warn!(
-                        "Unexpected page flags ({page_flags:?}) different from already mapped ({x:?})"
-                    )
+                debug!("Page {p:?} already mapped with flags {x:?} (new: {flags:?})");
+                let new_flags = flags | *x;
+                if !new_flags.contains(ElfPhSegmentFlags::E) {
+                    page_flags |= PageTableFlags::NO_EXECUTE
                 }
+                if new_flags.contains(ElfPhSegmentFlags::W) {
+                    page_flags |= PageTableFlags::WRITABLE
+                }
+                if new_flags.contains(ElfPhSegmentFlags::R) {
+                    page_flags |= PageTableFlags::USER_ACCESSIBLE
+                }
+
+                unsafe { info.page_table.update_flags(p, page_flags) }.unwrap().flush();
+
+                
             } else {
+                if !flags.contains(ElfPhSegmentFlags::E) {
+                    page_flags |= PageTableFlags::NO_EXECUTE
+                }
+                if flags.contains(ElfPhSegmentFlags::W) {
+                    page_flags |= PageTableFlags::WRITABLE
+                }
+                if flags.contains(ElfPhSegmentFlags::R) {
+                    page_flags |= PageTableFlags::USER_ACCESSIBLE
+                }
                 debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
@@ -422,7 +465,7 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
                 }
                 .unwrap()
                 .flush();
-                mapped_pages.insert(p, page_flags);
+                mapped_pages.insert(p, flags);
             }
         }
         let elf_start = VirtAddr::from_ptr(elf_contained.borrow_data().as_ptr()) + offset;
@@ -449,6 +492,15 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
                 pages.end
             }
         }))
+    }
+
+    info!("Loaded segments");
+
+
+    if e_type == EType::ET_DYN {
+
+        // TODO Apply relocs
+        todo!("Relocs")
     }
 
     let highest_page = highest_page.unwrap();
