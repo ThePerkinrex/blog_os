@@ -5,7 +5,7 @@ use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use kernel_utils::maybe_boxed::MaybeBoxed;
 use log::{debug, info, warn};
 use object::{
-    LittleEndian,
+    LittleEndian, Object,
     read::elf::{ElfFile64, FileHeader, ProgramHeader},
 };
 use ouroboros::self_referencing;
@@ -365,8 +365,6 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     // TODO verify general header
 
-    let offset = 0;
-
     let e_type: EType = elf.elf_header().e_type(LittleEndian).into();
 
     debug!("ELF type: {:?} ({:x})", e_type, e_type as u16);
@@ -438,9 +436,9 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
                     page_flags |= PageTableFlags::USER_ACCESSIBLE
                 }
 
-                unsafe { info.page_table.update_flags(p, page_flags) }.unwrap().flush();
-
-                
+                unsafe { info.page_table.update_flags(p, page_flags) }
+                    .unwrap()
+                    .flush();
             } else {
                 if !flags.contains(ElfPhSegmentFlags::E) {
                     page_flags |= PageTableFlags::NO_EXECUTE
@@ -496,11 +494,29 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     info!("Loaded segments");
 
-
     if e_type == EType::ET_DYN {
+        for (addr, reloc) in elf.dynamic_relocations().into_iter().flatten() {
+            match reloc.target() {
+                object::RelocationTarget::Symbol(symbol_index) => {
+                    unimplemented!("symbol {symbol_index:?}")
+                }
+                object::RelocationTarget::Section(section_index) => {
+                    unimplemented!("section {section_index:?}")
+                }
+                object::RelocationTarget::Absolute => {
+                    let addr = base_addr + addr;
+                    let value = base_addr.as_u64().saturating_add_signed(reloc.addend());
+
+                    debug!("Setting {addr:p} to {value}");
+                    unsafe { addr.as_mut_ptr::<u64>().write(value) };
+                }
+                x => unimplemented!("{x:?}"),
+            }
+            // debug!("RELOC {addr:x} {reloc:?}");
+        }
 
         // TODO Apply relocs
-        todo!("Relocs")
+        // todo!("Relocs")
     }
 
     let highest_page = highest_page.unwrap();
@@ -520,14 +536,14 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     debug!("Setup stack {stack:?}");
 
-    let entry = VirtAddr::new(elf.elf_header().e_entry(LittleEndian));
+    let entry = base_addr + elf.elf_header().e_entry(LittleEndian);
     info!("ELF loaded with entry point {:p}", entry);
 
     LoadedProgram {
         stack,
         entry,
         elf: elf_contained,
-        load_offset: offset,
+        load_offset: base_addr.as_u64(),
         mapped_pages,
         heap: ReentrantMutex::new(UserHeap::new(brk)),
     }
