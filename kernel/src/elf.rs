@@ -1,11 +1,14 @@
-use core::{alloc::Layout, ops::DerefMut};
+use core::{
+    alloc::Layout,
+    ops::{Deref, DerefMut},
+};
 
 use addr2line::Context;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use kernel_utils::maybe_boxed::MaybeBoxed;
 use log::{debug, info, warn};
 use object::{
-    LittleEndian, Object,
+    LittleEndian, Object, ObjectSymbol, ObjectSymbolTable,
     read::elf::{ElfFile64, FileHeader, ProgramHeader},
 };
 use ouroboros::self_referencing;
@@ -20,13 +23,17 @@ use x86_64::{
 
 use crate::{
     dwarf::{EndianSlice, load_dwarf},
+    elf::symbol::SymbolResolver,
     multitask::lock::ReentrantMutex,
     setup::KERNEL_INFO,
     stack::{self, GeneralStack},
     unwind::eh::EhInfo,
 };
 
+pub mod symbol;
+
 const TEST: &[u8] = include_bytes!("./progs/test_prog");
+const DRIVER: &[u8] = include_bytes!("./progs/libtest_driver.so");
 
 pub type SystemElf<'a> = ElfFile64<'a, LittleEndian, &'a [u8]>;
 
@@ -230,35 +237,23 @@ impl UserHeap {
     }
 }
 
-pub struct LoadedProgram {
-    // TODO mem
+pub struct LoadedElf<S: SymbolResolver> {
     load_offset: u64,
-    stack: GeneralStack,
-    entry: VirtAddr,
     elf: ElfWithDataAndDwarf,
     mapped_pages: BTreeMap<Page, ElfPhSegmentFlags>,
-    heap: ReentrantMutex<UserHeap>,
+    highest_page: Option<Page>,
+    symbol_resolver: S,
 }
 
-impl core::fmt::Debug for LoadedProgram {
+impl<S: SymbolResolver> core::fmt::Debug for LoadedElf<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("LoadedProgram")
+        f.debug_struct("LoadedElf")
             .field("load_offset", &self.load_offset)
-            .field("stack", &self.stack)
-            .field("entry", &self.entry)
             .finish()
     }
 }
 
-impl LoadedProgram {
-    pub const fn entry(&self) -> VirtAddr {
-        self.entry
-    }
-
-    pub const fn stack(&self) -> &GeneralStack {
-        &self.stack
-    }
-
+impl<S: SymbolResolver> LoadedElf<S> {
     pub fn elf(&self) -> &SystemElf<'_> {
         self.elf.borrow_elf()
     }
@@ -312,7 +307,6 @@ impl LoadedProgram {
         // Unload the stack
         let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
         let mem = &mut *lock;
-        unsafe { stack::clear_stack(self.stack, &mut mem.page_table, &mut mem.frame_allocator) };
 
         let mut min_max = None;
         for page in self.mapped_pages.keys() {
@@ -339,6 +333,49 @@ impl LoadedProgram {
 
         drop(lock);
 
+        self.symbol_resolver.unload();
+    }
+}
+
+pub struct LoadedProgram {
+    elf: LoadedElf<()>,
+    stack: GeneralStack,
+    entry: VirtAddr,
+    heap: ReentrantMutex<UserHeap>,
+}
+
+impl core::fmt::Debug for LoadedProgram {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("LoadedProgram")
+            .field("elf", &self.elf)
+            .field("stack", &self.stack)
+            .field("entry", &self.entry)
+            .finish()
+    }
+}
+
+impl LoadedProgram {
+    pub const fn entry(&self) -> VirtAddr {
+        self.entry
+    }
+
+    pub const fn stack(&self) -> &GeneralStack {
+        &self.stack
+    }
+
+    /// # Safety
+    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
+    /// and the page table used must be the one used to map the pages
+    pub unsafe fn unload(self) {
+        // Unload the stack
+        let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+        let mem = &mut *lock;
+        unsafe { stack::clear_stack(self.stack, &mut mem.page_table, &mut mem.frame_allocator) };
+
+        drop(lock);
+
+        unsafe { self.elf.unload() };
+
         unsafe { self.heap.into_inner().unload() };
     }
 
@@ -347,7 +384,30 @@ impl LoadedProgram {
     }
 }
 
-pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
+impl Deref for LoadedProgram {
+    type Target = LoadedElf<()>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.elf
+    }
+}
+
+impl DerefMut for LoadedProgram {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.elf
+    }
+}
+
+#[derive(Debug)]
+pub enum ElfLoadError {}
+
+pub fn load_elf<S: SymbolResolver>(
+    bytes: &[u8],
+    mut base_addr: VirtAddr,
+    type_check: impl FnOnce(&EType, VirtAddr) -> Result<VirtAddr, ElfLoadError>,
+    user: bool,
+    mut resolver: S,
+) -> Result<LoadedElf<S>, ElfLoadError> {
     let align = core::mem::align_of::<object::elf::FileHeader64<object::endian::LittleEndian>>();
 
     let aligned = realign_if_necessary(align, bytes);
@@ -361,24 +421,13 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
     .build();
 
     let elf = elf_contained.borrow_elf();
-    // TODO check if its executable
-
-    // TODO verify general header
 
     let e_type: EType = elf.elf_header().e_type(LittleEndian).into();
 
     debug!("ELF type: {:?} ({:x})", e_type, e_type as u16);
 
-    let mut base_addr = VirtAddr::zero(); // For ET_EXEC, keep base_addr at 0
+    base_addr = type_check(&e_type, base_addr)?;
 
-    if e_type == EType::ET_DYN {
-        // TODO randomize base address
-        base_addr += Size4KiB::SIZE; // Skip first page
-    } else if e_type != EType::ET_EXEC {
-        panic!("{e_type:?} is not a valid ELF executable")
-    }
-
-    // Show prog headers
     let mut loads = Vec::<((u64, u64), (VirtAddr, u64), ElfPhSegmentFlags)>::new();
     debug!(
         "                type      flags     offset      vaddr      paddr     filesz      memsz      align"
@@ -407,6 +456,23 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         }
     }
 
+    let mut base_flags = PageTableFlags::PRESENT; // To setup the pages, we need to write to them
+
+    if user {
+        base_flags |= PageTableFlags::USER_ACCESSIBLE;
+    }
+
+    let base_setup_flags = base_flags | PageTableFlags::WRITABLE; // To setup the pages, we need to write to them
+
+    fn get_flags(page_flags: &mut PageTableFlags, flags: ElfPhSegmentFlags) {
+        if !flags.contains(ElfPhSegmentFlags::E) {
+            *page_flags |= PageTableFlags::NO_EXECUTE
+        }
+        if flags.contains(ElfPhSegmentFlags::W) {
+            *page_flags |= PageTableFlags::WRITABLE
+        }
+    }
+
     let info = KERNEL_INFO.get().unwrap();
     let mut info_lock = info.alloc_kinf.lock();
     let info = info_lock.deref_mut();
@@ -421,45 +487,41 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
             Page::containing_address(vaddr + memsz),
         );
         for p in pages {
-            let mut page_flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE; // For now with one page table we should be able to write to it
+            let mut page_flags = base_setup_flags;
 
             if let Some(x) = mapped_pages.get(&p) {
                 debug!("Page {p:?} already mapped with flags {x:?} (new: {flags:?})");
                 let new_flags = flags | *x;
-                if !new_flags.contains(ElfPhSegmentFlags::E) {
-                    page_flags |= PageTableFlags::NO_EXECUTE
-                }
-                if new_flags.contains(ElfPhSegmentFlags::W) {
-                    page_flags |= PageTableFlags::WRITABLE
-                }
-                if new_flags.contains(ElfPhSegmentFlags::R) {
-                    page_flags |= PageTableFlags::USER_ACCESSIBLE
-                }
+                get_flags(&mut page_flags, new_flags);
+                // if !new_flags.contains(ElfPhSegmentFlags::E) {
+                //     page_flags |= PageTableFlags::NO_EXECUTE
+                // }
+                // if new_flags.contains(ElfPhSegmentFlags::W) {
+                //     page_flags |= PageTableFlags::WRITABLE
+                // }
+                // if new_flags.contains(ElfPhSegmentFlags::R) {
+                //     page_flags |= PageTableFlags::USER_ACCESSIBLE
+                // }
 
                 unsafe { info.page_table.update_flags(p, page_flags) }
                     .unwrap()
                     .flush();
             } else {
-                if !flags.contains(ElfPhSegmentFlags::E) {
-                    page_flags |= PageTableFlags::NO_EXECUTE
-                }
-                if flags.contains(ElfPhSegmentFlags::W) {
-                    page_flags |= PageTableFlags::WRITABLE
-                }
-                if flags.contains(ElfPhSegmentFlags::R) {
-                    page_flags |= PageTableFlags::USER_ACCESSIBLE
-                }
+                get_flags(&mut page_flags, flags);
+                // if !flags.contains(ElfPhSegmentFlags::E) {
+                //     page_flags |= PageTableFlags::NO_EXECUTE
+                // }
+                // if flags.contains(ElfPhSegmentFlags::W) {
+                //     page_flags |= PageTableFlags::WRITABLE
+                // }
+                // if flags.contains(ElfPhSegmentFlags::R) {
+                //     page_flags |= PageTableFlags::USER_ACCESSIBLE
+                // }
                 debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
-                    info.page_table.map_to(
-                        p,
-                        frame,
-                        PageTableFlags::PRESENT
-                            | PageTableFlags::WRITABLE
-                            | PageTableFlags::USER_ACCESSIBLE,
-                        &mut info.frame_allocator,
-                    )
+                    info.page_table
+                        .map_to(p, frame, page_flags, &mut info.frame_allocator)
                 }
                 .unwrap()
                 .flush();
@@ -492,15 +554,52 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
         }))
     }
 
+    // Remove writable flag for non writable pages
+    for (page, flags) in mapped_pages.iter() {
+        let mut page_flags = base_flags;
+        get_flags(&mut page_flags, *flags);
+
+        unsafe { info.page_table.update_flags(*page, page_flags) }
+            .unwrap()
+            .flush();
+    }
+
     info!("Loaded segments");
 
     if e_type == EType::ET_DYN {
+        let dynamic_symbol_table = elf.dynamic_symbol_table();
         for (addr, reloc) in elf.dynamic_relocations().into_iter().flatten() {
             match reloc.target() {
                 object::RelocationTarget::Symbol(symbol_index) => {
-                    unimplemented!("symbol {symbol_index:?}")
+                    debug!("RELOC {addr:x} {reloc:?}");
+                    // for sym in elf.symbols() {
+                    //     debug!("SYM {:?} {:?}", sym.index(), sym.name());
+                    // }
+                    // for sym in elf.dynamic_symbols() {
+                    //     debug!("DYNSYM {:?} {:?}", sym.index(), sym.name());
+                    // }
+                    // for sym in elf.imports().unwrap() {
+                    //     debug!("IMPORT {:?}", sym.name());
+                    // }
+                    // for sym in elf.exports().unwrap() {
+                    //     debug!("EXPORT {:?}", sym.name());
+                    // }
+                    let symbol = dynamic_symbol_table
+                        .unwrap()
+                        .symbol_by_index(symbol_index)
+                        .unwrap();
+                    let value = resolver.resolve(symbol).unwrap();
+                    let addr = base_addr + addr;
+
+                    unsafe { addr.as_mut_ptr::<u64>().write(value.as_u64()) };
+
+                    debug!(
+                        "symbol {symbol_index:?} = {:?} (resolved: {value:?}, set {addr:p})",
+                        symbol.name()
+                    )
                 }
                 object::RelocationTarget::Section(section_index) => {
+                    debug!("RELOC {addr:x} {reloc:?}");
                     unimplemented!("section {section_index:?}")
                 }
                 object::RelocationTarget::Absolute => {
@@ -512,14 +611,44 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
                 }
                 x => unimplemented!("{x:?}"),
             }
-            // debug!("RELOC {addr:x} {reloc:?}");
         }
-
-        // TODO Apply relocs
-        // todo!("Relocs")
     }
 
-    let highest_page = highest_page.unwrap();
+    drop(info_lock);
+
+    Ok(LoadedElf {
+        load_offset: base_addr.as_u64(),
+        elf: elf_contained,
+        mapped_pages,
+        highest_page,
+        symbol_resolver: resolver,
+    })
+}
+
+pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
+    let loaded_elf = load_elf(
+        bytes,
+        VirtAddr::zero(),
+        |e_type, addr| {
+            if *e_type == EType::ET_DYN {
+                // TODO randomize base address
+                Ok(addr + Size4KiB::SIZE) // Skip first page
+            } else if *e_type == EType::ET_EXEC {
+                Ok(addr)
+            } else {
+                panic!("{e_type:?} is not a valid ELF executable")
+            }
+        },
+        true,
+        (),
+    )
+    .unwrap();
+
+    let info = KERNEL_INFO.get().unwrap();
+    let mut info_lock = info.alloc_kinf.lock();
+    let info = info_lock.deref_mut();
+
+    let highest_page = loaded_elf.highest_page.unwrap();
     let brk = highest_page.start_address() + Size4KiB::SIZE;
 
     let stack_top = qemu_common::KERNEL_START;
@@ -536,19 +665,22 @@ pub fn load_elf(bytes: &[u8]) -> LoadedProgram {
 
     debug!("Setup stack {stack:?}");
 
-    let entry = base_addr + elf.elf_header().e_entry(LittleEndian);
+    let entry =
+        VirtAddr::new(loaded_elf.load_offset + loaded_elf.elf().elf_header().e_entry(LittleEndian));
     info!("ELF loaded with entry point {:p}", entry);
 
     LoadedProgram {
         stack,
         entry,
-        elf: elf_contained,
-        load_offset: base_addr.as_u64(),
-        mapped_pages,
+        elf: loaded_elf,
         heap: ReentrantMutex::new(UserHeap::new(brk)),
     }
 }
 
 pub const fn load_example_elf() -> &'static [u8] {
     TEST
+}
+
+pub const fn load_example_driver() -> &'static [u8] {
+    DRIVER
 }

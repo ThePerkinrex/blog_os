@@ -27,7 +27,7 @@ pub fn print(s: &str) {
 
 // Required panic handler
 #[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
+fn panic(_: &core::panic::PanicInfo) -> ! {
     unsafe { &INTERFACE }.abort();
     loop {
         core::hint::spin_loop();

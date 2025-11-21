@@ -5,7 +5,7 @@ use log::{debug, info};
 
 use crate::{
     KERNEL_INFO,
-    elf::{LoadedProgram, load_elf},
+    elf::{LoadedProgram, load_user_program},
     memory::multi_l4_paging::PageTableToken,
     multitask::{get_current_task, set_current_process_info},
     priviledge::jmp_to_usermode,
@@ -120,7 +120,7 @@ impl ProcessInfo {
         }
 
         debug!("[{id}] Loading elf");
-        let prog = load_elf(prog);
+        let prog = load_user_program(prog);
         info!("[{id}] Loaded elf");
 
         Self {

@@ -92,7 +92,22 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
             .set_stack_index(gdt::PAGE_FAULT_IST_INDEX);
         idt.double_fault
             .set_handler_fn(double_fault_handler)
-            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX); // new
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.alignment_check
+            .set_handler_fn(align_check)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.invalid_opcode
+            .set_handler_fn(invalid_opcode)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.stack_segment_fault
+            .set_handler_fn(stack_segment)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.segment_not_present
+            .set_handler_fn(segment_not_present)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.invalid_tss
+            .set_handler_fn(invalid_tss)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
     }
     idt[InterruptIndex::Timer.as_u8()].set_handler_fn(timer_interrupt_handler);
     idt[InterruptIndex::Keyboard.as_u8()].set_handler_fn(keyboard_interrupt_handler);
@@ -344,11 +359,46 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     log::info!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
+extern "x86-interrupt" fn align_check(stack_frame: InterruptStackFrame, error_code: u64) {
+    panic!(
+        "EXCEPTION: ALIGN FAULT ({error_code} - 0x{error_code:x})\n{:#?}",
+        stack_frame
+    );
+}
+
+extern "x86-interrupt" fn stack_segment(stack_frame: InterruptStackFrame, error_code: u64) {
+    panic!(
+        "EXCEPTION: STACK SEGMENT FAULT ({error_code} - 0x{error_code:x})\n{:#?}",
+        stack_frame
+    );
+}
+
+extern "x86-interrupt" fn segment_not_present(stack_frame: InterruptStackFrame, error_code: u64) {
+    panic!(
+        "EXCEPTION: SEGMENT NOT PRESENT FAULT ({error_code} - 0x{error_code:x})\n{:#?}",
+        stack_frame
+    );
+}
+
+extern "x86-interrupt" fn invalid_tss(stack_frame: InterruptStackFrame, error_code: u64) {
+    panic!(
+        "EXCEPTION: INVALID TSS FAULT ({error_code} - 0x{error_code:x})\n{:#?}",
+        stack_frame
+    );
+}
+
+extern "x86-interrupt" fn invalid_opcode(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: OPCODE FAULT\n{:#?}", stack_frame);
+}
+
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
-    _error_code: u64,
+    error_code: u64,
 ) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
+    panic!(
+        "EXCEPTION: DOUBLE FAULT ({error_code} - 0x{error_code:x})\n{:#?}",
+        stack_frame
+    );
 }
 
 extern "x86-interrupt" fn page_fault_handler(

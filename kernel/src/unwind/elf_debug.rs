@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use addr2line::Location;
 use alloc::{boxed::Box, collections::binary_heap::BinaryHeap, string::String, sync::Arc};
 use kernel_utils::maybe_boxed::MaybeBoxed;
@@ -43,7 +45,7 @@ impl UnwindableElf for LoadedProgram {
 
     fn eh_info(&self) -> Option<&EhInfo<'_>> {
         // println!("Getting eh_info for process");
-        self.eh_info()
+        self.deref().eh_info()
     }
 
     fn find_location(&self, virtaddr: u64) -> (Result<Option<ClonedLocation>, gimli::Error>, u64) {
