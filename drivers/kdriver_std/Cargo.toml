@@ -1,0 +1,11 @@
+[package]
+name = "kdriver_std"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kdriver-api = {path = "../../kernel-libs/kdriver-api"}
+
+[lib]
+test=false
+bench=false

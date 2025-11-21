@@ -7,7 +7,7 @@ toolchain = "nightly"
 
 [tasks.bindings]
 workspace = false
-dependencies = [{name = "cbindgen", path = "blog_os-device-api"}]
+dependencies = [{name = "cbindgen", path = "blog_os-device-api"}, {name = "cbindgen", path = "kdriver-api"}]
 script_runner = "@duckscript"
 script = '''
 rm -r target/bindings/
@@ -15,6 +15,9 @@ mkdir target/bindings/
 
 cp ./blog_os-device-api/bindings target/bindings/
 mv target/bindings/bindings target/bindings/blog_os-device-api
+
+cp ./kdriver-api/bindings target/bindings/
+mv target/bindings/bindings target/bindings/kdriver-api
 '''
 
 [tasks.build]

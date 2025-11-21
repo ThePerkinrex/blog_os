@@ -1,0 +1,3 @@
+[workspace]
+members = ["kdriver_std","test_driver"]
+resolver = "3"

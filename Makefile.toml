@@ -9,6 +9,7 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
 	"userspace",
 	"kernel-libs",
 	"kernel",
+	"drivers"
 ]
 COV_ARGS = ["test", "--no-report"]
 

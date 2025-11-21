@@ -183,6 +183,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kdriver-api"
+version = "0.1.0"
+dependencies = [
+ "cglue",
+]
+
+[[package]]
 name = "kernel-utils"
 version = "0.1.0"
 

@@ -1,0 +1,25 @@
+[tasks.cov]
+workspace = false
+install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo", test_arg = ["llvm-cov", "--help"]}
+command = "cargo"
+args = ["llvm-cov", "@@split(COV_ARGS,;)"]
+toolchain = "nightly"
+
+[tasks.bindings]
+# workspace = false
+# dependencies = [{name = "cbindgen", path = "blog_os-device-api"}]
+# script_runner = "@duckscript"
+# script = '''
+# rm -r target/bindings/
+# mkdir target/bindings/
+
+# cp ./blog_os-device-api/bindings target/bindings/
+# mv target/bindings/bindings target/bindings/blog_os-device-api
+# '''
+
+[tasks.build]
+toolchain = "nightly"
+
+
+[tasks.docs]
+toolchain = "nightly"

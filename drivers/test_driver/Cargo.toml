@@ -1,0 +1,13 @@
+[package]
+name = "test_driver"
+version = "0.1.0"
+edition = "2024"
+
+
+[lib]
+test=false
+bench=false
+crate-type = ["cdylib"]
+
+[dependencies]
+kdriver_std = {path = "../kdriver_std"}

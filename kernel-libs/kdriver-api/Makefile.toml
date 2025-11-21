@@ -1,0 +1,19 @@
+[tasks.create-cbindgen]
+condition ={ files_not_exist = ["bindings"]}
+script_runner = "@duckscript"
+script = "mkdir bindings"
+
+[tasks.cbindgen]
+dependencies = ["create-cbindgen"]
+install_crate = { crate_name = "cglue-bindgen", binary = "cglue-bindgen", test_arg = ["--", "--help"] }
+command = "cglue-bindgen"
+args = [
+	"+nightly",
+	"--",
+	"--config",
+	"cbindgen.toml",
+	"--crate",
+	"kdriver-api",
+	"--output",
+	"bindings/kdriver-api.h",
+]

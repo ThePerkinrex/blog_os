@@ -1,0 +1,11 @@
+language = "C"
+
+[parse]
+parse_deps = true
+include = ["cglue", "kdriver-api"]
+
+[parse.expand]
+crates = ["cglue", "kdriver-api"]
+
+[export]
+include = ["KernelInterfaceRef"]
