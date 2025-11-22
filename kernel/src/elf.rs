@@ -596,7 +596,7 @@ pub fn load_elf<S: SymbolResolver>(
                     let value = resolver.resolve(symbol).unwrap();
                     let addr = base_addr + addr;
 
-                    unsafe { addr.as_mut_ptr::<u64>().write(value.as_u64()) };
+                    unsafe { core::ptr::copy(value.data.as_ptr(), addr.as_mut_ptr::<u8>(), value.data.len()) };
 
                     debug!(
                         "symbol {symbol_index:?} = {:?} (resolved: {value:?}, set {addr:p})",

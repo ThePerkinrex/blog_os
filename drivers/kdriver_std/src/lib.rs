@@ -1,9 +1,9 @@
 #![no_std]
 
-use kdriver_api::{KernelInterface, cglue_kernelinterface::KernelInterfaceRef};
+use kdriver_api::{KernelInterface, cglue_kernelinterface::{KernelInterfaceBox}};
 
 unsafe extern "C" {
-    pub unsafe static INTERFACE: KernelInterfaceRef<'static>;
+    pub unsafe static INTERFACE: &'static KernelInterfaceBox<'static>;
 }
 
 struct GlobalAllocator;
@@ -22,13 +22,13 @@ unsafe impl core::alloc::GlobalAlloc for GlobalAllocator {
 static ALLOC: GlobalAllocator = GlobalAllocator;
 
 pub fn print(s: &str) {
-    unsafe { &INTERFACE }.print(s);
+    unsafe { INTERFACE }.print(s);
 }
 
 // Required panic handler
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    unsafe { &INTERFACE }.abort();
+    unsafe { INTERFACE }.abort();
     loop {
         core::hint::spin_loop();
     }
