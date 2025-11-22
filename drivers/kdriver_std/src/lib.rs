@@ -3,18 +3,23 @@
 use kdriver_api::{KernelInterface, cglue_kernelinterface::{KernelInterfaceBox}};
 
 unsafe extern "C" {
-    pub unsafe static INTERFACE: &'static KernelInterfaceBox<'static>;
+    unsafe static ID: u64;
+    unsafe fn get_interface<'a>(id: u64) -> *const  KernelInterfaceBox<'static>;
+}
+
+pub fn interface<'a>() -> &'a KernelInterfaceBox<'static> {
+    unsafe { get_interface(ID).as_ref() }.unwrap()
 }
 
 struct GlobalAllocator;
 
 unsafe impl core::alloc::GlobalAlloc for GlobalAllocator {
     unsafe fn alloc(&self, layout: core::alloc::Layout) -> *mut u8 {
-        unsafe { INTERFACE.alloc(layout.into()) }
+        unsafe { interface().alloc(layout.into()) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
-        unsafe { INTERFACE.dealloc(ptr, layout.into()) }
+        unsafe { interface().dealloc(ptr, layout.into()) }
     }
 }
 
@@ -22,13 +27,13 @@ unsafe impl core::alloc::GlobalAlloc for GlobalAllocator {
 static ALLOC: GlobalAllocator = GlobalAllocator;
 
 pub fn print(s: &str) {
-    unsafe { INTERFACE }.print(s);
+    interface().print(s);
 }
 
 // Required panic handler
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    unsafe { INTERFACE }.abort();
+    interface().abort();
     loop {
         core::hint::spin_loop();
     }
