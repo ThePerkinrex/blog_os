@@ -12,14 +12,11 @@ use core::panic::PanicInfo;
 // use blog_os_device::api::bus::{Bus, BusDeviceDriver};
 // use blog_os_pci::bus::PciBus;
 use log::{debug, info};
-use object::{Object, ObjectSymbol};
 use qemu_common::QemuExitCode;
 use x86_64::VirtAddr;
 
 use crate::{
-    elf::{load_elf, load_example_driver, symbol::KDriverResolver},
-    process::ProcessInfo,
-    setup::KERNEL_INFO,
+    driver::KDriver, elf::load_example_driver, process::ProcessInfo, setup::KERNEL_INFO
 };
 
 pub mod allocator;
@@ -70,17 +67,22 @@ pub fn kernel_main() -> ! {
 
     // hlt_loop();
 
-    let driver = load_elf(
-        load_example_driver(),
-        VirtAddr::new_truncate(30 << 39),
-        |_, addr| Ok(addr),
-        false,
-        KDriverResolver::new(driver::Interface {}),
-    )
-    .unwrap();
-    for s in driver.elf().symbols() {
-        debug!("driver symbol {:?}", s.name())
-    }
+    // let driver = load_elf(
+    //     load_example_driver(),
+    //     VirtAddr::new_truncate(30 << 39),
+    //     |_, addr| Ok(addr),
+    //     false,
+    //     KDriverResolver::new(driver::Interface {}),
+    // )
+    // .unwrap();
+    // for s in driver.elf().symbols() {
+    //     debug!("driver symbol {:?}", s.name())
+    // }
+
+    let driver = KDriver::new(load_example_driver(),VirtAddr::new_truncate(30 << 39)).unwrap();
+    debug!("driver: {driver:?}");
+    driver.start();
+    drop(driver);
 
     info!("Adding new task to list");
     multitask::create_task(other_task, "other_task");

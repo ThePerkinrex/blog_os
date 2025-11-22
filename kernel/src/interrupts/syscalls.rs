@@ -85,7 +85,7 @@ pub extern "C" fn syscall_tail() {
         debug!("Weak count: {}", Arc::weak_count(&program));
 
         let program = Arc::into_inner(program).expect("No more than one ref");
-        unsafe { program.unload() };
+        drop(program);
 
         x86_64::instructions::interrupts::enable();
         task_exit();

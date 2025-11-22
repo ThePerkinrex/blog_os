@@ -7,15 +7,12 @@ use crate::driver::Interface;
 
 pub trait SymbolResolver {
     fn resolve<'data, 'file, S: ObjectSymbol<'data>>(&mut self, symbol: S) -> Option<VirtAddr>;
-    fn unload(self);
 }
 
 impl SymbolResolver for () {
     fn resolve<'data, 'file, S: ObjectSymbol<'data>>(&mut self, _: S) -> Option<VirtAddr> {
         None
     }
-
-    fn unload(self) {}
 }
 
 #[ouroboros::self_referencing]
@@ -57,9 +54,5 @@ impl SymbolResolver for KDriverResolver {
         } else {
             None
         }
-    }
-
-    fn unload(self) {
-        drop(self.interface)
     }
 }

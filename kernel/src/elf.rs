@@ -1,6 +1,5 @@
 use core::{
-    alloc::Layout,
-    ops::{Deref, DerefMut},
+    alloc::Layout, mem::ManuallyDrop, ops::{Deref, DerefMut}
 };
 
 use addr2line::Context;
@@ -13,6 +12,7 @@ use object::{
 };
 use ouroboros::self_referencing;
 use spin::Once;
+use thiserror::Error;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -201,11 +201,10 @@ impl UserHeap {
             Some(self.brk)
         }
     }
+}
 
-    /// # Safety
-    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
-    /// and the page table used must be the one used to map the pages
-    pub unsafe fn unload(self) {
+impl Drop for UserHeap {
+    fn drop(&mut self) {
         // Unload the stack
         let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
         let mem = &mut *lock;
@@ -242,7 +241,7 @@ pub struct LoadedElf<S: SymbolResolver> {
     elf: ElfWithDataAndDwarf,
     mapped_pages: BTreeMap<Page, ElfPhSegmentFlags>,
     highest_page: Option<Page>,
-    symbol_resolver: S,
+    _symbol_resolver: S,
 }
 
 impl<S: SymbolResolver> core::fmt::Debug for LoadedElf<S> {
@@ -300,10 +299,18 @@ impl<S: SymbolResolver> LoadedElf<S> {
         self.load_offset
     }
 
-    /// # Safety
-    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
-    /// and the page table used must be the one used to map the pages
-    pub unsafe fn unload(self) {
+//     /// # Safety
+//     /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
+//     /// and the page table used must be the one used to map the pages
+//     pub unsafe fn unload(self) {
+        
+
+//         self.symbol_resolver.unload();
+//     }
+}
+
+impl<S: SymbolResolver> Drop for LoadedElf<S> {
+    fn drop(&mut self) {
         // Unload the stack
         let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
         let mem = &mut *lock;
@@ -332,14 +339,12 @@ impl<S: SymbolResolver> LoadedElf<S> {
         }
 
         drop(lock);
-
-        self.symbol_resolver.unload();
     }
 }
 
 pub struct LoadedProgram {
     elf: LoadedElf<()>,
-    stack: GeneralStack,
+    stack: ManuallyDrop<GeneralStack>,
     entry: VirtAddr,
     heap: ReentrantMutex<UserHeap>,
 }
@@ -359,28 +364,25 @@ impl LoadedProgram {
         self.entry
     }
 
-    pub const fn stack(&self) -> &GeneralStack {
+    pub fn stack(&self) -> &GeneralStack {
         &self.stack
-    }
-
-    /// # Safety
-    /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
-    /// and the page table used must be the one used to map the pages
-    pub unsafe fn unload(self) {
-        // Unload the stack
-        let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
-        let mem = &mut *lock;
-        unsafe { stack::clear_stack(self.stack, &mut mem.page_table, &mut mem.frame_allocator) };
-
-        drop(lock);
-
-        unsafe { self.elf.unload() };
-
-        unsafe { self.heap.into_inner().unload() };
     }
 
     pub const fn heap(&self) -> &ReentrantMutex<UserHeap> {
         &self.heap
+    }
+}
+
+impl Drop for LoadedProgram {
+    fn drop(&mut self) {
+        let stack = unsafe {ManuallyDrop::take(&mut self.stack)};
+
+        // Unload the stack
+        let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+        let mem = &mut *lock;
+        unsafe { stack::clear_stack(stack, &mut mem.page_table, &mut mem.frame_allocator) };
+
+        drop(lock);
     }
 }
 
@@ -398,8 +400,11 @@ impl DerefMut for LoadedProgram {
     }
 }
 
-#[derive(Debug)]
-pub enum ElfLoadError {}
+#[derive(Debug, Error)]
+pub enum ElfLoadError {
+    #[error("Invalid type: {0:?}")]
+    InvalidType(EType),
+}
 
 pub fn load_elf<S: SymbolResolver>(
     bytes: &[u8],
@@ -621,7 +626,7 @@ pub fn load_elf<S: SymbolResolver>(
         elf: elf_contained,
         mapped_pages,
         highest_page,
-        symbol_resolver: resolver,
+        _symbol_resolver: resolver,
     })
 }
 
@@ -670,7 +675,7 @@ pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
     info!("ELF loaded with entry point {:p}", entry);
 
     LoadedProgram {
-        stack,
+        stack: ManuallyDrop::new(stack),
         entry,
         elf: loaded_elf,
         heap: ReentrantMutex::new(UserHeap::new(brk)),

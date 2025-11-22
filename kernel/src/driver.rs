@@ -1,4 +1,13 @@
+use core::ffi::CStr;
+
+use alloc::string::String;
 use kdriver_api::{CLayout, KernelInterface};
+use log::info;
+use object::{Object, ObjectSymbol};
+use thiserror::Error;
+use x86_64::VirtAddr;
+
+use crate::elf::{EType, ElfLoadError, LoadedElf, load_elf, symbol::KDriverResolver};
 
 pub struct Interface {}
 
@@ -16,5 +25,82 @@ impl KernelInterface for Interface {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout) {
         todo!()
+    }
+}
+
+pub struct KDriver {
+    _elf: LoadedElf<KDriverResolver>,
+    name: String,
+    version: String,
+    start: extern "C" fn(),
+    stop: extern "C" fn(),
+}
+
+impl core::fmt::Debug for KDriver {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("KDriver").field("name", &self.name).field("version", &self.version).field("start", &self.start).field("stop", &self.stop).finish()
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum DriverLoadError {
+    #[error(transparent)]
+    Elf(#[from] ElfLoadError),
+    #[error("Symbol is missing: {0:?}")]
+    MissingSymbol(&'static str),
+}
+
+fn get_symbol<'file, 'data, O: Object<'data>>(object: &'file O, symbol_name: &'static str) -> Result<O::Symbol<'file>, DriverLoadError> {
+    object.symbol_by_name(symbol_name).ok_or(DriverLoadError::MissingSymbol(symbol_name))
+}
+
+impl KDriver {
+    pub fn new(bytes: &[u8], base_addr: VirtAddr) -> Result<Self, DriverLoadError> {
+        let elf = load_elf(
+            bytes,
+            base_addr,
+            |e_type, virt_addr| {
+                if *e_type == EType::ET_DYN {
+                    Ok(virt_addr)
+                } else {
+                    Err(ElfLoadError::InvalidType(*e_type))
+                }
+            },
+            false,
+            KDriverResolver::new(Interface {}),
+        )?;
+
+        let start_sym = get_symbol(elf.elf(), "start")?;
+        let stop_sym = get_symbol(elf.elf(), "stop")?;
+        let name_sym = get_symbol(elf.elf(), "NAME")?;
+        let version_sym = get_symbol(elf.elf(), "VERSION")?;
+
+        let start_addr = base_addr + start_sym.address();
+        let stop_addr = base_addr + stop_sym.address();
+        let name_addr = base_addr + name_sym.address();
+        let version_addr = base_addr + version_sym.address();
+
+        let start = unsafe {core::mem::transmute::<*const (), extern "C" fn()>(start_addr.as_ptr::<()>())};
+        let stop = unsafe {core::mem::transmute::<*const (), extern "C" fn()>(stop_addr.as_ptr::<()>())};
+
+        Ok(Self {
+                    _elf: elf,
+                    name: String::new(),
+                    version: String::new(),
+                    start,
+                    stop,
+                })
+    }
+
+    pub fn start(&self) {
+        info!("Starting driver [{}:{}]", self.name, self.version);
+        (self.start)()
+    }
+}
+
+impl Drop for KDriver {
+    fn drop(&mut self) {
+        info!("Stopping driver [{}:{}]", self.name, self.version);
+        (self.stop)()
     }
 }

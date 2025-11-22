@@ -8,6 +8,8 @@ use kdriver_std::print;
 
 #[unsafe(no_mangle)]
 pub static NAME: &CStr = c"aaaa";
+#[unsafe(no_mangle)]
+pub static VERSION: &CStr = c"bbbb";
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start() {
