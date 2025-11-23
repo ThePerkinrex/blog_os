@@ -3,7 +3,10 @@ use alloc::vec::Vec;
 use bootloader_api::{config::ApiVersion, info::TlsTemplate};
 use log::{info, trace, warn};
 use spin::Once;
-use x86_64::{VirtAddr, structures::paging::Mapper};
+use x86_64::{
+    VirtAddr,
+    structures::paging::{Mapper, Size4KiB},
+};
 
 use crate::{
     allocator,
@@ -14,7 +17,7 @@ use crate::{
     interrupts,
     io,
     memory::{
-        self, BootInfoFrameAllocator, multi_l4_paging::PageTables, pages::VirtRegionAllocator,
+        self, BootInfoFrameAllocator, multi_l4_paging::PageTables, range_alloc::RangeAllocator,
     },
     multitask::{self, lock::ReentrantMutex},
     stack::{self, SlabStack, StackAlloc},
@@ -27,7 +30,7 @@ pub struct AllocKernelInfo {
     /// The kernel page tables
     pub page_table: PageTables,
     pub frame_allocator: BootInfoFrameAllocator,
-    pub virt_region_allocator: VirtRegionAllocator<1>,
+    pub virt_region_allocator: RangeAllocator<u64>,
 }
 
 impl AllocKernelInfo {
@@ -126,7 +129,7 @@ pub static KERNEL_INFO: Once<KernelInfo> = Once::new();
 static ALLOC_KINF: Once<ReentrantMutex<AllocKernelInfo>> = Once::new();
 
 pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
-    let layout = memory::pages::discover_layout(boot_info);
+    let layout = memory::range_alloc::discover_layout(boot_info);
     gdt::init();
     interrupts::init_idt();
     if let Some(fb) = boot_info.framebuffer.as_mut() {
@@ -150,11 +153,15 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     );
     let page_table = unsafe { memory::init_page_tables(physical_memory_offset) };
     let frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
-    info!("Initializing region allocator");
-    let virt_region_allocator = memory::pages::init_region_allocator(&layout, &page_table);
-    info!("Initialized region allocator");
 
     let page_table = PageTables::new(page_table, VirtAddr::new(boot_info.kernel_image_offset));
+    info!("Initializing region allocator");
+    let virt_region_allocator = memory::range_alloc::init_region_allocator::<_, Size4KiB>(
+        &page_table,
+        &layout,
+        &page_table,
+    );
+    info!("Initialized region allocator");
 
     let alloc_kinf = ALLOC_KINF.call_once(|| {
         ReentrantMutex::new(AllocKernelInfo {

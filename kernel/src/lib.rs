@@ -13,7 +13,6 @@ use core::panic::PanicInfo;
 // use blog_os_pci::bus::PciBus;
 use log::{debug, info};
 use qemu_common::QemuExitCode;
-use x86_64::VirtAddr;
 
 use crate::{driver::KDriver, elf::load_example_driver, process::ProcessInfo, setup::KERNEL_INFO};
 
@@ -77,7 +76,7 @@ pub fn kernel_main() -> ! {
     //     debug!("driver symbol {:?}", s.name())
     // }
 
-    let driver = KDriver::new(load_example_driver(), VirtAddr::new_truncate(30 << 39)).unwrap();
+    let driver = KDriver::new(load_example_driver()).unwrap();
     debug!("driver: {driver:?}");
     driver.start();
     drop(driver);

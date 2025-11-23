@@ -1,13 +1,20 @@
-use core::ffi::CStr;
+use core::{ffi::CStr, ops::Range};
 
 use alloc::string::String;
 use kdriver_api::{CLayout, KernelInterface};
 use log::info;
 use object::{Object, ObjectSymbol};
 use thiserror::Error;
-use x86_64::VirtAddr;
+use x86_64::{
+    VirtAddr,
+    structures::paging::{PageSize, Size4KiB},
+};
 
-use crate::elf::{EType, ElfLoadError, LoadedElf, load_elf, symbol::KDriverResolver};
+use crate::{
+    elf::{EType, ElfLoadError, LoadedElf, load_elf, symbol::KDriverResolver},
+    memory::range_alloc::FreeOnDrop,
+    setup::KERNEL_INFO,
+};
 
 pub struct Interface {}
 
@@ -17,7 +24,7 @@ impl KernelInterface for Interface {
     }
 
     fn print(&self, str: &str) {
-        todo!("print({str:?})")
+        info!("print({str:?})")
     }
     unsafe fn alloc(&self, layout: CLayout) -> *mut u8 {
         todo!("alloc({layout:?})")
@@ -34,6 +41,7 @@ pub struct KDriver {
     version: String,
     start: extern "C" fn(),
     stop: extern "C" fn(),
+    _region: Option<FreeOnDrop>,
 }
 
 impl core::fmt::Debug for KDriver {
@@ -65,13 +73,28 @@ fn get_symbol<'file, 'data, O: Object<'data>>(
 }
 
 impl KDriver {
-    pub fn new(bytes: &[u8], base_addr: VirtAddr) -> Result<Self, DriverLoadError> {
+    pub fn new(bytes: &[u8]) -> Result<Self, DriverLoadError> {
+        let mut region = None;
         let elf = load_elf(
             bytes,
-            base_addr,
-            |e_type, virt_addr| {
+            |e_type, size| {
                 if *e_type == EType::ET_DYN {
-                    Ok(virt_addr)
+                    let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+
+                    let pages = VirtAddr::new_truncate(size)
+                        .align_up(Size4KiB::SIZE)
+                        .as_u64()
+                        / Size4KiB::SIZE;
+                    let alloc_reg = lock
+                        .virt_region_allocator
+                        .allocate_range(pages)
+                        .map_err(|_| ElfLoadError::MemAllocError)?;
+                    let base_addr = VirtAddr::new_truncate(alloc_reg.start);
+                    region = Some(alloc_reg);
+
+                    drop(lock);
+
+                    Ok(base_addr)
                 } else {
                     Err(ElfLoadError::InvalidType(*e_type))
                 }
@@ -79,6 +102,8 @@ impl KDriver {
             false,
             KDriverResolver::new(Interface {}),
         )?;
+
+        let base_addr = VirtAddr::new_truncate(elf.load_offset());
 
         let start_sym = get_symbol(elf.elf(), "start")?;
         let stop_sym = get_symbol(elf.elf(), "stop")?;
@@ -109,6 +134,7 @@ impl KDriver {
             version,
             start,
             stop,
+            _region: region.map(FreeOnDrop),
         })
     }
 
@@ -121,6 +147,6 @@ impl KDriver {
 impl Drop for KDriver {
     fn drop(&mut self) {
         info!("Stopping driver [{}:{}]", self.name, self.version);
-        (self.stop)()
+        (self.stop)();
     }
 }

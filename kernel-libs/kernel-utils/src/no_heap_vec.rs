@@ -89,10 +89,8 @@ impl<const CAP: usize, T> Index<usize> for NoHeapVec<CAP, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).map_or_else(
-            || panic!("Index out of range {index} >= {}", self.len),
-            |x| x,
-        )
+        self.get(index)
+            .unwrap_or_else(|| panic!("Index out of range {index} >= {}", self.len))
     }
 }
 
@@ -100,7 +98,7 @@ impl<const CAP: usize, T> IndexMut<usize> for NoHeapVec<CAP, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let len = self.len;
         self.get_mut(index)
-            .map_or_else(|| panic!("Index out of range {index} >= {}", len), |x| x)
+            .unwrap_or_else(|| panic!("Index out of range {index} >= {}", len))
     }
 }
 

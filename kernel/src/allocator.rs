@@ -2,8 +2,11 @@ use core::ops::DerefMut;
 use log::{debug, error, info};
 use spin::Mutex;
 use talc::{OomHandler, Span, Talc, Talck};
-use x86_64::structures::paging::{
-    FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
+use x86_64::{
+    VirtAddr,
+    structures::paging::{
+        FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError,
+    },
 };
 
 use crate::{multitask::lock::ReentrantMutex, setup::AllocKernelInfo};
@@ -22,10 +25,13 @@ pub fn init_heap(
     let locked = lock.deref_mut();
 
     debug!("Getting heap_start");
-    let heap_start = locked
-        .virt_region_allocator
-        .alloc_pages(HEAP_PAGES as usize)
-        .expect("Heap region");
+    let heap_start = VirtAddr::new_truncate(
+        locked
+            .virt_region_allocator
+            .allocate_range(HEAP_PAGES)
+            .expect("Heap region")
+            .start,
+    );
     // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
 
     debug!("Getting page range");
@@ -91,10 +97,12 @@ impl OomHandler for OomGrow {
         let kinf = lock.deref_mut();
 
         // TODO take layout into account
-        let heap_start = kinf
-            .virt_region_allocator
-            .alloc_pages(GROW_PAGES as usize)
-            .expect("Heap region");
+        let heap_start = VirtAddr::new_truncate(
+            kinf.virt_region_allocator
+                .allocate_range(GROW_PAGES)
+                .expect("Heap region")
+                .start,
+        );
         // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
         let page_range = {
             let heap_end = heap_start + (GROW_PAGES * Size4KiB::SIZE) - 1u64;

@@ -5,9 +5,13 @@ use x86_64::{
     VirtAddr,
     structures::paging::{
         Mapper, OffsetPageTable, Page, PageTable, PageTableIndex, PhysFrame, Size4KiB, Translate,
-        mapper::CleanUp, page::PageRangeInclusive, page_table::PageTableEntry,
+        mapper::CleanUp,
+        page::PageRangeInclusive,
+        page_table::{PageTableEntry, PageTableLevel},
     },
 };
+
+use crate::memory::free_tables::{FreeEntry, FreeTables};
 
 #[derive(Debug)]
 pub struct PageTableToken {
@@ -500,5 +504,19 @@ impl Translate for PageTables {
         addr: x86_64::VirtAddr,
     ) -> x86_64::structures::paging::mapper::TranslateResult {
         self.current.translate(addr)
+    }
+}
+
+impl FreeTables for PageTables {
+    fn free_l4_kernel_entries(&self) -> impl Iterator<Item = super::free_tables::FreeEntry> {
+        self.current
+            .level_4_table()
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.is_unused())
+            .map(|(i, _)| FreeEntry {
+                index: PageTableIndex::new_truncate(i as u16),
+                alignment: PageTableLevel::Four.entry_address_space_alignment(),
+            })
     }
 }

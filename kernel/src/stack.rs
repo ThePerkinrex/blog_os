@@ -7,7 +7,7 @@ use x86_64::{
     },
 };
 
-use crate::memory::pages::VirtRegionAllocator;
+use crate::memory::range_alloc::RangeAllocator;
 
 const STACK_PAGES: usize = 8; // 4KiB * 8 = 32KiB stacks
 
@@ -153,10 +153,13 @@ pub struct StackAlloc {
 }
 
 impl StackAlloc {
-    pub fn new<const CAP: usize>(region_alloc: &mut VirtRegionAllocator<CAP, Size4KiB>) -> Self {
-        let region_start = region_alloc
-            .alloc_pages(SLAB_PAGES)
-            .expect("Available space for all entries");
+    pub fn new<const CAP: usize>(region_alloc: &mut RangeAllocator<u64, CAP>) -> Self {
+        let region_start = VirtAddr::new_truncate(
+            region_alloc
+                .allocate_range(SLAB_PAGES as u64)
+                .expect("Available space for all entries")
+                .start,
+        );
         Self {
             stack_info: [0; SLAB_BITMAP_ENTRIES],
             region_start,

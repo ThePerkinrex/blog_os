@@ -11,7 +11,9 @@ use x86_64::structures::paging::{
 };
 
 pub mod multi_l4_paging;
-pub mod pages;
+// pub mod pages;
+pub mod free_tables;
+pub mod range_alloc;
 
 /// Initialize a new OffsetPageTable.
 ///

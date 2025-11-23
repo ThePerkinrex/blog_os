@@ -405,12 +405,13 @@ impl DerefMut for LoadedProgram {
 pub enum ElfLoadError {
     #[error("Invalid type: {0:?}")]
     InvalidType(EType),
+    #[error("Unable to allocate memory region for loading this ELF")]
+    MemAllocError,
 }
 
 pub fn load_elf<S: SymbolResolver>(
     bytes: &[u8],
-    mut base_addr: VirtAddr,
-    type_check: impl FnOnce(&EType, VirtAddr) -> Result<VirtAddr, ElfLoadError>,
+    type_check: impl FnOnce(&EType, u64) -> Result<VirtAddr, ElfLoadError>,
     user: bool,
     mut resolver: S,
 ) -> Result<LoadedElf<S>, ElfLoadError> {
@@ -432,12 +433,11 @@ pub fn load_elf<S: SymbolResolver>(
 
     debug!("ELF type: {:?} ({:x})", e_type, e_type as u16);
 
-    base_addr = type_check(&e_type, base_addr)?;
-
-    let mut loads = Vec::<((u64, u64), (VirtAddr, u64), ElfPhSegmentFlags)>::new();
+    let mut loads = Vec::<((u64, u64), (u64, u64), ElfPhSegmentFlags)>::new();
     debug!(
         "                type      flags     offset      vaddr      paddr     filesz      memsz      align"
     );
+    let mut highest_end = 0;
     for p in elf.elf_program_headers() {
         let p_type = PHType::from(p.p_type(LittleEndian));
         let offset = p.p_offset(LittleEndian);
@@ -458,9 +458,12 @@ pub fn load_elf<S: SymbolResolver>(
             p.p_align(LittleEndian)
         );
         if p_type == PHType::Load {
-            loads.push(((offset, filesz), (base_addr + vaddr, memsz), flags));
+            highest_end = highest_end.max(vaddr + memsz);
+            loads.push(((offset, filesz), (vaddr, memsz), flags));
         }
     }
+
+    let base_addr = type_check(&e_type, highest_end)?;
 
     let mut base_flags = PageTableFlags::PRESENT; // To setup the pages, we need to write to them
 
@@ -484,7 +487,8 @@ pub fn load_elf<S: SymbolResolver>(
     let info = info_lock.deref_mut();
     let mut highest_page: Option<Page> = None;
     let mut mapped_pages = BTreeMap::new();
-    for ((offset, filesz), (vaddr, memsz), flags) in loads {
+    for ((offset, filesz), (vaddr_offset, memsz), flags) in loads {
+        let vaddr = base_addr + vaddr_offset;
         debug!(
             "Loading segment at offset {offset:x} (sz: {filesz:x}) to {vaddr:p} (sz: {memsz:x})"
         );
@@ -637,13 +641,12 @@ pub fn load_elf<S: SymbolResolver>(
 pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
     let loaded_elf = load_elf(
         bytes,
-        VirtAddr::zero(),
-        |e_type, addr| {
+        |e_type, _size| {
             if *e_type == EType::ET_DYN {
                 // TODO randomize base address
-                Ok(addr + Size4KiB::SIZE) // Skip first page
+                Ok(VirtAddr::zero() + Size4KiB::SIZE) // Skip first page
             } else if *e_type == EType::ET_EXEC {
-                Ok(addr)
+                Ok(VirtAddr::zero())
             } else {
                 panic!("{e_type:?} is not a valid ELF executable")
             }
