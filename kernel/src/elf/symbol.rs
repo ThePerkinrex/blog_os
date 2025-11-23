@@ -82,7 +82,7 @@ pub struct KDriverResolver {
 
 impl KDriverResolver {
     pub fn new(interface: Interface) -> Self {
-        let interface: KernelInterfaceBox<'static> = trait_obj!(interface as KernelInterface);
+        let interface = trait_obj!(interface as KernelInterface);
 
         let key = INTERFACES.write().insert(interface);
 

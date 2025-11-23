@@ -28,7 +28,7 @@ struct InterfaceData {
 
 pub struct Interface {
     data: Arc<Once<InterfaceData>>,
-    allocs: Arc<RwLock<BTreeMap<*mut u8, Layout>>>,
+    allocs: Arc<RwLock<BTreeMap<VirtAddr, Layout>>>,
 }
 
 impl Interface {
@@ -62,14 +62,14 @@ impl KernelInterface for Interface {
         let layout = Layout::try_from(layout).unwrap();
         let ptr = unsafe { alloc::alloc::alloc(layout) };
 
-        self.allocs.write().insert(ptr, layout);
+        self.allocs.write().insert(VirtAddr::from_ptr(ptr), layout);
 
         ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout) {
         let layout = Layout::try_from(layout).unwrap();
-        if let Some(entry) = self.allocs.write().remove(&ptr) {
+        if let Some(entry) = self.allocs.write().remove(&VirtAddr::from_ptr(ptr)) {
             if entry == layout {
                 unsafe { alloc::alloc::dealloc(ptr, layout) };
             } else {
@@ -84,7 +84,7 @@ impl KernelInterface for Interface {
 impl Drop for Interface {
     fn drop(&mut self) {
         for (&ptr, &layout) in self.allocs.read().iter() {
-            unsafe { alloc::alloc::dealloc(ptr, layout) };
+            unsafe { alloc::alloc::dealloc(ptr.as_mut_ptr::<u8>(), layout) };
         }
     }
 }
