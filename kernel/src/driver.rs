@@ -13,18 +13,18 @@ pub struct Interface {}
 
 impl KernelInterface for Interface {
     fn abort(&self) {
-        todo!()
+        todo!("abort()")
     }
 
     fn print(&self, str: &str) {
-        todo!()
+        todo!("print({str:?})")
     }
     unsafe fn alloc(&self, layout: CLayout) -> *mut u8 {
-        todo!()
+        todo!("alloc({layout:?})")
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout) {
-        todo!()
+        todo!("dealloc({ptr:p}, {layout:?})")
     }
 }
 
@@ -38,7 +38,12 @@ pub struct KDriver {
 
 impl core::fmt::Debug for KDriver {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("KDriver").field("name", &self.name).field("version", &self.version).field("start", &self.start).field("stop", &self.stop).finish()
+        f.debug_struct("KDriver")
+            .field("name", &self.name)
+            .field("version", &self.version)
+            .field("start", &self.start)
+            .field("stop", &self.stop)
+            .finish()
     }
 }
 
@@ -50,8 +55,13 @@ pub enum DriverLoadError {
     MissingSymbol(&'static str),
 }
 
-fn get_symbol<'file, 'data, O: Object<'data>>(object: &'file O, symbol_name: &'static str) -> Result<O::Symbol<'file>, DriverLoadError> {
-    object.symbol_by_name(symbol_name).ok_or(DriverLoadError::MissingSymbol(symbol_name))
+fn get_symbol<'file, 'data, O: Object<'data>>(
+    object: &'file O,
+    symbol_name: &'static str,
+) -> Result<O::Symbol<'file>, DriverLoadError> {
+    object
+        .symbol_by_name(symbol_name)
+        .ok_or(DriverLoadError::MissingSymbol(symbol_name))
 }
 
 impl KDriver {
@@ -80,16 +90,26 @@ impl KDriver {
         let name_addr = base_addr + name_sym.address();
         let version_addr = base_addr + version_sym.address();
 
-        let start = unsafe {core::mem::transmute::<*const (), extern "C" fn()>(start_addr.as_ptr::<()>())};
-        let stop = unsafe {core::mem::transmute::<*const (), extern "C" fn()>(stop_addr.as_ptr::<()>())};
+        let start = unsafe {
+            core::mem::transmute::<*const (), extern "C" fn()>(start_addr.as_ptr::<()>())
+        };
+        let stop =
+            unsafe { core::mem::transmute::<*const (), extern "C" fn()>(stop_addr.as_ptr::<()>()) };
+        let name = unsafe { CStr::from_ptr(name_addr.as_ptr::<*const core::ffi::c_char>().read()) }
+            .to_string_lossy()
+            .into_owned();
+        let version =
+            unsafe { CStr::from_ptr(version_addr.as_ptr::<*const core::ffi::c_char>().read()) }
+                .to_string_lossy()
+                .into_owned();
 
         Ok(Self {
-                    _elf: elf,
-                    name: String::new(),
-                    version: String::new(),
-                    start,
-                    stop,
-                })
+            _elf: elf,
+            name,
+            version,
+            start,
+            stop,
+        })
     }
 
     pub fn start(&self) {

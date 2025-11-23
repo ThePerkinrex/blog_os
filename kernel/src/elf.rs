@@ -1,5 +1,7 @@
 use core::{
-    alloc::Layout, mem::ManuallyDrop, ops::{Deref, DerefMut}
+    alloc::Layout,
+    mem::ManuallyDrop,
+    ops::{Deref, DerefMut},
 };
 
 use addr2line::Context;
@@ -299,14 +301,13 @@ impl<S: SymbolResolver> LoadedElf<S> {
         self.load_offset
     }
 
-//     /// # Safety
-//     /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
-//     /// and the page table used must be the one used to map the pages
-//     pub unsafe fn unload(self) {
-        
+    //     /// # Safety
+    //     /// The program cant be returned to later, no pages mapped for this should be accessed after the unload
+    //     /// and the page table used must be the one used to map the pages
+    //     pub unsafe fn unload(self) {
 
-//         self.symbol_resolver.unload();
-//     }
+    //         self.symbol_resolver.unload();
+    //     }
 }
 
 impl<S: SymbolResolver> Drop for LoadedElf<S> {
@@ -375,7 +376,7 @@ impl LoadedProgram {
 
 impl Drop for LoadedProgram {
     fn drop(&mut self) {
-        let stack = unsafe {ManuallyDrop::take(&mut self.stack)};
+        let stack = unsafe { ManuallyDrop::take(&mut self.stack) };
 
         // Unload the stack
         let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
@@ -596,7 +597,10 @@ pub fn load_elf<S: SymbolResolver>(
                     let value = resolver.resolve(symbol).unwrap();
                     let addr = base_addr + addr;
 
-                    unsafe { core::ptr::copy(value.data.as_ptr(), addr.as_mut_ptr::<u8>(), value.data.len()) };
+                    // unsafe { core::ptr::copy(value.data.as_ptr(), addr.as_mut_ptr::<u8>(), value.data.len()) };
+                    unsafe {
+                        addr.as_mut_ptr::<u64>().write_volatile(value.data.as_u64());
+                    }
 
                     debug!(
                         "symbol {symbol_index:?} = {:?} (resolved: {value:?}, set {addr:p})",

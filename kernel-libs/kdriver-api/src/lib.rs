@@ -2,6 +2,7 @@
 
 use core::alloc::{Layout, LayoutError};
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct CLayout {
     size: usize,

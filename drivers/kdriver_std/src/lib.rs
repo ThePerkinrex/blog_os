@@ -1,10 +1,10 @@
 #![no_std]
 
-use kdriver_api::{KernelInterface, cglue_kernelinterface::{KernelInterfaceBox}};
+use kdriver_api::{KernelInterface, cglue_kernelinterface::KernelInterfaceBox};
 
 unsafe extern "C" {
     unsafe static ID: u64;
-    unsafe fn get_interface<'a>(id: u64) -> *const  KernelInterfaceBox<'static>;
+    unsafe fn get_interface<'a>(id: u64) -> *const KernelInterfaceBox<'static>;
 }
 
 pub fn interface<'a>() -> &'a KernelInterfaceBox<'static> {
