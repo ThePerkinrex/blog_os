@@ -1,9 +1,10 @@
-use core::{ffi::CStr, ops::Range};
+use core::{alloc::Layout, ffi::CStr};
 
-use alloc::string::String;
+use alloc::{collections::btree_map::BTreeMap, string::String, sync::Arc};
 use kdriver_api::{CLayout, KernelInterface};
 use log::info;
 use object::{Object, ObjectSymbol};
+use spin::{Once, RwLock};
 use thiserror::Error;
 use x86_64::{
     VirtAddr,
@@ -11,12 +12,39 @@ use x86_64::{
 };
 
 use crate::{
-    elf::{EType, ElfLoadError, LoadedElf, load_elf, symbol::KDriverResolver},
+    elf::{
+        EType, ElfLoadError, LoadedElf, load_elf,
+        symbol::{InterfaceKey, KDriverResolver},
+    },
     memory::range_alloc::FreeOnDrop,
     setup::KERNEL_INFO,
 };
 
-pub struct Interface {}
+struct InterfaceData {
+    id: InterfaceKey,
+    name: String,
+    version: String,
+}
+
+pub struct Interface {
+    data: Arc<Once<InterfaceData>>,
+    allocs: Arc<RwLock<BTreeMap<*mut u8, Layout>>>,
+}
+
+impl Interface {
+    pub fn new() -> Self {
+        Self {
+            data: Arc::new(Once::new()),
+            allocs: Arc::new(RwLock::new(BTreeMap::new())),
+        }
+    }
+}
+
+impl Default for Interface {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl KernelInterface for Interface {
     fn abort(&self) {
@@ -24,14 +52,40 @@ impl KernelInterface for Interface {
     }
 
     fn print(&self, str: &str) {
-        info!("print({str:?})")
+        let data = self.data.get().unwrap();
+        info!(
+            "[DRIVER][{}:{}/{:?}] {str}",
+            data.name, data.version, data.id
+        );
     }
     unsafe fn alloc(&self, layout: CLayout) -> *mut u8 {
-        todo!("alloc({layout:?})")
+        let layout = Layout::try_from(layout).unwrap();
+        let ptr = unsafe { alloc::alloc::alloc(layout) };
+
+        self.allocs.write().insert(ptr, layout);
+
+        ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout) {
-        todo!("dealloc({ptr:p}, {layout:?})")
+        let layout = Layout::try_from(layout).unwrap();
+        if let Some(entry) = self.allocs.write().remove(&ptr) {
+            if entry == layout {
+                unsafe { alloc::alloc::dealloc(ptr, layout) };
+            } else {
+                panic!("freeing ptr with different layout than was allocated with")
+            }
+        } else {
+            panic!("freeing ptr that was not allocated")
+        }
+    }
+}
+
+impl Drop for Interface {
+    fn drop(&mut self) {
+        for (&ptr, &layout) in self.allocs.read().iter() {
+            unsafe { alloc::alloc::dealloc(ptr, layout) };
+        }
     }
 }
 
@@ -75,6 +129,10 @@ fn get_symbol<'file, 'data, O: Object<'data>>(
 impl KDriver {
     pub fn new(bytes: &[u8]) -> Result<Self, DriverLoadError> {
         let mut region = None;
+        let interface = Interface::new();
+        let data = interface.data.clone();
+        let resolver = KDriverResolver::new(interface);
+        let id = resolver.id();
         let elf = load_elf(
             bytes,
             |e_type, size| {
@@ -100,7 +158,7 @@ impl KDriver {
                 }
             },
             false,
-            KDriverResolver::new(Interface {}),
+            resolver,
         )?;
 
         let base_addr = VirtAddr::new_truncate(elf.load_offset());
@@ -127,6 +185,12 @@ impl KDriver {
             unsafe { CStr::from_ptr(version_addr.as_ptr::<*const core::ffi::c_char>().read()) }
                 .to_string_lossy()
                 .into_owned();
+
+        data.call_once(|| InterfaceData {
+            id,
+            name: name.clone(),
+            version: version.clone(),
+        });
 
         Ok(Self {
             _elf: elf,

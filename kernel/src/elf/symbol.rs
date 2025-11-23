@@ -58,7 +58,7 @@ impl SymbolResolver for () {
 //     }
 // }
 
-slotmap::new_key_type! { struct InterfaceKey; }
+slotmap::new_key_type! { pub struct InterfaceKey; }
 
 static INTERFACES: Lazy<RwLock<SlotMap<InterfaceKey, KernelInterfaceBox<'static>>>> =
     Lazy::new(|| RwLock::new(SlotMap::with_key()));
@@ -82,7 +82,7 @@ pub struct KDriverResolver {
 
 impl KDriverResolver {
     pub fn new(interface: Interface) -> Self {
-        let interface = trait_obj!(interface as KernelInterface);
+        let interface: KernelInterfaceBox<'static> = trait_obj!(interface as KernelInterface);
 
         let key = INTERFACES.write().insert(interface);
 
@@ -90,6 +90,10 @@ impl KDriverResolver {
             id: key,
             ffi_key: None,
         }
+    }
+
+    pub const fn id(&self) -> InterfaceKey {
+        self.id
     }
 }
 
