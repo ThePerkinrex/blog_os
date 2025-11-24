@@ -1,6 +1,7 @@
 use crate::{IOError, stat::Stat};
 
 #[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
 pub struct FsINodeRef(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

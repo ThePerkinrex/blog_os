@@ -157,6 +157,7 @@ dependencies = [
 name = "blog_os_vfs_api"
 version = "0.1.0"
 dependencies = [
+ "api-utils",
  "blog_os-device-api",
  "itertools 0.14.0",
  "kernel-utils",
