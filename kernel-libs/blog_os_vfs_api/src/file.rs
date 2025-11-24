@@ -1,8 +1,10 @@
 use alloc::{boxed::Box, vec::Vec};
+use api_utils::cglue;
 use blog_os_device_api::DeviceId;
 
 use crate::{IOError, inode::FsINodeRef};
 
+#[cglue::cglue_trait]
 pub trait File {
     // TODO standard ops
     fn close(self) -> Result<(), IOError>;

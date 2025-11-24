@@ -2,6 +2,7 @@
 
 extern crate alloc;
 pub use blog_os_vfs_api as api;
+use blog_os_vfs_api::inode::INode;
 
 use alloc::{borrow::ToOwned, boxed::Box};
 

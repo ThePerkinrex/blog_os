@@ -6,6 +6,9 @@ use smallvec::SmallVec;
 
 use itertools::Itertools;
 
+pub mod ffi;
+pub mod ffi_safe;
+
 #[derive(Debug)]
 pub struct ContainsSlashError;
 

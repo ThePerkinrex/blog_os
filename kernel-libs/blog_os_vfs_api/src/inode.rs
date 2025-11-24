@@ -1,22 +1,15 @@
-use crate::{IOError, stat::Stat};
+use crate::{IOError, file::FileBox, stat::Stat};
+
+use api_utils::cglue;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct FsINodeRef(pub u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum INodeType {
-    RegularFile,
-    Directory,
-    BlockDevice,
-    CharDevice,
-    SymbolicLink,
-    // Socket
-    // FIFO
-}
-
+#[cglue::cglue_trait]
 pub trait INode {
-    fn get_type(&self) -> INodeType;
+    // fn get_type(&self) -> INodeType;
     fn lookup(&self, component: &str) -> Option<FsINodeRef>;
     fn stat(&self) -> Result<Stat, IOError>;
+    fn open(&self) -> Option<FileBox<'_>>;
 }
