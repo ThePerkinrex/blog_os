@@ -1,10 +1,5 @@
-use blog_os_vfs::{
-    VFS,
-    api::fs::Superblock,
-    api::inode::{FsINodeRef, INode},
-    api::path::PathBuf,
-};
-use blog_os_vfs_api::{IOError, file::File};
+use blog_os_vfs::{VFS, api::fs::Superblock, api::inode::FsINodeRef, api::path::PathBuf};
+use blog_os_vfs_api::inode::cglue_inode::INodeRef;
 use kernel_utils::try_from_iterator::TryFromIterator;
 
 mod common;
@@ -18,11 +13,11 @@ pub fn simple_root_fs() {
             FsINodeRef(1)
         }
 
-        fn get_inode(&self, _: FsINodeRef) -> Option<&dyn INode> {
+        fn get_inode(&self, _: FsINodeRef) -> Option<INodeRef> {
             todo!()
         }
 
-        fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {
+        fn unmount(self) {
             todo!()
         }
     }

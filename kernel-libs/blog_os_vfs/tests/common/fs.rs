@@ -2,9 +2,14 @@ use std::{borrow::Cow, collections::HashMap};
 
 use blog_os_vfs::{
     api::fs::Superblock,
-    api::inode::{FsINodeRef, INode, INodeType},
+    api::inode::{FsINodeRef, cglue_inode::*},
 };
-use blog_os_vfs_api::{IOError, file::File, stat::Stat};
+use blog_os_vfs_api::{
+    IOError, cglue,
+    file::{File, cglue_file::FileBox},
+    inode::{INode, cglue_inode::INodeRef},
+    stat::Stat,
+};
 
 enum CustomINode {
     Regular {
@@ -16,13 +21,6 @@ enum CustomINode {
 }
 
 impl INode for CustomINode {
-    fn get_type(&self) -> INodeType {
-        match self {
-            Self::Regular { data: _ } => INodeType::RegularFile,
-            Self::Directory { inodes: _ } => INodeType::Directory,
-        }
-    }
-
     fn lookup(&self, component: &str) -> Option<FsINodeRef> {
         match self {
             Self::Directory { inodes } => inodes.get(component).copied(),
@@ -31,6 +29,10 @@ impl INode for CustomINode {
     }
 
     fn stat(&self) -> Result<Stat, IOError> {
+        todo!()
+    }
+
+    fn open(&self) -> Option<FileBox<'_>> {
         todo!()
     }
 }
@@ -45,11 +47,13 @@ impl Superblock for CustomFs {
         FsINodeRef(0)
     }
 
-    fn get_inode(&self, inode: FsINodeRef) -> Option<&dyn INode> {
-        self.inodes.get(inode.0 as usize).map(|x| x as &dyn INode)
+    fn get_inode(&self, inode: FsINodeRef) -> Option<INodeRef> {
+        self.inodes
+            .get(inode.0 as usize)
+            .map(|x| cglue::trait_obj!(x as INode))
     }
 
-    fn open(&mut self, _: FsINodeRef) -> Result<Box<dyn File>, IOError> {
+    fn unmount(self) {
         todo!()
     }
 }

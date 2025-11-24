@@ -8,6 +8,8 @@ pub mod inode;
 pub mod path;
 pub mod stat;
 
+pub use api_utils::cglue;
+
 #[repr(C)]
 pub enum IOError {
     NotFound = 0,

@@ -1,179 +1,134 @@
-use alloc::{borrow::Cow, boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
+use core::ptr::NonNull;
+
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
+use api_utils::cglue;
+use blog_os_device::api::DeviceId;
 use blog_os_vfs::api::{
     IOError,
-    fs::Superblock,
-    inode::{FsINodeRef, INode, INodeType},
+    file::{File, cglue_file::*},
+    fs::{Filesystem, Superblock, cglue_superblock::*},
+    inode::{FsINodeRef, INode, cglue_inode::*},
+    path::ffi::PathBufOpaqueRef,
     stat::Stat,
 };
-use slotmap::{Key, KeyData, SlotMap};
-use spin::lock_api::RwLock;
+use slotmap::KeyData;
+use spin::RwLock;
 
-struct RegularRamFSINode {
-    data: Vec<u8>,
+slotmap::new_key_type! {struct INodeKey;}
+
+struct RamFSSuperblock {
+    root_inode: INodeKey,
+    inodes: slotmap::SlotMap<INodeKey, INodeBox<'static>>,
 }
 
-struct DirectoryRamFSINode {
-    inodes: BTreeMap<Cow<'static, str>, FsINodeRef>,
+impl RamFSSuperblock {
+    fn new() -> Self {
+        let mut inodes = slotmap::SlotMap::with_key();
+        let root_inode = inodes.insert(cglue::trait_obj!(DirectoryINode::default() as INode));
+        Self { root_inode, inodes }
+    }
 }
 
-enum RamFSINode {
-    Regular(RwLock<RegularRamFSINode>),
-    Directory(RwLock<DirectoryRamFSINode>),
+impl Default for RamFSSuperblock {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-impl INode for RamFSINode {
-    fn get_type(&self) -> INodeType {
-        match self {
-            Self::Regular(_) => INodeType::RegularFile,
-            Self::Directory(_) => INodeType::Directory,
-        }
+impl Superblock for RamFSSuperblock {
+    fn get_root_inode_ref(&self) -> FsINodeRef {
+        FsINodeRef(self.root_inode.0.as_ffi())
     }
 
-    fn lookup(&self, component: &str) -> Option<FsINodeRef> {
-        match self {
-            Self::Directory(inodes) => inodes.read().inodes.get(component).copied(),
-            _ => None,
+    fn get_inode(&self, inode: FsINodeRef) -> Option<INodeRef<'_>> {
+        let key = INodeKey::from(KeyData::from_ffi(inode.0));
+
+        self.inodes.get(key).map(|x| cglue::trait_obj!(x as INode))
+    }
+
+    fn unmount(self) {
+        drop(self);
+    }
+}
+
+pub struct RamFS;
+
+impl Filesystem for RamFS {
+    fn name(&self) -> &str {
+        "ramfs"
+    }
+
+    fn mount(&self, device: Option<NonNull<PathBufOpaqueRef>>) -> Option<SuperblockBox<'static>> {
+        if device.is_some() {
+            None
+        } else {
+            Some(cglue::trait_obj!(RamFSSuperblock::default() as Superblock))
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct DirectoryINode {
+    entries: Arc<RwLock<BTreeMap<String, INodeKey>>>,
+}
+
+impl INode for DirectoryINode {
+    fn lookup(&self, component: &str) -> Option<FsINodeRef> {
+        self.entries
+            .read()
+            .get(component)
+            .map(|x| FsINodeRef(x.0.as_ffi()))
     }
 
     fn stat(&self) -> Result<Stat, IOError> {
-        match self {
-            Self::Regular(regular) => Ok(Stat {
-                device: None,
-                size: regular.read().data.len() as u64,
-            }),
-            Self::Directory(directory) => Ok(Stat {
-                device: None,
-                size: directory.read().inodes.len() as u64,
-            }),
-        }
+        Ok(Stat {
+            device: None,
+            size: self.entries.read().len() as u64,
+            file_type: blog_os_vfs::api::stat::FileType::Directory,
+        })
+    }
+
+    fn open(&self) -> Option<FileBox<'_>> {
+        Some(cglue::trait_obj!(DirectoryFile { inode: self } as File))
     }
 }
 
-slotmap::new_key_type! {
-    pub struct RamFSINodeIdx;
+struct DirectoryFile<'a> {
+    inode: &'a DirectoryINode,
 }
 
-impl From<FsINodeRef> for RamFSINodeIdx {
-    fn from(value: FsINodeRef) -> Self {
-        KeyData::from_ffi(value.0).into()
-    }
-}
-
-impl From<RamFSINodeIdx> for FsINodeRef {
-    fn from(value: RamFSINodeIdx) -> Self {
-        Self(value.data().as_ffi())
-    }
-}
-
-struct RamFSFile {
-    cursor: usize,
-    inode: Arc<RamFSINode>,
-}
-
-impl RamFSFile {
-    pub const fn new(inode: Arc<RamFSINode>) -> Self {
-        Self { cursor: 0, inode }
-    }
-}
-
-impl blog_os_vfs::api::file::File for RamFSFile {
+impl<'a> File for DirectoryFile<'a> {
     fn close(self) -> Result<(), IOError> {
-        drop(self);
         Ok(())
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
-        match self.inode.as_ref() {
-            RamFSINode::Regular(rw_lock) => {
-                let data = &rw_lock.read().data[self.cursor..];
-                let m = data.len().min(buf.len());
-
-                buf[..m].copy_from_slice(&data[..m]);
-
-                self.cursor += m;
-                Ok(m)
-            }
-            _ => Err(IOError::OperationNotPermitted),
-        }
+    fn read(&mut self, _: &mut [u8]) -> Result<usize, IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 
-    fn write(&mut self, buf: &[u8]) -> Result<usize, IOError> {
-        match self.inode.as_ref() {
-            RamFSINode::Regular(rw_lock) => {
-                let data = &mut rw_lock.write().data[self.cursor..];
-                let m = data.len().min(buf.len());
-
-                data[..m].copy_from_slice(&buf[..m]);
-
-                self.cursor += m;
-                Ok(m)
-            }
-            _ => Err(IOError::OperationNotPermitted),
-        }
+    fn write(&mut self, _: &[u8]) -> Result<usize, IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 
-    fn readdir(&self) -> Result<Vec<alloc::boxed::Box<str>>, IOError> {
-        match self.inode.as_ref() {
-            RamFSINode::Directory(rw_lock) => Ok(rw_lock
-                .read()
-                .inodes
-                .keys()
-                .map(|x| Box::from(x.as_ref()))
-                .collect()),
-            _ => Err(IOError::OperationNotPermitted),
-        }
+    fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
+        Ok(self
+            .inode
+            .entries
+            .read()
+            .keys()
+            .map(|x| Box::from(x.as_str()))
+            .collect())
     }
 
     fn mkdir(&mut self, name: &str) -> Result<FsINodeRef, IOError> {
-        match self.inode.as_ref() {
-            RamFSINode::Directory(rw_lock) => {
-                todo!()
-            }
-            _ => Err(IOError::OperationNotPermitted),
-        }
+        todo!()
     }
 
-    fn mknod(
-        &mut self,
-        name: &str,
-        device: blog_os_device::api::DeviceId,
-    ) -> Result<FsINodeRef, IOError> {
-        Err(IOError::OperationNotPermitted)
+    fn mknod(&mut self, name: &str, device: DeviceId) -> Result<FsINodeRef, IOError> {
+        todo!()
     }
 
     fn creat(&mut self, name: &str) -> Result<FsINodeRef, IOError> {
         todo!()
-    }
-}
-
-pub struct RamFS {
-    inodes: SlotMap<RamFSINodeIdx, Arc<RamFSINode>>,
-    root: RamFSINodeIdx,
-}
-
-impl Superblock for RamFS {
-    fn get_root_inode_ref(&self) -> blog_os_vfs::api::inode::FsINodeRef {
-        self.root.into()
-    }
-
-    fn get_inode(
-        &self,
-        inode: blog_os_vfs::api::inode::FsINodeRef,
-    ) -> Option<&dyn blog_os_vfs::api::inode::INode> {
-        let idx = RamFSINodeIdx::from(inode);
-        self.inodes.get(idx).map(|x| x.as_ref() as &dyn INode)
-    }
-
-    fn open(
-        &mut self,
-        inode: blog_os_vfs::api::inode::FsINodeRef,
-    ) -> Result<alloc::boxed::Box<dyn blog_os_vfs::api::file::File>, blog_os_vfs::api::IOError>
-    {
-        let idx = RamFSINodeIdx::from(inode);
-        self.inodes
-            .get(idx)
-            .map(|x| Box::new(RamFSFile::new(x.clone())) as Box<dyn blog_os_vfs::api::file::File>)
-            .ok_or(IOError::NotFound)
     }
 }
