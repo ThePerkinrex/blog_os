@@ -1,4 +1,9 @@
-use core::{ffi::c_char, marker::PhantomData, ptr, slice};
+use core::{
+    ffi::c_char,
+    marker::PhantomData,
+    ptr::{self, NonNull},
+    slice,
+};
 
 use alloc::{borrow::ToOwned, boxed::Box};
 
@@ -16,6 +21,18 @@ pub struct PathBufOpaqueMut<'a>(PathBuf, PhantomData<&'a mut ()>);
 #[inline(always)]
 fn wrap(pb: PathBuf) -> *mut PathBufOpaqueOwned {
     Box::into_raw(Box::new(PathBufOpaqueOwned(pb)))
+}
+
+pub fn pathbuf_into_ffi(pathbuf: PathBuf) -> Option<NonNull<PathBufOpaqueOwned>> {
+    NonNull::new(wrap(pathbuf))
+}
+
+pub const fn pathbuf_into_ffi_ref(pathbuf: &PathBuf) -> NonNull<PathBufOpaqueRef<'_>> {
+    NonNull::from_ref(pathbuf).cast()
+}
+
+pub fn pathbuf_from_ffi(pathbuf: NonNull<PathBufOpaqueOwned>) -> PathBuf {
+    unsafe { Box::from_raw(pathbuf.as_ptr()) }.0
 }
 
 // ------------------------

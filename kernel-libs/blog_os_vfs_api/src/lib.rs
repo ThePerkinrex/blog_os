@@ -10,8 +10,10 @@ pub mod stat;
 
 pub use api_utils::cglue;
 
+#[derive(Debug)]
 #[repr(C)]
 pub enum IOError {
     NotFound = 0,
     OperationNotPermitted,
+    AlreadyExists,
 }

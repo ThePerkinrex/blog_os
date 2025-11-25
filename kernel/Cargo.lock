@@ -132,6 +132,7 @@ dependencies = [
  "pc-keyboard",
  "pic8259",
  "qemu-common",
+ "ramfs",
  "slotmap",
  "smallvec",
  "spin",
@@ -591,6 +592,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "ramfs"
+version = "0.1.0"
+dependencies = [
+ "api-utils",
+ "blog_os-device",
+ "blog_os_vfs",
+ "lock_api",
+ "slotmap",
 ]
 
 [[package]]

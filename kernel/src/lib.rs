@@ -9,12 +9,13 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
 // use blog_os_device::api::bus::{Bus, BusDeviceDriver};
 // use blog_os_pci::bus::PciBus;
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 
-use crate::{driver::KDriver, elf::load_example_driver, process::ProcessInfo, setup::KERNEL_INFO};
+use crate::{driver::KDriver, elf::load_example_driver, fs::VFS, process::ProcessInfo, setup::KERNEL_INFO};
 
 pub mod allocator;
 pub mod config;
@@ -80,6 +81,32 @@ pub fn kernel_main() -> ! {
     debug!("driver: {driver:?}");
     driver.start();
     drop(driver);
+
+
+    info!("Loading initramfs");
+
+    fs::init_ramfs();
+
+    debug!("printing root dir");
+
+    {
+        let mut lock = VFS.write();
+
+        let root = PathBuf::root();
+        let inode_ref = lock.get_ref(&root).unwrap();
+        let inode = lock.get_inode(inode_ref).unwrap();
+        debug!("root inode ({inode_ref:?}: {}): {:?}", root, inode.stat().unwrap());
+
+        let file = inode.open().unwrap();
+        for inode in file.readdir().unwrap() {
+            let path = root.join(&PathBuf::parse(&inode));
+            debug!("subpath: {inode:?}: {}", path)
+        }
+
+        drop(lock);
+    }
+
+    // hlt_loop();
 
     info!("Adding new task to list");
     multitask::create_task(other_task, "other_task");

@@ -1,0 +1,12 @@
+[package]
+name = "ramfs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lock_api = "0.4.14"
+slotmap = { version = "1.0.7", default-features = false }
+blog_os_vfs = {path = "../blog_os_vfs"}
+blog_os-device = {path = "../blog_os-device"}
+api-utils = {path = "../api-utils"}
+

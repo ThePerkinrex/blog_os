@@ -1,13 +1,16 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, ptr::NonNull, sync::Arc};
 
 use blog_os_vfs::{
     api::fs::Superblock,
     api::inode::{FsINodeRef, cglue_inode::*},
 };
 use blog_os_vfs_api::{
-    IOError, cglue,
-    file::{File, cglue_file::FileBox},
-    inode::{INode, cglue_inode::INodeRef},
+    IOError,
+    cglue::{self, arc::CArc},
+    file::cglue_file::FileBox,
+    fs::{Filesystem, cglue_superblock::*},
+    inode::INode,
+    path::ffi::PathBufOpaqueRef,
     stat::Stat,
 };
 
@@ -37,20 +40,18 @@ impl INode for CustomINode {
     }
 }
 
-pub struct CustomFs {
+pub struct CustomFsSuperblock {
     data_blocks: Vec<[u8; 4096]>,
-    inodes: Vec<CustomINode>,
+    inodes: Vec<Arc<INodeBox<'static>>>,
 }
 
-impl Superblock for CustomFs {
+impl Superblock for CustomFsSuperblock {
     fn get_root_inode_ref(&self) -> FsINodeRef {
         FsINodeRef(0)
     }
 
-    fn get_inode(&self, inode: FsINodeRef) -> Option<INodeRef> {
-        self.inodes
-            .get(inode.0 as usize)
-            .map(|x| cglue::trait_obj!(x as INode))
+    fn get_inode(&self, inode: FsINodeRef) -> CArc<INodeBox<'static>> {
+        self.inodes.get(inode.0 as usize).cloned().into()
     }
 
     fn unmount(self) {
@@ -58,11 +59,11 @@ impl Superblock for CustomFs {
     }
 }
 
-pub fn example_fs_empty_files() -> CustomFs {
-    CustomFs {
+fn example_fs_empty_files() -> CustomFsSuperblock {
+    CustomFsSuperblock {
         data_blocks: vec![],
         inodes: vec![
-            CustomINode::Directory {
+            Arc::new(cglue::trait_obj!(CustomINode::Directory {
                 inodes: {
                     let mut hm = HashMap::new();
 
@@ -70,8 +71,8 @@ pub fn example_fs_empty_files() -> CustomFs {
 
                     hm
                 },
-            },
-            CustomINode::Directory {
+            } as INode)),
+            Arc::new(cglue::trait_obj!(CustomINode::Directory {
                 inodes: {
                     let mut hm = HashMap::new();
 
@@ -80,9 +81,29 @@ pub fn example_fs_empty_files() -> CustomFs {
 
                     hm
                 },
-            },
-            CustomINode::Regular { data: vec![] },
-            CustomINode::Regular { data: vec![] },
+            } as INode)),
+            Arc::new(cglue::trait_obj!(
+                CustomINode::Regular { data: vec![] } as INode
+            )),
+            Arc::new(cglue::trait_obj!(
+                CustomINode::Regular { data: vec![] } as INode
+            )),
         ],
+    }
+}
+
+pub struct CustomFs;
+
+impl Filesystem for CustomFs {
+    fn name(&self) -> &str {
+        "customfs"
+    }
+
+    fn mount(&self, device: Option<NonNull<PathBufOpaqueRef>>) -> Option<SuperblockBox<'static>> {
+        if device.is_some() {
+            None
+        } else {
+            Some(cglue::trait_obj!(example_fs_empty_files() as Superblock))
+        }
     }
 }

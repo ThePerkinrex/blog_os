@@ -37,6 +37,7 @@ sval_json = "2.16.0"
 blog_os-log ={ path = "../kernel-libs/blog_os-log"}
 kdriver-api ={ path = "../kernel-libs/kdriver-api"}
 thiserror = { version = "2.0.17", default-features = false }
+ramfs ={ path = "../kernel-libs/ramfs"}
 
 
 [[bin]]

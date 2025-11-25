@@ -2,9 +2,14 @@
 
 extern crate alloc;
 pub use blog_os_vfs_api as api;
-use blog_os_vfs_api::inode::INode;
+use blog_os_vfs_api::{
+    cglue::arc::CArcSome,
+    fs::{Filesystem, cglue_filesystem::FilesystemBox, cglue_superblock::SuperblockBox},
+    inode::{INode, cglue_inode::INodeBox},
+    path::ffi::pathbuf_into_ffi_ref,
+};
 
-use alloc::{borrow::ToOwned, boxed::Box};
+use alloc::{borrow::ToOwned, collections::btree_map::BTreeMap, string::String};
 
 use crate::{
     api::fs::Superblock,
@@ -33,32 +38,81 @@ impl INodeRef {
 }
 
 pub struct VFS {
-    superblocks: slotmap::SlotMap<FsIdx, Box<dyn Superblock>>,
+    filesystems: BTreeMap<String, FilesystemBox<'static>>,
+    superblocks: slotmap::SlotMap<FsIdx, SuperblockBox<'static>>,
     dentry_cache: DEntryCache,
 }
+
+#[derive(Debug)]
+pub struct AlreadyRegisteredError;
 
 impl VFS {
     pub fn new() -> Self {
         Self {
+            filesystems: Default::default(),
             superblocks: Default::default(),
             dentry_cache: DEntryCache::new(),
         }
     }
 
-    pub fn mount_box(&mut self, path: PathBuf, superblock: Box<dyn Superblock>) -> FsIdx {
+    pub fn register_fs(
+        &mut self,
+        fs: FilesystemBox<'static>,
+    ) -> Result<(), AlreadyRegisteredError> {
+        let key = fs.name();
+        if self.filesystems.contains_key(key) {
+            return Err(AlreadyRegisteredError);
+        }
+
+        self.filesystems.insert(key.into(), fs);
+        Ok(())
+    }
+
+    pub fn unregister_fs(&mut self, fs: &str) -> Option<FilesystemBox<'static>> {
+        self.filesystems.remove(fs)
+    }
+
+    fn mount_fs(
+        superblocks: &mut slotmap::SlotMap<FsIdx, SuperblockBox<'static>>,
+        dentry_cache: &mut DEntryCache,
+        path: PathBuf,
+        dev: Option<&PathBuf>,
+        fs: &FilesystemBox<'static>,
+    ) -> Option<FsIdx> {
+        let superblock = fs.mount(dev.map(pathbuf_into_ffi_ref))?;
+
         let root_inode = superblock.get_root_inode_ref();
-        let fs = self.superblocks.insert(superblock);
-        self.dentry_cache.add_mountpoint(
+        let fs = superblocks.insert(superblock);
+        dentry_cache.add_mountpoint(
             path,
             DEntry {
                 inode: INodeRef(fs, root_inode),
             },
         );
-        fs
+        Some(fs)
     }
 
-    pub fn mount<S: Superblock + 'static>(&mut self, path: PathBuf, superblock: S) -> FsIdx {
-        self.mount_box(path, Box::new(superblock))
+    pub fn mount_type(
+        &mut self,
+        path: PathBuf,
+        dev: Option<&PathBuf>,
+        fs_type: &str,
+    ) -> Option<FsIdx> {
+        let fs = self.filesystems.get(fs_type)?;
+
+        Self::mount_fs(&mut self.superblocks, &mut self.dentry_cache, path, dev, fs)
+    }
+
+    pub fn mount(&mut self, path: PathBuf, dev: Option<&PathBuf>) -> Option<FsIdx> {
+        self.filesystems.values().find_map(|fs| {
+            Self::mount_fs(
+                &mut self.superblocks,
+                &mut self.dentry_cache,
+                path.clone(),
+                dev,
+                fs,
+            )
+        })
     }
 
     pub fn get_ref(&mut self, path: &Path) -> Option<INodeRef> {
@@ -74,7 +128,7 @@ impl VFS {
             let superblock = &self.superblocks[fs];
 
             for (i, c) in remaining.components().enumerate() {
-                let inode = superblock.get_inode(inode_ref)?;
+                let inode = superblock.get_inode(inode_ref).transpose()?;
                 if i < remaining.len() - 1 {
                     inode_ref = inode.lookup(c)?;
                     current
@@ -91,6 +145,12 @@ impl VFS {
 
             Some(INodeRef(fs, inode_ref))
         }
+    }
+
+    pub fn get_inode(&self, inode_ref: INodeRef) -> Option<CArcSome<INodeBox<'static>>> {
+        let fs = self.superblocks.get(inode_ref.0)?;
+
+        fs.get_inode(inode_ref.1).into()
     }
 }
 
