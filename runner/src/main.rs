@@ -26,6 +26,10 @@ struct Args {
     no_start_gdb: bool,
     #[arg(env = "NO_DISPLAY", long)]
     no_display: bool,
+    #[arg(default_value = "target/ovmf", long, env = "OVMF_PREBUILT_DIR")]
+    ovmf_prebuilt: PathBuf,
+    #[arg(long, env = "INITRD_DIR")]
+    initrd: Option<PathBuf>,
 }
 
 fn get_env_target_dir() -> Option<PathBuf> {
@@ -90,12 +94,15 @@ fn main() {
         (target.join("disk_images"), String::new())
     };
 
+    println!("   cwd: {:?}", std::env::current_dir());
     println!(" build: {}", args.build);
     println!("   gdb: {}", args.gdb);
     println!("  uefi: {uefi}");
     println!("target: {}", target.display());
     println!("kernel: {}", kernel.display());
     println!("   out: {}", out_dir.display());
+    println!("  ovmf: {}", args.ovmf_prebuilt.display());
+    println!("initrd: {:?}", args.initrd);
     println!("prefix: {prefix}");
 
     std::fs::create_dir_all(&out_dir).unwrap();
@@ -125,7 +132,23 @@ fn main() {
         }
 
         if uefi {
-            cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
+            println!("Downloading OVMF");
+            let ovmf =
+                ovmf_prebuilt::Prebuilt::fetch(ovmf_prebuilt::Source::LATEST, args.ovmf_prebuilt)
+                    .unwrap();
+            let ovmf_code = ovmf.get_file(ovmf_prebuilt::Arch::X64, ovmf_prebuilt::FileType::Code);
+            let ovmf_vars = ovmf.get_file(ovmf_prebuilt::Arch::X64, ovmf_prebuilt::FileType::Vars);
+            println!(
+                "Downloaded OVMF: {} & {}",
+                ovmf_code.display(),
+                ovmf_vars.display()
+            );
+            cmd.arg("-drive").arg(format!(
+                "if=pflash,format=raw,readonly=on,file={}",
+                ovmf_code.display()
+            ));
+            cmd.arg("-drive")
+                .arg(format!("if=pflash,format=raw,file={}", ovmf_vars.display()));
         }
         cmd.arg("-drive")
             .arg(format!("format=raw,file={}", path.display()));

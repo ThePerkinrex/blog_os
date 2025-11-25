@@ -181,6 +181,7 @@ version = "0.1.0"
 dependencies = [
  "blog_os_vfs",
  "cpio_reader",
+ "log",
 ]
 
 [[package]]
