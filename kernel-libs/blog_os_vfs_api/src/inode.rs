@@ -11,5 +11,5 @@ pub trait INode {
     // fn get_type(&self) -> INodeType;
     fn lookup(&self, component: &str) -> Option<FsINodeRef>;
     fn stat(&self) -> Result<Stat, IOError>;
-    fn open(&self) -> Option<FileBox<'_>>;
+    fn open(&self) -> Result<FileBox<'_>, IOError>;
 }

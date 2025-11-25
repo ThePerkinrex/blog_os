@@ -42,8 +42,8 @@ impl<R: RawRwLock + Send + Sync> INode for DirectoryINode<R> {
         })
     }
 
-    fn open(&self) -> Option<FileBox<'_>> {
-        Some(cglue::trait_obj!(
+    fn open(&self) -> Result<FileBox<'_>, IOError> {
+        Ok(cglue::trait_obj!(
             DirectoryFile::<'_, R> { inode: self } as File
         ))
     }

@@ -85,6 +85,7 @@ version = "0.1.0"
 dependencies = [
  "blog_os_vfs_api",
  "kernel-utils",
+ "log",
  "slotmap",
 ]
 
@@ -138,6 +139,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpio_reader"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5793d74f50cf1460a969f028d40963d8d6e01ebae049dea976e944335c7df492"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,6 +173,14 @@ checksum = "6717a8d2a5a929a1a2eb43a12812498ed141a0bcfb7e8f7844fbdbe4303bba9f"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "initcpio"
+version = "0.1.0"
+dependencies = [
+ "blog_os_vfs",
+ "cpio_reader",
 ]
 
 [[package]]

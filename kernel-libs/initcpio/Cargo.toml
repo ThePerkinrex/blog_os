@@ -1,0 +1,8 @@
+[package]
+name = "initcpio"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cpio_reader = "0.1.2"
+blog_os_vfs = { path = "../blog_os_vfs"}

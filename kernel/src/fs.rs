@@ -16,4 +16,7 @@ pub fn init_ramfs() {
     lock.register_fs(cglue::trait_obj!(ramfs as Filesystem))
         .unwrap();
     lock.mount_type(PathBuf::root(), None, RAMFS_TYPE);
+
+    lock.mkdir(&PathBuf::parse("/bin"), false, false).unwrap();
+    lock.mkdir(&PathBuf::parse("/sbin"), false, false).unwrap();
 }
