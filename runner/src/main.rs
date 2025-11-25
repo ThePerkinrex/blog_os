@@ -1,14 +1,22 @@
 use std::{
+    fs::File,
     io::IsTerminal,
-    path::PathBuf,
-    process::{Command, Stdio},
+    path::{Path, PathBuf},
+    process::{Command, Stdio, exit},
     thread,
     time::Duration,
 };
 
+use bootloader::{BiosBoot, UefiBoot};
 use clap::Parser;
+use cpio::{NewcBuilder, write_cpio};
 use qemu_common::{KERNEL_START, QemuExitCode};
 use serde::Deserialize;
+use walkdir::WalkDir;
+
+use crate::disk::BootBuilder;
+
+mod disk;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -52,6 +60,14 @@ fn get_manifest_target_dir() -> Option<PathBuf> {
     let out = command.output().ok()?;
     let location: LocateProjectOut = serde_json::from_slice(&out.stdout).ok()?;
     Some(location.root.parent()?.join("target"))
+}
+
+fn path_as_blog_os_path<P: AsRef<Path>>(path: P) -> String {
+    path.as_ref()
+        .components()
+        .map(|c| c.as_os_str().display().to_string())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn main() {
@@ -107,22 +123,58 @@ fn main() {
 
     std::fs::create_dir_all(&out_dir).unwrap();
 
-    let path = if uefi {
-        let uefi_path = out_dir.join(format!("{prefix}uefi.img"));
-        bootloader::UefiBoot::new(&kernel)
-            .create_disk_image(&uefi_path)
-            .unwrap();
-        uefi_path
+    let cpio = args.initrd.map(|initrd| {
+        let path = target.join("initrd.cpio");
+
+        let file = File::create(&path).unwrap();
+
+        println!("walking initrd {}", initrd.display());
+
+        let names_paths = WalkDir::new(&initrd)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .map(|entry| {
+                (
+                    path_as_blog_os_path(entry.path().strip_prefix(&initrd).unwrap()),
+                    entry.into_path(),
+                )
+            })
+            .collect::<Vec<_>>();
+        write_cpio(
+            names_paths
+                .iter()
+                .inspect(|(name, path)| println!("[INITRD] {name} at {}", path.display()))
+                .map(|(name, path)| (NewcBuilder::new(name), File::open(path).unwrap())),
+            file,
+        )
+        .unwrap();
+
+        println!("Wrote cpio to {}", path.display());
+
+        path
+    });
+
+    let mut boot_builder: Box<dyn BootBuilder> = if uefi {
+        Box::new(UefiBoot::new(&kernel))
     } else {
-        // create a BIOS disk image
-        let bios_path = out_dir.join(format!("{prefix}bios.img"));
-        bootloader::BiosBoot::new(&kernel)
-            .create_disk_image(&bios_path)
-            .unwrap();
-        bios_path
+        Box::new(BiosBoot::new(&kernel))
     };
 
+    boot_builder.set_ramdisk_opt(cpio.as_deref());
+
+    let path = if uefi {
+        out_dir.join(format!("{prefix}uefi.img"))
+    } else {
+        // create a BIOS disk image
+
+        out_dir.join(format!("{prefix}bios.img"))
+    };
+
+    boot_builder.create_disk_image(&path).unwrap();
+
     println!("Built at {}", path.display());
+
     if !args.build {
         println!("Running qemu");
 

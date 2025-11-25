@@ -142,6 +142,8 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     info!("Kernel offset: {:x}", boot_info.kernel_image_offset);
     info!("Kernel physaddr: {:x}", boot_info.kernel_addr);
     info!("Kernel size: {:x}", boot_info.kernel_len);
+    info!("Ramdisk addr: {:x?}", boot_info.ramdisk_addr);
+    info!("Ramdisk size: {:x}", boot_info.ramdisk_len);
 
     info!("Minimum init done. Setting up memory");
 

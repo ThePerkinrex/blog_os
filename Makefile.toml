@@ -12,6 +12,7 @@ CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
 	"drivers"
 ]
 COV_ARGS = ["test", "--no-report"]
+INITRD_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/initrd"
 
 [env.gdb]
 GDB_LISTEN = true
