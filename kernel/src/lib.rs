@@ -15,7 +15,9 @@ use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 
-use crate::{driver::KDriver, elf::load_example_driver, fs::VFS, process::ProcessInfo, setup::KERNEL_INFO};
+use crate::{
+    driver::KDriver, elf::load_example_driver, fs::VFS, process::ProcessInfo, setup::KERNEL_INFO,
+};
 
 pub mod allocator;
 pub mod config;
@@ -82,7 +84,6 @@ pub fn kernel_main() -> ! {
     driver.start();
     drop(driver);
 
-
     info!("Loading initramfs");
 
     fs::init_ramfs();
@@ -95,7 +96,11 @@ pub fn kernel_main() -> ! {
         let root = PathBuf::root();
         let inode_ref = lock.get_ref(&root).unwrap();
         let inode = lock.get_inode(inode_ref).unwrap();
-        debug!("root inode ({inode_ref:?}: {}): {:?}", root, inode.stat().unwrap());
+        debug!(
+            "root inode ({inode_ref:?}: {}): {:?}",
+            root,
+            inode.stat().unwrap()
+        );
 
         let file = inode.open().unwrap();
         for inode in file.readdir().unwrap() {
