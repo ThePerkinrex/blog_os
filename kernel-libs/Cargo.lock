@@ -378,6 +378,7 @@ dependencies = [
  "blog_os-device",
  "blog_os_vfs",
  "lock_api",
+ "log",
  "slotmap",
 ]
 

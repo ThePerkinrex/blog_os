@@ -1,6 +1,9 @@
 #![no_std]
 
-use blog_os_vfs::{VFS, api::{file::File, inode::INode, path::PathBuf}};
+use blog_os_vfs::{
+    VFS,
+    api::{file::File, inode::INode, path::PathBuf},
+};
 
 pub fn load_initcpio(vfs: &mut VFS, ramdisk: &[u8]) {
     for entry in cpio_reader::iter_files(ramdisk) {
@@ -12,7 +15,6 @@ pub fn load_initcpio(vfs: &mut VFS, ramdisk: &[u8]) {
             PathBuf::root().join(&file)
         };
 
-
         log::debug!("name: {:?} - {} bytes", file, entry.file().len());
 
         if let Some(parent) = file.parent() {
@@ -23,11 +25,12 @@ pub fn load_initcpio(vfs: &mut VFS, ramdisk: &[u8]) {
         let mut opened = inode.open().unwrap();
         let mut data = entry.file();
 
-        loop {
+        while !data.is_empty() {
+            log::debug!("{} bytes left to write", data.len());
             let written = opened.write(data).unwrap();
             if let Some(d) = data.get(written..) {
                 data = d;
-            }else{
+            } else {
                 break;
             }
         }
@@ -35,6 +38,5 @@ pub fn load_initcpio(vfs: &mut VFS, ramdisk: &[u8]) {
         opened.close().unwrap();
 
         log::debug!("Written");
-
     }
 }

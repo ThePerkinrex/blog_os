@@ -9,4 +9,5 @@ slotmap = { version = "1.0.7", default-features = false }
 blog_os_vfs = {path = "../blog_os_vfs"}
 blog_os-device = {path = "../blog_os-device"}
 api-utils = {path = "../api-utils"}
+log = "0.4.28"
 

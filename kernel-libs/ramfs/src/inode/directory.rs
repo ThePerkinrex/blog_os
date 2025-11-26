@@ -10,7 +10,10 @@ use blog_os_vfs::api::{
 use lock_api::{RawRwLock, RwLock};
 use slotmap::Key;
 
-use crate::superblock::{INodeKey, SharedSuperblockData};
+use crate::{
+    inode::regular::RegularINode,
+    superblock::{INodeKey, SharedSuperblockData},
+};
 
 pub struct DirectoryINode<R: RawRwLock + Send + Sync + 'static> {
     entries: Arc<RwLock<R, BTreeMap<String, INodeKey>>>,
@@ -105,6 +108,12 @@ impl<'a, R: RawRwLock + Send + Sync> File for DirectoryFile<'a, R> {
             return Err(IOError::AlreadyExists);
         }
 
-        todo!()
+        let inode = Arc::new(cglue::trait_obj!(RegularINode::<R>::new() as INode));
+
+        let key = self.inode.superblock.inodes.write().insert(inode);
+
+        self.inode.entries.write().insert(name.into(), key);
+
+        Ok(FsINodeRef(key.data().as_ffi()))
     }
 }
