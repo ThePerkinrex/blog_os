@@ -149,6 +149,137 @@ It also includes a simple test program `test_prog` for testing userspace process
 
 = Kernel startup
 
+This section explains the kernel setup process, formatted in Typst syntax.
+
+== Overview of the Setup Process
+The `setup` function performs all early kernel initialization before multitasking begins. It configures CPU tables, interrupt handling, memory management, stack allocation, debugging facilities, and the global kernel state.
+
+== Discovering Layout and Initializing CPU Tables
+The kernel begins by discovering available virtual regions using `discover_layout`, which identifies unmapped virtual-address ranges for facilities such as the heap, stack allocator, and drivers.
+
+Then, CPU structures are initialized:
+- `gdt::init()` loads the GDT and TSS.
+- `interrupts::init_idt()` loads exception handlers.
+- `interrupts::init_pics()` initializes hardware interrupt controllers.
+
+If present, the framebuffer is initialized, as well as serial output and logging.
+
+== Logging Kernel Metadata
+The kernel logs:
+- Virtual and physical kernel addresses
+- Kernel image size
+- Ramdisk address and length
+
+This provides early diagnostics.
+
+== Paging Setup: bootloader-provided Page Tables
+The bootloader provides identity- and higher-half mappings. Paging is initialized via:
+
+```rust
+let page_table = unsafe { init_page_tables(physical_memory_offset) };
+```
+
+`init_page_tables`:
+
+- Retrieves the active level-4 page table via `Cr3`.
+- Converts its physical address to a virtual address using the physical-memory offset.
+- Builds an `OffsetPageTable` over the bootloader-created mappings.
+
+== Physical Frame Allocator
+
+A `BootInfoFrameAllocator` is created using the memory regions from the bootloader. Only regions marked `Usable` are iterated, producing an iterator of 4 KiB frames. After the heap is initialized, the allocator also supports frame deallocation using an internal queue.
+
+== PageTables Structure
+
+A `PageTables` object wraps the bootloader mappings and kernel base virtual offset. It provides:
+
+- Walking and modifying page tables
+- Mapping/unmapping pages
+- Enumerating mapped ranges
+
+== Virtual Region Allocator
+
+The virtual region allocator identifies large contiguous unmapped virtual memory regions. These are used by:
+
+- Heap initialization
+- Kernel stack allocator
+- Drivers and subsystems requiring dynamic virtual memory
+
+The allocator is created using:
+
+
+```rust
+init_region_allocator(&page_table, &layout, &page_table)
+```
+
+== AllocKernelInfo
+
+`AllocKernelInfo` stores:
+
+- Page table structure
+- Frame allocator
+- Virtual region allocator
+
+This is wrapped in a `ReentrantMutex` and globally stored via `Once`.
+
+== Heap Initialization
+
+The heap is implemented using *Talc*. The region allocator assigns contiguous pages for the initial heap:
+
+- A range of virtual pages is allocated.
+- Each page is mapped using newly allocated frames.
+- Talc claims this region as usable heap memory.
+
+Heap growth (OOM handling) allocates additional virtual regions via the same allocator, maps new pages, and expands Talc's span.
+
+== Unmapping Bootloader Userspace Pages
+
+All mapped pages below the kernel's virtual base are enumerated and unmapped. These are typically leftover mappings (e.g., old GDT state). Each page:
+
+- Is logged
+- Unmapped from the page table
+- TLB-flushed
+
+== Stack Allocator Initialization
+
+Using the region allocator, the kernel initializes `StackAlloc`. It allocates:
+
+- `esp0`: the privileged ring-0 stack
+- `ist_df`: the IST double-fault stack
+
+These stacks are registered in the TSS via `set_tss_guarded_stacks`.
+
+== ELF Loading and Debugging Metadata
+
+The kernel ELF image is reconstructed from the physical-to-virtual offset. From this:
+
+- The ELF is parsed (`SystemElf`)
+- Exception-unwind information (`EhInfo`) is extracted
+- DWARF debug information is loaded
+- An `addr2line` context is constructed when possible
+
+== Constructing KernelInfo
+
+A global static `KernelInfo` is created holding:
+
+- Bootloader metadata (API version, ACPI RSDP, TLS template, ramdisk info)
+- Kernel ELF and debug metadata
+- AllocKernelInfo
+- Stack allocator
+- Optional addr2line context
+
+It becomes the central state reference for the kernel.
+
+== Enabling Multitasking
+
+Finally:
+
+- `multitask::init()` initializes the scheduler.
+- A task entry is created for the current running context.
+- Kernel stack switching becomes possible.
+
+At this point, memory management, interrupts, debug info, and tasking are fully active.
+
 = Simple I/O
 
 = Memory
