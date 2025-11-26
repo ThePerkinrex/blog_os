@@ -241,7 +241,7 @@ pub fn load(path: &Path) -> Result<ProcessInfo, ExecError> {
         let bytes = file.read(read)?;
         if let Some(r) = read.get_mut(bytes..) {
             read = r;
-        }else{
+        } else {
             break;
         }
     }

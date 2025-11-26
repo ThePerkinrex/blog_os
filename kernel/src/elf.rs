@@ -5,9 +5,7 @@ use core::{
 
 use addr2line::Context;
 use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
-use kernel_utils::{
-    aligned_bytes::{AlignedBytes, realign_if_necessary},
-};
+use kernel_utils::aligned_bytes::{AlignedBytes, realign_if_necessary};
 use log::{debug, info, warn};
 use object::{
     LittleEndian, Object, ObjectSymbol, ObjectSymbolTable,

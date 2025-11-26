@@ -15,7 +15,11 @@ use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 
-use crate::{fs::VFS, process::{ProcessInfo, load}, setup::KERNEL_INFO};
+use crate::{
+    fs::VFS,
+    process::{ProcessInfo, load},
+    setup::KERNEL_INFO,
+};
 
 pub mod allocator;
 pub mod config;
