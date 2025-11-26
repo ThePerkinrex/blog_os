@@ -196,6 +196,24 @@ impl VFS {
         }
     }
 
+    pub fn create_file(&mut self, path: &Path) -> Result<CArcSome<INodeBox<'static>>, IOError> {
+        if let Some(parent) = path.parent() {
+            let inode_ref = self.get_ref(parent).ok_or(IOError::NotFound)?;
+            let inode = self.get_inode(inode_ref).ok_or(IOError::NotFound)?;
+            let mut file = inode.open()?;
+            
+            let created = file.creat(path.components().last().unwrap())?;
+            
+            file.close()?;
+
+            let created = INodeRef(inode_ref.0, created);
+
+            self.get_inode(created).ok_or(IOError::NotFound)
+        }else{
+            Err(IOError::NotFound)
+        }
+    }
+
     pub fn get(&mut self, path: &Path) -> Result<CArcSome<INodeBox<'static>>, IOError> {
         let r = self.get_ref(path).ok_or(IOError::NotFound)?;
         let inode = self.get_inode(r).ok_or(IOError::NotFound)?;
