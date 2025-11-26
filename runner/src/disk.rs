@@ -9,6 +9,7 @@ pub trait BootBuilder {
             self.set_ramdisk(ramdisk_path);
         }
     }
+    #[allow(dead_code)]
     fn set_boot_config(&mut self, config: &BootConfig);
     fn create_disk_image(&self, out_path: &Path) -> anyhow::Result<()>;
 }

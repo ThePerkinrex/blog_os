@@ -165,6 +165,7 @@ dependencies = [
  "itertools 0.14.0",
  "kernel-utils",
  "smallvec",
+ "thiserror",
 ]
 
 [[package]]

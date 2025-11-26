@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+pub mod aligned_bytes;
 pub mod maybe_boxed;
 pub mod no_heap_vec;
 pub mod smallmap;

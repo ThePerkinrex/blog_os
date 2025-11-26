@@ -18,7 +18,7 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::{KERNEL_INFO, process::ProcessInfo, rand::uuid_v4, stack::SlabStack};
+use crate::{KERNEL_INFO, hlt_loop, process::ProcessInfo, rand::uuid_v4, stack::SlabStack};
 
 pub mod lock;
 
@@ -375,6 +375,17 @@ extern "C" fn task_dealloc() {
                         }
                     }
                 }
+
+                if let Some(next) = dealloc_ptr_lock.next_task.upgrade() {
+                    if next.id == dealloc_task_ptr.id {
+                        warn!("next task after this is the one being deallocated. Stopping");
+                        hlt_loop();
+                    }
+                } else {
+                    warn!("No next task. Stopping");
+                    hlt_loop();
+                }
+
                 drop(tasks);
                 drop(dealloc_ptr_lock);
 

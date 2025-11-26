@@ -1,11 +1,15 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::{string::String, sync::Arc};
-use log::{debug, info};
+use blog_os_vfs::api::{IOError, file::File, inode::INode, path::Path, stat::FileType};
+use kernel_utils::aligned_bytes::AlignedBytes;
+use log::{debug, info, warn};
+use thiserror::Error;
 
 use crate::{
     KERNEL_INFO,
-    elf::{LoadedProgram, load_user_program},
+    elf::{ElfHeader, ElfLoadError, LoadedProgram, load_user_program},
+    fs::VFS,
     memory::multi_l4_paging::PageTableToken,
     multitask::{get_current_task, set_current_process_info},
     priviledge::jmp_to_usermode,
@@ -203,4 +207,49 @@ pub extern "C" fn get_process_kernel_stack_top() -> u64 {
     drop(ctx);
 
     stack.as_u64()
+}
+
+#[derive(Debug, Error)]
+pub enum ExecError {
+    #[error(transparent)]
+    Elf(#[from] ElfLoadError),
+
+    #[error(transparent)]
+    Io(#[from] IOError),
+
+    #[error("Not a regular file")]
+    NotRegularFile,
+}
+
+pub fn load(path: &Path) -> Result<ProcessInfo, ExecError> {
+    let inode = VFS.write().get(path)?;
+
+    let stat = inode.stat()?;
+
+    if stat.file_type != FileType::RegularFile {
+        warn!("Tried to load {path} with stat: {stat:?}");
+        return Err(ExecError::NotRegularFile);
+    }
+
+    let mut buf = AlignedBytes::new_uninit::<ElfHeader>(stat.size as usize);
+
+    let mut file = inode.open()?;
+
+    let mut read = &mut *buf;
+
+    while !read.is_empty() {
+        let bytes = file.read(read)?;
+        if let Some(r) = read.get_mut(bytes..) {
+            read = r;
+        }else{
+            break;
+        }
+    }
+
+    file.close()?;
+
+    debug!("Loaded {path}");
+
+    // TODO make this throw an exception
+    Ok(ProcessInfo::new(&buf))
 }

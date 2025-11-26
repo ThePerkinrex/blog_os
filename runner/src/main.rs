@@ -2,7 +2,7 @@ use std::{
     fs::File,
     io::IsTerminal,
     path::{Path, PathBuf},
-    process::{Command, Stdio, exit},
+    process::{Command, Stdio},
     thread,
     time::Duration,
 };

@@ -1,12 +1,13 @@
 use core::{
-    alloc::Layout,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
 };
 
 use addr2line::Context;
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
-use kernel_utils::maybe_boxed::MaybeBoxed;
+use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
+use kernel_utils::{
+    aligned_bytes::{AlignedBytes, realign_if_necessary},
+};
 use log::{debug, info, warn};
 use object::{
     LittleEndian, Object, ObjectSymbol, ObjectSymbolTable,
@@ -39,27 +40,27 @@ const DRIVER: &[u8] = include_bytes!("./progs/libtest_driver.so");
 
 pub type SystemElf<'a> = ElfFile64<'a, LittleEndian, &'a [u8]>;
 
-fn copy_aligned_box(align: usize, og: &[u8]) -> Box<[u8]> {
-    let size = og.len();
-    let layout = Layout::from_size_align(size, align).unwrap();
-    unsafe {
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!("allocation failed");
-        }
-        let slice = core::slice::from_raw_parts_mut(ptr, size);
-        slice.copy_from_slice(og);
-        Box::from_raw(slice)
-    }
-}
+// fn copy_aligned_box(align: usize, og: &[u8]) -> Box<[u8]> {
+//     let size = og.len();
+//     let layout = Layout::from_size_align(size, align).unwrap();
+//     unsafe {
+//         let ptr = alloc::alloc::alloc(layout);
+//         if ptr.is_null() {
+//             panic!("allocation failed");
+//         }
+//         let slice = core::slice::from_raw_parts_mut(ptr, size);
+//         slice.copy_from_slice(og);
+//         Box::from_raw(slice)
+//     }
+// }
 
-fn realign_if_necessary<'a>(align: usize, og: &'a [u8]) -> MaybeBoxed<'a, [u8]> {
-    if (og.as_ptr() as usize).is_multiple_of(align) {
-        MaybeBoxed::Borrowed(og)
-    } else {
-        MaybeBoxed::Boxed(copy_aligned_box(align, og))
-    }
-}
+// fn realign_if_necessary<'a>(align: usize, og: &'a [u8]) -> MaybeBoxed<'a, [u8]> {
+//     if (og.as_ptr() as usize).is_multiple_of(align) {
+//         MaybeBoxed::Borrowed(og)
+//     } else {
+//         MaybeBoxed::Boxed(copy_aligned_box(align, og))
+//     }
+// }
 
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -124,7 +125,7 @@ bitflags::bitflags! {
 
 #[self_referencing]
 pub struct ElfWithDataAndDwarf {
-    data: Box<[u8]>,
+    data: AlignedBytes,
     #[borrows(data)]
     #[covariant]
     elf: SystemElf<'this>,
@@ -409,15 +410,17 @@ pub enum ElfLoadError {
     MemAllocError,
 }
 
+pub type ElfHeader = object::elf::FileHeader64<object::endian::LittleEndian>;
+
+pub const ELF_ALIGN: usize = core::mem::align_of::<ElfHeader>();
+
 pub fn load_elf<S: SymbolResolver>(
     bytes: &[u8],
     type_check: impl FnOnce(&EType, u64) -> Result<VirtAddr, ElfLoadError>,
     user: bool,
     mut resolver: S,
 ) -> Result<LoadedElf<S>, ElfLoadError> {
-    let align = core::mem::align_of::<object::elf::FileHeader64<object::endian::LittleEndian>>();
-
-    let aligned = realign_if_necessary(align, bytes);
+    let aligned = realign_if_necessary::<ElfHeader>(bytes);
 
     let elf_contained: ElfWithDataAndDwarf = ElfWithDataAndDwarfBuilder {
         data: aligned.into_owned(),

@@ -5,7 +5,7 @@ pub use blog_os_vfs_api as api;
 use blog_os_vfs_api::{
     IOError,
     cglue::arc::CArcSome,
-    file::{File, cglue_file::FileBox},
+    file::File,
     fs::{Filesystem, cglue_filesystem::FilesystemBox, cglue_superblock::SuperblockBox},
     inode::{INode, cglue_inode::INodeBox},
     path::ffi::pathbuf_into_ffi_ref,

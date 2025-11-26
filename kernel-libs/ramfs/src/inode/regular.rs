@@ -30,7 +30,7 @@ impl<R: RawRwLock + Send + Sync> INode for RegularINode<R> {
         Ok(Stat {
             device: None,
             size: self.data.read().len() as u64,
-            file_type: blog_os_vfs::api::stat::FileType::Directory,
+            file_type: blog_os_vfs::api::stat::FileType::RegularFile,
         })
     }
 

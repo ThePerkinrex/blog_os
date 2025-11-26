@@ -10,11 +10,14 @@ script_runner = "@duckscript"
 #"glob_cp ../userspace/bin/* ./src/progs"
 script = '''
 arr = glob_array ../userspace/bin/*
+mkdir -p ../initrd/bin
 for bin in ${arr}
 	name = basename ${bin}
-	echo cp ${bin} ./src/progs/${name}
-	cp ${bin} ./src/progs/${name}
+	echo cp ${bin} ../initrd/bin/${name}
+	cp ${bin} ../initrd/bin/${name}
 end
+
+cp ../initrd/bin/test_prog ../initrd/init
 '''
 # args = ["../userspace/bin/*", "./src/progs/"]
 

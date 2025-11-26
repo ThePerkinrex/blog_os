@@ -15,9 +15,7 @@ use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 
-use crate::{
-    driver::KDriver, elf::load_example_driver, fs::VFS, process::ProcessInfo, setup::KERNEL_INFO,
-};
+use crate::{fs::VFS, process::{ProcessInfo, load}, setup::KERNEL_INFO};
 
 pub mod allocator;
 pub mod config;
@@ -79,11 +77,6 @@ pub fn kernel_main() -> ! {
     //     debug!("driver symbol {:?}", s.name())
     // }
 
-    let driver = KDriver::new(load_example_driver()).unwrap();
-    debug!("driver: {driver:?}");
-    driver.start();
-    drop(driver);
-
     info!("Loading initramfs");
 
     fs::init_ramfs();
@@ -113,24 +106,27 @@ pub fn kernel_main() -> ! {
 
     // hlt_loop();
 
-    info!("Adding new task to list");
-    multitask::create_task(other_task, "other_task");
+    // info!("Adding new task to list");
+    // multitask::create_task(other_task, "other_task");
 
-    info!("DID NOT CRASH!");
-    info!("Switching");
-    multitask::task_switch_safe();
-    info!("Returned");
-    info!("Going back");
-    multitask::task_switch_safe();
+    // info!("DID NOT CRASH!");
+    // info!("Switching");
+    // multitask::task_switch_safe();
+    // info!("Returned");
+    // info!("Going back");
+    // multitask::task_switch_safe();
 
-    multitask::create_task(switch_loop, "switch loop");
-    multitask::create_task(second_process, "second_process");
+    // multitask::create_task(switch_loop, "switch loop");
+    // multitask::create_task(second_process, "second_process");
 
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
-    let prog = elf::load_example_elf();
-    let proc = ProcessInfo::new(prog);
-    proc.start();
+
+    load(&PathBuf::parse("/init")).unwrap().start();
+
+    // let prog = elf::load_example_elf();
+    // let proc = ProcessInfo::new(prog);
+    // proc.start();
 
     hlt_loop();
 }
