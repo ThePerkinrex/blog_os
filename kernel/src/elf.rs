@@ -33,9 +33,6 @@ use crate::{
 
 pub mod symbol;
 
-const TEST: &[u8] = include_bytes!("./progs/test_prog");
-const DRIVER: &[u8] = include_bytes!("./progs/libtest_driver.so");
-
 pub type SystemElf<'a> = ElfFile64<'a, LittleEndian, &'a [u8]>;
 
 // fn copy_aligned_box(align: usize, og: &[u8]) -> Box<[u8]> {
@@ -688,12 +685,4 @@ pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
         elf: loaded_elf,
         heap: ReentrantMutex::new(UserHeap::new(brk)),
     }
-}
-
-pub const fn load_example_elf() -> &'static [u8] {
-    TEST
-}
-
-pub const fn load_example_driver() -> &'static [u8] {
-    DRIVER
 }

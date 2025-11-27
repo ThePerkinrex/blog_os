@@ -10,6 +10,7 @@ use std::{
 use bootloader::{BiosBoot, UefiBoot};
 use clap::Parser;
 use cpio::{NewcBuilder, write_cpio};
+use humansize::{BINARY, DECIMAL, SizeFormatter};
 use qemu_common::{KERNEL_START, QemuExitCode};
 use serde::Deserialize;
 use walkdir::WalkDir;
@@ -150,7 +151,10 @@ fn main() {
         )
         .unwrap();
 
-        println!("Wrote cpio to {}", path.display());
+
+        let stat = path.metadata().unwrap();
+
+        println!("Wrote cpio to {}: {}/{} ({} bytes)", path.display(), SizeFormatter::new(stat.len(), DECIMAL), SizeFormatter::new(stat.len(), BINARY), stat.len());
 
         path
     });
@@ -173,7 +177,9 @@ fn main() {
 
     boot_builder.create_disk_image(&path).unwrap();
 
-    println!("Built at {}", path.display());
+    let stat = path.metadata().unwrap();
+
+    println!("Built at {} with size: {}/{} ({} bytes)", path.display(), SizeFormatter::new(stat.len(), DECIMAL), SizeFormatter::new(stat.len(), BINARY), stat.len());
 
     if !args.build {
         println!("Running qemu");

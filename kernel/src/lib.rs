@@ -17,7 +17,7 @@ use qemu_common::QemuExitCode;
 
 use crate::{
     fs::VFS,
-    process::{ProcessInfo, load},
+    process::load,
     setup::KERNEL_INFO,
 };
 
@@ -136,19 +136,19 @@ pub fn kernel_main() -> ! {
     hlt_loop();
 }
 
-pub extern "C" fn other_task() {
-    info!("STarted other task");
-    info!("Switching back");
-    multitask::task_switch_safe();
-    info!("Should not be here");
-}
+// pub extern "C" fn other_task() {
+//     info!("STarted other task");
+//     info!("Switching back");
+//     multitask::task_switch_safe();
+//     info!("Should not be here");
+// }
 
-pub extern "C" fn second_process() {
-    info!("Starting second process");
-    let prog = elf::load_example_elf();
-    let proc = ProcessInfo::new(prog);
-    proc.start();
-}
+// pub extern "C" fn second_process() {
+//     info!("Starting second process");
+//     let prog = elf::load_example_elf();
+//     let proc = ProcessInfo::new(prog);
+//     proc.start();
+// }
 
 // pub extern "C" fn test_return() -> ! {
 //     info!("REturned here");
