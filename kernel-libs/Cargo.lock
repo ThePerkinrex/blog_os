@@ -207,6 +207,7 @@ dependencies = [
 name = "kdriver-api"
 version = "0.1.0"
 dependencies = [
+ "blog_os-device-api",
  "cglue",
 ]
 

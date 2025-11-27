@@ -49,6 +49,7 @@ macro_rules! enum_with_max {
 
 enum_with_max! {
     #[derive(IntoPrimitive, TryFromPrimitive, Debug, Default)]
+    #[allow(non_camel_case_types)]
     pub enum SyscallNumber : usize {
         #[default]
         NOP = 0,
@@ -56,6 +57,11 @@ enum_with_max! {
         WRITE,
         BRK,
         YIELD,
+        OPEN,
+        READ,
+        CLOSE,
+        INIT_DRIVER,
+        DELETE_DRIVER
     }
 }
 

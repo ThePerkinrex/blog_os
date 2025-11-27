@@ -1,6 +1,11 @@
 use core::{alloc::Layout, ffi::CStr};
 
-use alloc::{collections::btree_map::BTreeMap, string::String, sync::Arc};
+use alloc::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    string::{String, ToString},
+    sync::Arc,
+};
+use blog_os_device::api::bus::{Bus, cglue_bus::BusBox};
 use kdriver_api::{CLayout, KernelInterface};
 use log::info;
 use object::{Object, ObjectSymbol};
@@ -12,6 +17,7 @@ use x86_64::{
 };
 
 use crate::{
+    device::BUS_REGISTRY,
     elf::{
         EType, ElfLoadError, LoadedElf, load_elf,
         symbol::{InterfaceKey, KDriverResolver},
@@ -29,6 +35,7 @@ struct InterfaceData {
 pub struct Interface {
     data: Arc<Once<InterfaceData>>,
     allocs: Arc<RwLock<BTreeMap<VirtAddr, Layout>>>,
+    registered_buses: Arc<RwLock<BTreeSet<String>>>,
 }
 
 impl Interface {
@@ -36,6 +43,7 @@ impl Interface {
         Self {
             data: Arc::new(Once::new()),
             allocs: Arc::new(RwLock::new(BTreeMap::new())),
+            registered_buses: Default::default(),
         }
     }
 }
@@ -79,12 +87,21 @@ impl KernelInterface for Interface {
             panic!("freeing ptr that was not allocated")
         }
     }
+
+    fn register_bus(&self, bus: BusBox<'static>) {
+        self.registered_buses.write().insert(bus.name().to_string());
+        BUS_REGISTRY.write().register(bus);
+    }
 }
 
 impl Drop for Interface {
     fn drop(&mut self) {
         for (&ptr, &layout) in self.allocs.read().iter() {
             unsafe { alloc::alloc::dealloc(ptr.as_mut_ptr::<u8>(), layout) };
+        }
+
+        for bus in self.registered_buses.read().iter() {
+            BUS_REGISTRY.write().unregister(bus);
         }
     }
 }

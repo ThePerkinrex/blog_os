@@ -40,6 +40,7 @@ pub mod rand;
 pub mod setup;
 pub mod stack;
 pub mod unwind;
+pub mod device;
 
 pub fn kernel_main() -> ! {
     // let addresses = [

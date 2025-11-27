@@ -2,7 +2,7 @@
 build-std = ["core", "compiler_builtins", "alloc"]
 
 [build]
-target = ["../x86_64-unknown-blog_os-kdriver.json"]
+target = ["x86_64-unknown-blog_os-kdriver.json"]
 rustflags = [
 	# "-C", "link-arg=-T../exec_linker.ld",
 	"-C", "force-unwind-tables=yes",

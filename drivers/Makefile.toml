@@ -1,3 +1,9 @@
+extend = "../env.toml"
+
+
+[env]
+TARGET = "./target/x86_64-unknown-blog_os-kdriver/${CARGO_BUILD_DEST}"
+
 [tasks.cov]
 workspace = false
 install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo", test_arg = ["llvm-cov", "--help"]}
@@ -23,3 +29,21 @@ toolchain = "nightly"
 
 [tasks.docs]
 toolchain = "nightly"
+
+[tasks.copy-bin]
+workspace = false
+dependencies = ["build"]
+script_runner = "@duckscript"
+script = '''
+mkdir ./bin
+binaries = split ${CARGO_MAKE_CRATE_WORKSPACE_MEMBERS} ,
+for bin in ${binaries}
+	echo Copied ${TARGET}/${bin}.ko
+	cp ${TARGET}/${bin}.ko ./bin/${bin}.ko
+end
+'''
+
+[tasks.bin]
+# condition = { files_modified = { input = ["./*/src/**/*.rs"], output = ["${TARGET}/*"]}}
+workspace = false
+dependencies = [{name = "build"}, {name = "copy-bin"}]

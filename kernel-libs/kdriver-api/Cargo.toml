@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 
 cglue = { version = "0.3.5", default-features = false }
+blog_os-device-api = {path = "../blog_os-device-api"}

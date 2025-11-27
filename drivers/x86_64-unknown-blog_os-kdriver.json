@@ -17,6 +17,8 @@
     "tier": 2
   },
   "dynamic-linking": true,
+  "dll-prefix": "",
+  "dll-suffix": ".ko",
   "panic-strategy": "abort",
   "plt-by-default": false,
   "position-independent-executables": true,

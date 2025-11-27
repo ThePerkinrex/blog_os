@@ -2,6 +2,8 @@
 
 use core::alloc::{Layout, LayoutError};
 
+use blog_os_device_api::bus::cglue_bus::BusBox;
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct CLayout {
@@ -76,4 +78,9 @@ pub trait KernelInterface {
     ///
     /// Otherwise the behavior is undefined.
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout);
+
+
+    fn register_bus(&self, bus: BusBox<'static>);
+
+    
 }

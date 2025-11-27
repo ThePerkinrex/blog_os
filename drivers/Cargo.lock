@@ -3,6 +3,20 @@
 version = 4
 
 [[package]]
+name = "api-utils"
+version = "0.1.0"
+dependencies = [
+ "cglue",
+]
+
+[[package]]
+name = "blog_os-device-api"
+version = "0.1.0"
+dependencies = [
+ "api-utils",
+]
+
+[[package]]
 name = "cglue"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,6 +95,7 @@ dependencies = [
 name = "kdriver-api"
 version = "0.1.0"
 dependencies = [
+ "blog_os-device-api",
  "cglue",
 ]
 
@@ -108,6 +123,13 @@ name = "no-std-compat"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b93853da6d84c2e3c7d730d6473e8817692dd89be387eb01b94d7f108ecb5b8c"
+
+[[package]]
+name = "pci"
+version = "0.1.0"
+dependencies = [
+ "kdriver_std",
+]
 
 [[package]]
 name = "proc-macro-crate"
