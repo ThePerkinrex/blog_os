@@ -15,16 +15,13 @@ use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 
-use crate::{
-    fs::VFS,
-    process::load,
-    setup::KERNEL_INFO,
-};
+use crate::{fs::VFS, process::load, setup::KERNEL_INFO};
 
 pub mod allocator;
 pub mod config;
 pub mod dwarf;
 
+pub mod device;
 pub mod driver;
 #[allow(clippy::future_not_send)]
 pub mod elf;
@@ -40,7 +37,6 @@ pub mod rand;
 pub mod setup;
 pub mod stack;
 pub mod unwind;
-pub mod device;
 
 pub fn kernel_main() -> ! {
     // let addresses = [

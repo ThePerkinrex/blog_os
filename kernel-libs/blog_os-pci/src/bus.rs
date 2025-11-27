@@ -104,7 +104,7 @@ impl Bus for PciBus {
         BUS_NAME
     }
 
-    fn register_driver(&mut self, driver: BusDeviceDriverBox<'static>) {
+    fn register_driver(&mut self, _driver: BusDeviceDriverBox<'static>) {
         todo!()
     }
 

@@ -79,8 +79,5 @@ pub trait KernelInterface {
     /// Otherwise the behavior is undefined.
     unsafe fn dealloc(&self, ptr: *mut u8, layout: CLayout);
 
-
     fn register_bus(&self, bus: BusBox<'static>);
-
-    
 }

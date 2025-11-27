@@ -145,16 +145,30 @@ fn main() {
         write_cpio(
             names_paths
                 .iter()
-                .inspect(|(name, path)| println!("[INITRD] {name} at {}", path.display()))
+                .inspect(|(name, path)| {
+                    let stat = path.metadata().unwrap();
+                    println!(
+                        "[INITRD] {name} at {}: {}/{} ({} bytes)",
+                        path.display(),
+                        SizeFormatter::new(stat.len(), DECIMAL),
+                        SizeFormatter::new(stat.len(), BINARY),
+                        stat.len()
+                    );
+                })
                 .map(|(name, path)| (NewcBuilder::new(name), File::open(path).unwrap())),
             file,
         )
         .unwrap();
 
-
         let stat = path.metadata().unwrap();
 
-        println!("Wrote cpio to {}: {}/{} ({} bytes)", path.display(), SizeFormatter::new(stat.len(), DECIMAL), SizeFormatter::new(stat.len(), BINARY), stat.len());
+        println!(
+            "Wrote cpio to {}: {}/{} ({} bytes)",
+            path.display(),
+            SizeFormatter::new(stat.len(), DECIMAL),
+            SizeFormatter::new(stat.len(), BINARY),
+            stat.len()
+        );
 
         path
     });
@@ -179,7 +193,13 @@ fn main() {
 
     let stat = path.metadata().unwrap();
 
-    println!("Built at {} with size: {}/{} ({} bytes)", path.display(), SizeFormatter::new(stat.len(), DECIMAL), SizeFormatter::new(stat.len(), BINARY), stat.len());
+    println!(
+        "Built at {} with size: {}/{} ({} bytes)",
+        path.display(),
+        SizeFormatter::new(stat.len(), DECIMAL),
+        SizeFormatter::new(stat.len(), BINARY),
+        stat.len()
+    );
 
     if !args.build {
         println!("Running qemu");
