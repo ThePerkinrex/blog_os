@@ -636,7 +636,7 @@ pub fn load_elf<S: SymbolResolver>(
     })
 }
 
-pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
+pub fn load_user_program(bytes: &[u8]) -> Result<LoadedProgram, ElfLoadError> {
     let loaded_elf = load_elf(
         bytes,
         |e_type, _size| {
@@ -651,8 +651,7 @@ pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
         },
         true,
         (),
-    )
-    .unwrap();
+    )?;
 
     let info = KERNEL_INFO.get().unwrap();
     let mut info_lock = info.alloc_kinf.lock();
@@ -679,10 +678,10 @@ pub fn load_user_program(bytes: &[u8]) -> LoadedProgram {
         VirtAddr::new(loaded_elf.load_offset + loaded_elf.elf().elf_header().e_entry(LittleEndian));
     info!("ELF loaded with entry point {:p}", entry);
 
-    LoadedProgram {
+    Ok(LoadedProgram {
         stack: ManuallyDrop::new(stack),
         entry,
         elf: loaded_elf,
         heap: ReentrantMutex::new(UserHeap::new(brk)),
-    }
+    })
 }

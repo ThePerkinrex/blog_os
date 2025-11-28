@@ -102,7 +102,7 @@ impl Drop for ProcessInfo {
 static FIRST_PROC: AtomicBool = AtomicBool::new(true);
 
 impl ProcessInfo {
-    pub fn new(prog: &[u8]) -> Self {
+    pub fn new(prog: &[u8]) -> Result<Self, ElfLoadError> {
         let id = uuid_v4();
         let token;
         if FIRST_PROC
@@ -124,17 +124,17 @@ impl ProcessInfo {
         }
 
         debug!("[{id}] Loading elf");
-        let prog = load_user_program(prog);
+        let prog = load_user_program(prog)?;
         info!("[{id}] Loaded elf");
 
-        Self {
+        Ok(Self {
             program: Arc::new(prog),
             status: ProcessStatus::default(),
             id,
             original: id,
             pt_token: token,
             stdout: Stdout { buf: String::new() },
-        }
+        })
     }
 
     pub fn start(self) {
@@ -250,6 +250,5 @@ pub fn load(path: &Path) -> Result<ProcessInfo, ExecError> {
 
     debug!("Loaded {path}");
 
-    // TODO make this throw an exception
-    Ok(ProcessInfo::new(&buf))
+    Ok(ProcessInfo::new(&buf)?)
 }
