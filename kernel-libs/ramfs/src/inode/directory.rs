@@ -45,18 +45,20 @@ impl<R: RawRwLock + Send + Sync> INode for DirectoryINode<R> {
         })
     }
 
-    fn open(&self) -> Result<FileBox<'_>, IOError> {
-        Ok(cglue::trait_obj!(
-            DirectoryFile::<'_, R> { inode: self } as File
-        ))
+    fn open(&self) -> Result<FileBox<'static>, IOError> {
+        Ok(cglue::trait_obj!(DirectoryFile::<R> {
+            entries: self.entries.clone(),
+            superblock: self.superblock.clone()
+        } as File))
     }
 }
 
-pub struct DirectoryFile<'a, R: RawRwLock + Send + Sync + 'static> {
-    inode: &'a DirectoryINode<R>,
+pub struct DirectoryFile<R: RawRwLock + Send + Sync + 'static> {
+    entries: Arc<RwLock<R, BTreeMap<String, INodeKey>>>,
+    superblock: Arc<SharedSuperblockData<R>>,
 }
 
-impl<'a, R: RawRwLock + Send + Sync> File for DirectoryFile<'a, R> {
+impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
     fn close(self) -> Result<(), IOError> {
         Ok(())
     }
@@ -71,7 +73,6 @@ impl<'a, R: RawRwLock + Send + Sync> File for DirectoryFile<'a, R> {
 
     fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
         Ok(self
-            .inode
             .entries
             .read()
             .keys()
@@ -80,23 +81,23 @@ impl<'a, R: RawRwLock + Send + Sync> File for DirectoryFile<'a, R> {
     }
 
     fn mkdir(&mut self, name: &str) -> Result<FsINodeRef, IOError> {
-        if self.inode.entries.read().contains_key(name) {
+        if self.entries.read().contains_key(name) {
             return Err(IOError::AlreadyExists);
         }
 
         let inode = Arc::new(cglue::trait_obj!(
-            DirectoryINode::new(self.inode.superblock.clone()) as INode
+            DirectoryINode::new(self.superblock.clone()) as INode
         ));
 
-        let key = self.inode.superblock.inodes.write().insert(inode);
+        let key = self.superblock.inodes.write().insert(inode);
 
-        self.inode.entries.write().insert(name.into(), key);
+        self.entries.write().insert(name.into(), key);
 
         Ok(FsINodeRef(key.data().as_ffi()))
     }
 
     fn mknod(&mut self, name: &str, _device: DeviceId) -> Result<FsINodeRef, IOError> {
-        if self.inode.entries.read().contains_key(name) {
+        if self.entries.read().contains_key(name) {
             return Err(IOError::AlreadyExists);
         }
 
@@ -104,16 +105,20 @@ impl<'a, R: RawRwLock + Send + Sync> File for DirectoryFile<'a, R> {
     }
 
     fn creat(&mut self, name: &str) -> Result<FsINodeRef, IOError> {
-        if self.inode.entries.read().contains_key(name) {
+        if self.entries.read().contains_key(name) {
             return Err(IOError::AlreadyExists);
         }
 
         let inode = Arc::new(cglue::trait_obj!(RegularINode::<R>::new() as INode));
 
-        let key = self.inode.superblock.inodes.write().insert(inode);
+        let key = self.superblock.inodes.write().insert(inode);
 
-        self.inode.entries.write().insert(name.into(), key);
+        self.entries.write().insert(name.into(), key);
 
         Ok(FsINodeRef(key.data().as_ffi()))
+    }
+
+    fn flush(&mut self) -> Result<(), IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 }

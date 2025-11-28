@@ -3,12 +3,20 @@
 use core::{fmt::Write, panic::PanicInfo};
 
 use blog_os_syscalls::SyscallNumber;
+use io_error::IOError;
+use num_enum::TryFromPrimitive;
 
 extern crate alloc;
 
 pub mod lock;
 pub mod memory;
 mod syscalls;
+
+fn u64_as_result<E: TryFromPrimitive<Primitive = u64>>(x: u64) -> Result<u64, E> {
+    let neg_err = (-(x as i64)) as u64;
+
+    E::try_from_primitive(neg_err).map_or_else(|_| Ok(x), |e| Err(e))
+}
 
 pub fn nop(code: u64) {
     unsafe { syscalls::syscall_arg1(SyscallNumber::NOP, code) };
@@ -19,11 +27,11 @@ pub fn exit(code: u64) -> ! {
     unreachable!()
 }
 
-pub fn write(fd: u64, buf: &[u8]) -> u64 {
+pub fn write(fd: u64, buf: &[u8]) -> Result<u64, IOError> {
     let raw = buf.as_ptr() as u64;
     let len = buf.len() as u64;
 
-    unsafe { syscalls::syscall_arg3(SyscallNumber::WRITE, len, raw, fd) }
+    u64_as_result(unsafe { syscalls::syscall_arg3(SyscallNumber::WRITE, len, raw, fd) })
 }
 
 pub fn brk(offset: i64) -> *mut u8 {
@@ -37,7 +45,7 @@ pub fn yield_syscall() {
 pub fn print(s: &str) {
     let mut buf = s.as_bytes();
     while !buf.is_empty() {
-        let bytes = write(1, buf) as usize;
+        let bytes = write(1, buf).unwrap() as usize;
         nop(bytes as u64);
         if let Some(s) = buf.get(bytes..) {
             buf = s;

@@ -14,4 +14,5 @@ pub trait File {
     fn mkdir(&mut self, name: &str) -> Result<FsINodeRef, IOError>;
     fn mknod(&mut self, name: &str, device: DeviceId) -> Result<FsINodeRef, IOError>;
     fn creat(&mut self, name: &str) -> Result<FsINodeRef, IOError>;
+    fn flush(&mut self) -> Result<(), IOError>;
 }

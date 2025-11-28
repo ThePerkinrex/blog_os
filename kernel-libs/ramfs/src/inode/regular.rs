@@ -34,26 +34,26 @@ impl<R: RawRwLock + Send + Sync> INode for RegularINode<R> {
         })
     }
 
-    fn open(&self) -> Result<FileBox<'_>, IOError> {
-        Ok(cglue::trait_obj!(RegularFile::<'_, R> {
-            inode: self,
+    fn open(&self) -> Result<FileBox<'static>, IOError> {
+        Ok(cglue::trait_obj!(RegularFile::<R> {
+            data: self.data.clone(),
             cursor: 0
         } as File))
     }
 }
 
-pub struct RegularFile<'a, R: RawRwLock + Send + Sync + 'static> {
-    inode: &'a RegularINode<R>,
+pub struct RegularFile<R: RawRwLock + Send + Sync + 'static> {
+    data: Arc<RwLock<R, Vec<u8>>>,
     cursor: usize,
 }
 
-impl<'a, R: RawRwLock + Send + Sync> File for RegularFile<'a, R> {
+impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
     fn close(self) -> Result<(), IOError> {
         Ok(())
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
-        let lock = self.inode.data.read();
+        let lock = self.data.read();
 
         let self_data = &lock[self.cursor..];
 
@@ -69,7 +69,7 @@ impl<'a, R: RawRwLock + Send + Sync> File for RegularFile<'a, R> {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize, IOError> {
-        let mut lock = self.inode.data.write();
+        let mut lock = self.data.write();
 
         let self_data = &mut lock[self.cursor..];
 
@@ -104,5 +104,11 @@ impl<'a, R: RawRwLock + Send + Sync> File for RegularFile<'a, R> {
 
     fn creat(&mut self, _name: &str) -> Result<FsINodeRef, IOError> {
         Err(IOError::OperationNotPermitted)
+    }
+
+    fn flush(&mut self) -> Result<(), IOError> {
+        // TODO
+
+        Ok(())
     }
 }

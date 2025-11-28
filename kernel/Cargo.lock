@@ -148,10 +148,10 @@ version = "0.1.0"
 dependencies = [
  "api-utils",
  "blog_os-device-api",
+ "io_error",
  "itertools 0.14.0",
  "kernel-utils",
  "smallvec",
- "thiserror",
 ]
 
 [[package]]
@@ -326,6 +326,14 @@ dependencies = [
  "blog_os_vfs",
  "cpio_reader",
  "log",
+]
+
+[[package]]
+name = "io_error"
+version = "0.1.0"
+dependencies = [
+ "num_enum",
+ "thiserror",
 ]
 
 [[package]]

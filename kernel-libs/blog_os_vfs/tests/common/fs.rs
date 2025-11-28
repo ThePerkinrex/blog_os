@@ -35,7 +35,7 @@ impl INode for CustomINode {
         todo!()
     }
 
-    fn open(&self) -> Result<FileBox<'_>, IOError> {
+    fn open(&self) -> Result<FileBox<'static>, IOError> {
         todo!()
     }
 }

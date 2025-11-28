@@ -6,8 +6,10 @@ edition = "2024"
 [dependencies]
 paste = "1.0.15"
 blog_os-syscalls = {path = "../../kernel-libs/blog_os-syscalls"}
+io_error = {path = "../../kernel-libs/io_error"}
 talc = "4.4.3"
 lock_api = "0.4.14"
+num_enum = {version = "0.7.5", default-features = false}
 
 
 [lib]

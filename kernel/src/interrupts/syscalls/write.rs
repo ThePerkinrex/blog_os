@@ -1,26 +1,19 @@
-use alloc::string::String;
-use log::{trace, warn};
+use blog_os_vfs::api::{IOError, file::File};
 use x86_64::VirtAddr;
 
-use crate::multitask::{change_current_process_info, get_current_task_id};
+use crate::multitask::get_current_process_info;
+
+fn write_high_level(fd: u64, buf: &[u8]) -> Result<u64, IOError> {
+    let file = get_current_process_info()
+        .and_then(|pinf| pinf.files().read().get(fd as usize).cloned())
+        .ok_or(IOError::NotFound)?;
+
+    file.write().write(buf).map(|x| x as u64)
+}
 
 pub fn write(fd: u64, buf: u64, len: u64, _: u64, _: u64, _: u64) -> u64 {
-    let task_id = get_current_task_id();
-    if fd != 1 {
-        warn!("[{task_id:?}] Tried to write an fd different from 1 ({fd})");
-    }
-    trace!("[{task_id:?}] writing to fd {fd} with buf {buf:x} (len: {len})");
     let buf =
         unsafe { core::slice::from_raw_parts(VirtAddr::new(buf).as_ptr::<u8>(), len as usize) };
-    let s = String::from_utf8_lossy(buf);
 
-    change_current_process_info(|pinf| {
-        pinf.as_mut().map_or_else(
-            || {
-                warn!("No process to print {s:?}");
-                s.len()
-            },
-            |pinf| pinf.stdout_mut().write(&s),
-        ) as u64
-    })
+    write_high_level(fd, buf).unwrap_or_else(|e| (-(e as i64)) as u64)
 }

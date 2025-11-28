@@ -9,4 +9,4 @@ itertools = { version = "0.14.0", default-features = false }
 smallvec = {version = "1.15.1", features = ["const_generics", "union", "const_new"]}
 blog_os-device-api = {path = "../blog_os-device-api"}
 api-utils = {path = "../api-utils"}
-thiserror = { version = "2.0.17", default-features = false }
+io_error = {path = "../io_error"}

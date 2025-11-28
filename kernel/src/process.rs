@@ -1,9 +1,16 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::{string::String, sync::Arc};
-use blog_os_vfs::api::{IOError, file::File, inode::INode, path::Path, stat::FileType};
-use kernel_utils::aligned_bytes::AlignedBytes;
+use blog_os_vfs::api::{
+    IOError,
+    file::{File, cglue_file::FileBox},
+    inode::INode,
+    path::Path,
+    stat::FileType,
+};
+use kernel_utils::{aligned_bytes::AlignedBytes, simple_slotmap::SimpleSlotmap};
 use log::{debug, info, warn};
+use spin::lock_api::RwLock;
 use thiserror::Error;
 
 use crate::{
@@ -23,46 +30,59 @@ pub enum ProcessStatus {
     Ending(u64),
 }
 
-#[derive(Debug, Clone)]
-pub struct Stdout {
-    buf: String,
-}
+// #[derive(Debug, Clone)]
+// pub struct Stdout {
+//     buf: String,
+// }
 
-impl Stdout {
-    pub fn write(&mut self, data: &str) -> usize {
-        let combined = core::mem::take(&mut self.buf) + data;
+// impl Stdout {
+//     pub fn write(&mut self, data: &str) -> usize {
+//         let combined = core::mem::take(&mut self.buf) + data;
 
-        let lines = combined.split_inclusive('\n');
+//         let lines = combined.split_inclusive('\n');
 
-        let mut sum = 0;
-        for line in lines {
-            sum += line.len();
-            if line.ends_with('\n') {
-                info!("[STDOUT] {}", line.trim_end_matches('\n'));
-            } else {
-                self.buf += line;
-            }
-        }
+//         let mut sum = 0;
+//         for line in lines {
+//             sum += line.len();
+//             if line.ends_with('\n') {
+//                 info!("[STDOUT] {}", line.trim_end_matches('\n'));
+//             } else {
+//                 self.buf += line;
+//             }
+//         }
 
-        sum
-    }
+//         sum
+//     }
 
-    pub fn flush(&mut self) {
-        let data = core::mem::take(&mut self.buf);
-        if !data.is_empty() {
-            info!("[FLUSHED] [STDOUT] {data}");
-        }
-    }
-}
+//     pub fn flush(&mut self) {
+//         let data = core::mem::take(&mut self.buf);
+//         if !data.is_empty() {
+//             info!("[FLUSHED] [STDOUT] {data}");
+//         }
+//     }
+// }
 
-#[derive(Debug)]
 pub struct ProcessInfo {
     program: Arc<LoadedProgram>,
     status: ProcessStatus,
     id: uuid::Uuid,
     original: uuid::Uuid,
     pt_token: Option<Arc<PageTableToken>>,
-    stdout: Stdout,
+    // stdout: Stdout,
+    files: Arc<RwLock<SimpleSlotmap<Arc<RwLock<FileBox<'static>>>>>>,
+}
+
+impl core::fmt::Debug for ProcessInfo {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ProcessInfo")
+            .field("program", &self.program)
+            .field("status", &self.status)
+            .field("id", &self.id)
+            .field("original", &self.original)
+            .field("pt_token", &self.pt_token)
+            .field("files_len", &self.files.read().len())
+            .finish()
+    }
 }
 
 impl Clone for ProcessInfo {
@@ -82,7 +102,7 @@ impl Clone for ProcessInfo {
             id,
             original: self.original,
             pt_token: self.pt_token.clone(),
-            stdout: self.stdout.clone(),
+            files: Default::default(), // TODO deepclone open fds
         }
     }
 }
@@ -133,7 +153,7 @@ impl ProcessInfo {
             id,
             original: id,
             pt_token: token,
-            stdout: Stdout { buf: String::new() },
+            files: Default::default(),
         })
     }
 
@@ -177,16 +197,16 @@ impl ProcessInfo {
         &mut self.status
     }
 
-    pub const fn stdout_mut(&mut self) -> &mut Stdout {
-        &mut self.stdout
-    }
-
     pub const fn process_id(&self) -> uuid::Uuid {
         self.original
     }
 
     pub const fn info_id(&self) -> uuid::Uuid {
         self.id
+    }
+
+    pub fn files(&self) -> &Arc<RwLock<SimpleSlotmap<Arc<RwLock<FileBox<'static>>>>>> {
+        &self.files
     }
 }
 

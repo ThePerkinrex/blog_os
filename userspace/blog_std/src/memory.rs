@@ -1,6 +1,6 @@
 use talc::{OomHandler, Span, Talc, Talck};
 
-use crate::{brk, lock::RawYieldingMutex, nop, println};
+use crate::{brk, lock::RawYieldingMutex, nop};
 
 #[derive(Debug)]
 struct GrowHeap {

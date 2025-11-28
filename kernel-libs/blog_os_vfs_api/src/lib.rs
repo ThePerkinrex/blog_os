@@ -9,15 +9,4 @@ pub mod path;
 pub mod stat;
 
 pub use api_utils::cglue;
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-#[repr(C)]
-pub enum IOError {
-    #[error("Not found")]
-    NotFound = 0,
-    #[error("Operation not permitted")]
-    OperationNotPermitted,
-    #[error("Already exists")]
-    AlreadyExists,
-}
+pub use io_error::IOError;
