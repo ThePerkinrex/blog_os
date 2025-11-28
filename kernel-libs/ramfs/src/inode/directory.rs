@@ -59,7 +59,7 @@ pub struct DirectoryFile<R: RawRwLock + Send + Sync + 'static> {
 }
 
 impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
-    fn close(self) -> Result<(), IOError> {
+    fn close(&mut self) -> Result<(), IOError> {
         Ok(())
     }
 

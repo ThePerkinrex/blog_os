@@ -1,6 +1,10 @@
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::{
+    mem::ManuallyDrop,
+    ops::{Deref, DerefMut},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-use alloc::{string::String, sync::Arc};
+use alloc::sync::Arc;
 use blog_os_vfs::api::{
     IOError,
     file::{File, cglue_file::FileBox},
@@ -22,6 +26,8 @@ use crate::{
     priviledge::jmp_to_usermode,
     rand::uuid_v4,
 };
+
+pub mod stdio;
 
 #[derive(Debug, Clone, Default)]
 pub enum ProcessStatus {
@@ -62,6 +68,38 @@ pub enum ProcessStatus {
 //     }
 // }
 
+pub struct OpenFile {
+    file: ManuallyDrop<FileBox<'static>>,
+}
+
+impl From<FileBox<'static>> for OpenFile {
+    fn from(file: FileBox<'static>) -> Self {
+        Self {
+            file: ManuallyDrop::new(file),
+        }
+    }
+}
+
+impl Deref for OpenFile {
+    type Target = FileBox<'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.file
+    }
+}
+
+impl DerefMut for OpenFile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.file
+    }
+}
+
+impl Drop for OpenFile {
+    fn drop(&mut self) {
+        let _ = self.file.close();
+    }
+}
+
 pub struct ProcessInfo {
     program: Arc<LoadedProgram>,
     status: ProcessStatus,
@@ -69,7 +107,7 @@ pub struct ProcessInfo {
     original: uuid::Uuid,
     pt_token: Option<Arc<PageTableToken>>,
     // stdout: Stdout,
-    files: Arc<RwLock<SimpleSlotmap<Arc<RwLock<FileBox<'static>>>>>>,
+    files: Arc<RwLock<SimpleSlotmap<Arc<RwLock<OpenFile>>>>>,
 }
 
 impl core::fmt::Debug for ProcessInfo {
@@ -102,7 +140,7 @@ impl Clone for ProcessInfo {
             id,
             original: self.original,
             pt_token: self.pt_token.clone(),
-            files: Default::default(), // TODO deepclone open fds
+            files: self.files.clone(),
         }
     }
 }
@@ -205,7 +243,7 @@ impl ProcessInfo {
         self.id
     }
 
-    pub fn files(&self) -> &Arc<RwLock<SimpleSlotmap<Arc<RwLock<FileBox<'static>>>>>> {
+    pub const fn files(&self) -> &Arc<RwLock<SimpleSlotmap<Arc<RwLock<OpenFile>>>>> {
         &self.files
     }
 }

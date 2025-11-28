@@ -48,7 +48,7 @@ pub struct RegularFile<R: RawRwLock + Send + Sync + 'static> {
 }
 
 impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
-    fn close(self) -> Result<(), IOError> {
+    fn close(&mut self) -> Result<(), IOError> {
         Ok(())
     }
 

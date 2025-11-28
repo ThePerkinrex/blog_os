@@ -9,13 +9,27 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-use blog_os_vfs::api::{file::File, inode::INode, path::PathBuf};
+use alloc::sync::Arc;
+use api_utils::cglue;
+use blog_os_vfs::api::{
+    file::{File, cglue_file::*},
+    inode::INode,
+    path::PathBuf,
+};
 // use blog_os_device::api::bus::{Bus, BusDeviceDriver};
 // use blog_os_pci::bus::PciBus;
 use log::{debug, info};
 use qemu_common::QemuExitCode;
+use spin::lock_api::RwLock;
 
-use crate::{fs::VFS, process::load, setup::KERNEL_INFO};
+use crate::{
+    fs::VFS,
+    process::{
+        OpenFile, load,
+        stdio::{StdIn, stderr, stdout},
+    },
+    setup::KERNEL_INFO,
+};
 
 pub mod allocator;
 pub mod config;
@@ -123,7 +137,25 @@ pub fn kernel_main() -> ! {
     // println!("JUmping to user mode");
     // test_jmp_to_usermode();
 
-    load(&PathBuf::parse("/init")).unwrap().start();
+    let p = load(&PathBuf::parse("/init")).unwrap();
+
+    p.files()
+        .write()
+        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
+            StdIn as File
+        )))));
+    p.files()
+        .write()
+        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
+            stdout() as File
+        )))));
+    p.files()
+        .write()
+        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
+            stderr() as File
+        )))));
+
+    p.start();
 
     // let prog = elf::load_example_elf();
     // let proc = ProcessInfo::new(prog);
