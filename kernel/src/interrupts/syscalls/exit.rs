@@ -10,7 +10,7 @@ pub fn exit(code: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
         for (_fd, file) in pinf.files().read().iter() {
             let mut lock = file.write();
 
-            lock.flush();
+            lock.flush().unwrap();
 
             drop(lock);
         }

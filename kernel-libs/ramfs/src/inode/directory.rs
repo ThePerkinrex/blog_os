@@ -3,7 +3,7 @@ use api_utils::cglue;
 use blog_os_device::api::DeviceId;
 use blog_os_vfs::api::{
     IOError,
-    file::{File, cglue_file::*},
+    file::{File, SeekMode, cglue_file::*},
     inode::{FsINodeRef, INode, cglue_inode::*},
     stat::Stat,
 };
@@ -71,14 +71,14 @@ impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
         Err(IOError::OperationNotPermitted)
     }
 
-    fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
-        Ok(self
-            .entries
-            .read()
-            .keys()
-            .map(|x| Box::from(x.as_str()))
-            .collect())
-    }
+    // fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
+    //     Ok(self
+    //         .entries
+    //         .read()
+    //         .keys()
+    //         .map(|x| Box::from(x.as_str()))
+    //         .collect())
+    // }
 
     fn mkdir(&mut self, name: &str) -> Result<FsINodeRef, IOError> {
         if self.entries.read().contains_key(name) {
@@ -120,5 +120,13 @@ impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
 
     fn flush(&mut self) -> Result<(), IOError> {
         Err(IOError::OperationNotPermitted)
+    }
+
+    fn seek(&mut self, _mode: SeekMode, _amount: isize) -> Result<usize, IOError> {
+        todo!()
+    }
+
+    fn next_direntry(&mut self) -> Result<&str, IOError> {
+        todo!()
     }
 }

@@ -3,7 +3,7 @@ use api_utils::cglue;
 use blog_os_device::api::DeviceId;
 use blog_os_vfs::api::{
     IOError,
-    file::{File, cglue_file::*},
+    file::{File, SeekMode, cglue_file::*},
     inode::{FsINodeRef, INode},
     stat::Stat,
 };
@@ -90,10 +90,6 @@ impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
         Ok(bytes)
     }
 
-    fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
-        Err(IOError::OperationNotPermitted)
-    }
-
     fn mkdir(&mut self, _name: &str) -> Result<FsINodeRef, IOError> {
         Err(IOError::OperationNotPermitted)
     }
@@ -110,5 +106,13 @@ impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
         // TODO
 
         Ok(())
+    }
+
+    fn seek(&mut self, mode: SeekMode, amount: isize) -> Result<usize, IOError> {
+        todo!()
+    }
+
+    fn next_direntry(&mut self) -> Result<&str, IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 }

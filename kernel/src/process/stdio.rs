@@ -1,6 +1,10 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use blog_os_device::api::DeviceId;
-use blog_os_vfs::api::{IOError, file::File, inode::FsINodeRef};
+use blog_os_vfs::api::{
+    IOError,
+    file::{File, SeekMode},
+    inode::FsINodeRef,
+};
 use log::{error, info};
 
 pub struct StdIn;
@@ -18,10 +22,6 @@ impl File for StdIn {
         Err(IOError::OperationNotPermitted)
     }
 
-    fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
-        Err(IOError::OperationNotPermitted)
-    }
-
     fn mkdir(&mut self, _name: &str) -> Result<FsINodeRef, IOError> {
         Err(IOError::OperationNotPermitted)
     }
@@ -36,6 +36,14 @@ impl File for StdIn {
 
     fn flush(&mut self) -> Result<(), IOError> {
         Ok(())
+    }
+
+    fn seek(&mut self, mode: SeekMode, amount: isize) -> Result<usize, IOError> {
+        Err(IOError::OperationNotPermitted)
+    }
+
+    fn next_direntry(&mut self) -> Result<&str, IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 }
 
@@ -74,10 +82,6 @@ impl File for Out {
         Ok(sum)
     }
 
-    fn readdir(&self) -> Result<Vec<Box<str>>, IOError> {
-        Err(IOError::OperationNotPermitted)
-    }
-
     fn mkdir(&mut self, _name: &str) -> Result<FsINodeRef, IOError> {
         Err(IOError::OperationNotPermitted)
     }
@@ -95,6 +99,14 @@ impl File for Out {
 
         self.buf.clear();
         Ok(())
+    }
+
+    fn seek(&mut self, mode: SeekMode, amount: isize) -> Result<usize, IOError> {
+        Err(IOError::OperationNotPermitted)
+    }
+
+    fn next_direntry(&mut self) -> Result<&str, IOError> {
+        Err(IOError::OperationNotPermitted)
     }
 }
 

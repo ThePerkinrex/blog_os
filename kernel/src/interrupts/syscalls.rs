@@ -16,6 +16,8 @@ use crate::{
 mod brk;
 mod exit;
 mod nop;
+mod open;
+mod read;
 mod write;
 mod yield_syscall;
 
@@ -45,6 +47,8 @@ static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
     nums[SyscallNumber::WRITE] = write::write;
     nums[SyscallNumber::BRK] = brk::brk;
     nums[SyscallNumber::YIELD] = yield_syscall::yield_syscall;
+    nums[SyscallNumber::READ] = read::read;
+    nums[SyscallNumber::WRITE] = open::open;
 
     nums
 });
