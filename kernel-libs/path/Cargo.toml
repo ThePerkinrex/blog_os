@@ -1,5 +1,5 @@
 [package]
-name = "blog_os_vfs_api"
+name = "path"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,7 +7,3 @@ edition = "2024"
 kernel-utils = { path = "../kernel-utils"}
 itertools = { version = "0.14.0", default-features = false }
 smallvec = {version = "1.15.1", features = ["const_generics", "union", "const_new"]}
-blog_os-device-api = {path = "../blog_os-device-api"}
-api-utils = {path = "../api-utils"}
-io_error = {path = "../io_error"}
-path = {path = "../path"}

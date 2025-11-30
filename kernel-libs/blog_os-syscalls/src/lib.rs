@@ -60,6 +60,7 @@ enum_with_max! {
         OPEN,
         READ,
         CLOSE,
+        FLUSH,
         INIT_DRIVER,
         DELETE_DRIVER
     }

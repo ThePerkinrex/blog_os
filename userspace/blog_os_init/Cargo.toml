@@ -1,0 +1,12 @@
+[package]
+name = "blog_os_init"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+blog_std = {path = "../blog_std"}
+
+[[bin]]
+name="blog_os_init"
+test=false
+bench=false

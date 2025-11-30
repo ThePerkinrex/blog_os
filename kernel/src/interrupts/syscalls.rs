@@ -14,7 +14,9 @@ use crate::{
 };
 
 mod brk;
+mod close;
 mod exit;
+mod flush;
 mod nop;
 mod open;
 mod read;
@@ -48,7 +50,9 @@ static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
     nums[SyscallNumber::BRK] = brk::brk;
     nums[SyscallNumber::YIELD] = yield_syscall::yield_syscall;
     nums[SyscallNumber::READ] = read::read;
-    nums[SyscallNumber::WRITE] = open::open;
+    nums[SyscallNumber::OPEN] = open::open;
+    nums[SyscallNumber::CLOSE] = close::close;
+    nums[SyscallNumber::FLUSH] = flush::flush;
 
     nums
 });
@@ -62,7 +66,9 @@ pub fn syscall_handle(
     arg5: u64,
     arg6: u64,
 ) -> u64 {
+    debug!("Syscall: {code}");
     unwind::backtrace();
+    debug!("Unwound stack");
     match SyscallNumber::try_from(code) {
         Ok(code) => SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6),
         Err(e) => {

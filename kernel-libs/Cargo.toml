@@ -1,3 +1,3 @@
 [workspace]
-members = [ "api-utils","blog_os-device","blog_os-device-api", "blog_os-log", "blog_os-pci", "blog_os-syscalls","blog_os_vfs", "blog_os_vfs_api", "initcpio", "io_error", "kdriver-api", "kernel-utils", "ramfs"]
+members = [ "api-utils","blog_os-device","blog_os-device-api", "blog_os-log", "blog_os-pci", "blog_os-syscalls","blog_os_vfs", "blog_os_vfs_api", "initcpio", "io_error", "kdriver-api", "kernel-utils", "path", "ramfs"]
 resolver = "3"

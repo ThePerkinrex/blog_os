@@ -17,7 +17,7 @@ for bin in ${arr}
 	cp ${bin} ../initrd/bin/${name}
 end
 
-cp ../initrd/bin/test_prog ../initrd/init
+cp ../initrd/bin/blog_os_init ../initrd/init
 
 arr = glob_array ../drivers/bin/*
 mkdir -p ../initrd/drivers

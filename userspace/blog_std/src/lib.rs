@@ -2,12 +2,18 @@
 
 use core::{fmt::Write, panic::PanicInfo};
 
+use alloc::string::ToString;
 use blog_os_syscalls::SyscallNumber;
 use io_error::IOError;
 use num_enum::TryFromPrimitive;
 
+pub use path;
+use path::Path;
+
 extern crate alloc;
 
+pub mod file;
+pub mod io;
 pub mod lock;
 pub mod memory;
 mod syscalls;
@@ -34,12 +40,36 @@ pub fn write(fd: u64, buf: &[u8]) -> Result<u64, IOError> {
     u64_as_result(unsafe { syscalls::syscall_arg3(SyscallNumber::WRITE, len, raw, fd) })
 }
 
+pub fn read(fd: u64, buf: &mut [u8]) -> Result<u64, IOError> {
+    let raw = buf.as_ptr() as u64;
+    let len = buf.len() as u64;
+
+    u64_as_result(unsafe { syscalls::syscall_arg3(SyscallNumber::READ, len, raw, fd) })
+}
+
 pub fn brk(offset: i64) -> *mut u8 {
     (unsafe { syscalls::syscall_arg1(SyscallNumber::BRK, offset as u64) }) as *mut u8
 }
 
 pub fn yield_syscall() {
     unsafe { syscalls::syscall_arg0(SyscallNumber::YIELD) };
+}
+
+pub fn open(path: &Path) -> Result<u64, IOError> {
+    let string = path.to_string();
+    let bytes = string.as_bytes();
+    let raw = bytes.as_ptr() as u64;
+    let len = bytes.len() as u64;
+
+    u64_as_result(unsafe { syscalls::syscall_arg2(SyscallNumber::OPEN, len, raw) })
+}
+
+pub fn close(fd: u64) -> Result<u64, IOError> {
+    u64_as_result(unsafe { syscalls::syscall_arg1(SyscallNumber::CLOSE, fd) })
+}
+
+pub fn flush(fd: u64) -> Result<u64, IOError> {
+    u64_as_result(unsafe { syscalls::syscall_arg1(SyscallNumber::FLUSH, fd) })
 }
 
 pub fn print(s: &str) {

@@ -11,6 +11,7 @@ pub fn exit(code: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
             let mut lock = file.write();
 
             lock.flush().unwrap();
+            lock.close().unwrap();
 
             drop(lock);
         }

@@ -151,6 +151,7 @@ dependencies = [
  "io_error",
  "itertools 0.14.0",
  "kernel-utils",
+ "path",
  "smallvec",
 ]
 
@@ -479,6 +480,15 @@ dependencies = [
  "proc-macro2-diagnostics",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "path"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.14.0",
+ "kernel-utils",
+ "smallvec",
 ]
 
 [[package]]
