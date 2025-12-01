@@ -2,3 +2,5 @@ target
 /imgs
 
 *.log
+
+initrd
