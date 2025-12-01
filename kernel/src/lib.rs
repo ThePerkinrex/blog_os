@@ -141,19 +141,19 @@ pub fn kernel_main() -> ! {
 
     p.files()
         .write()
-        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
-            StdIn as File
-        )))));
+        .insert(Arc::new(RwLock::new(OpenFile::new_no_inode(
+            cglue::trait_obj!(StdIn as File),
+        ))));
     p.files()
         .write()
-        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
-            stdout() as File
-        )))));
+        .insert(Arc::new(RwLock::new(OpenFile::new_no_inode(
+            cglue::trait_obj!(stdout() as File),
+        ))));
     p.files()
         .write()
-        .insert(Arc::new(RwLock::new(OpenFile::from(cglue::trait_obj!(
-            stderr() as File
-        )))));
+        .insert(Arc::new(RwLock::new(OpenFile::new_no_inode(
+            cglue::trait_obj!(stderr() as File),
+        ))));
 
     p.start();
 

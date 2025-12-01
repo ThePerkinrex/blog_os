@@ -6,6 +6,7 @@ use blog_os_vfs_api::{
     file::{File, SeekMode, cglue_file::*},
     inode::{FsINodeRef, INode},
 };
+use log::debug;
 use shared_fs::{FileType, Stat};
 
 use lock_api::{RawRwLock, RwLock};
@@ -63,6 +64,8 @@ impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
         let self_data = &lock[self.cursor..];
 
         let bytes = self_data.len().min(buf.len());
+
+        debug!("Reading {bytes} bytes from the cursor: {} (len: {})", self.cursor, lock.len());
 
         buf[..bytes].copy_from_slice(&self_data[..bytes]);
 

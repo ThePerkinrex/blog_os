@@ -525,7 +525,7 @@ pub fn load_elf<S: SymbolResolver>(
                 // if flags.contains(ElfPhSegmentFlags::R) {
                 //     page_flags |= PageTableFlags::USER_ACCESSIBLE
                 // }
-                debug!("Mapping {p:?} with flags {page_flags:?}");
+                // debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
                     info.page_table
@@ -537,7 +537,7 @@ pub fn load_elf<S: SymbolResolver>(
             }
         }
         let elf_start = VirtAddr::from_ptr(elf_contained.borrow_data().as_ptr()) + offset;
-        debug!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
+        // debug!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
         unsafe {
             core::ptr::copy_nonoverlapping(
                 elf_start.as_ptr::<u8>(),
@@ -579,7 +579,7 @@ pub fn load_elf<S: SymbolResolver>(
         for (addr, reloc) in elf.dynamic_relocations().into_iter().flatten() {
             match reloc.target() {
                 object::RelocationTarget::Symbol(symbol_index) => {
-                    debug!("RELOC {addr:x} {reloc:?}");
+                    // debug!("RELOC {addr:x} {reloc:?}");
                     // for sym in elf.symbols() {
                     //     debug!("SYM {:?} {:?}", sym.index(), sym.name());
                     // }

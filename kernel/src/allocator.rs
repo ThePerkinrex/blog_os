@@ -83,11 +83,25 @@ struct OomGrow {
 }
 
 const GROW_PAGES: u64 = 1024;
+const GROW_SIZE: u64 = GROW_PAGES * Size4KiB::SIZE;
 
 impl OomHandler for OomGrow {
-    fn handle_oom(talc: &mut Talc<Self>, _layout: core::alloc::Layout) -> Result<(), ()> {
-        info!("Growing the HEAP");
+    fn handle_oom(talc: &mut Talc<Self>, layout: core::alloc::Layout) -> Result<(), ()> {
+        info!("Growing the HEAP: layout: {layout:?}");
 
+        // pages needed for requested layout (round up)
+        let page_size = Size4KiB::SIZE;
+        let needed_pages = {
+            let bytes = layout.size() as u64;
+            bytes.div_ceil(page_size)
+        };
+
+        // round up to a multiple of GROW_PAGES (at least 1 block)
+        let blocks = needed_pages.div_ceil(GROW_PAGES).max(1);
+        let grow_pages = 1 + blocks * GROW_PAGES;
+        let size_bytes = grow_pages * page_size;
+
+        // grab kernel alloc info
         let mut lock = talc
             .oom_handler
             .mutable_inf
@@ -96,16 +110,20 @@ impl OomHandler for OomGrow {
             .lock();
         let kinf = lock.deref_mut();
 
-        // TODO take layout into account
-        let heap_start = VirtAddr::new_truncate(
-            kinf.virt_region_allocator
-                .allocate_range(GROW_PAGES)
-                .expect("Heap region")
-                .start,
+        // NOTE: pass page count, not bytes
+        let region = kinf
+            .virt_region_allocator
+            .allocate_range(grow_pages) // pages
+            .expect("Heap region");
+        let heap_start = VirtAddr::new_truncate(region.start);
+
+        debug!(
+            "allocated region start at {heap_start:p} with {grow_pages} pages (0x{size_bytes:x} bytes) to accomodate requested 0x{:x}",
+            layout.size()
         );
-        // let heap_sheap_starttart = VirtAddr::new(HEAP_START);
+
         let page_range = {
-            let heap_end = heap_start + (GROW_PAGES * Size4KiB::SIZE) - 1u64;
+            let heap_end = heap_start + size_bytes - 1u64;
             let heap_start_page = Page::containing_address(heap_start);
             let heap_end_page = Page::containing_address(heap_end);
             Page::range_inclusive(heap_start_page, heap_end_page)
@@ -123,8 +141,9 @@ impl OomHandler for OomGrow {
         }
         drop(lock);
 
-        let span = Span::from_base_size(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
+        let span = Span::from_base_size(heap_start.as_mut_ptr::<u8>(), size_bytes as usize);
 
+        debug!("span: {span:?}");
         unsafe {
             talc.claim(span)?;
         }

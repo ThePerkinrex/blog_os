@@ -26,6 +26,8 @@ use crate::{
     setup::KERNEL_INFO,
 };
 
+pub mod registry;
+
 struct InterfaceData {
     id: InterfaceKey,
     name: String,
@@ -222,6 +224,14 @@ impl KDriver {
     pub fn start(&self) {
         info!("Starting driver [{}:{}]", self.name, self.version);
         (self.start)()
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
     }
 }
 

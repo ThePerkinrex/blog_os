@@ -56,6 +56,7 @@ enum_with_max! {
         AlreadyExists,
         #[error("End of file")]
         EOF,
-
+        #[error("Load elf error")]
+        LoadError
     }
 }

@@ -17,6 +17,7 @@ mod brk;
 mod close;
 mod exit;
 mod flush;
+mod init_driver;
 mod next_direntry;
 mod nop;
 mod open;
@@ -57,6 +58,7 @@ static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
     nums[SyscallNumber::FLUSH] = flush::flush;
     nums[SyscallNumber::STAT] = stat::stat;
     nums[SyscallNumber::NEXT_DIRENTRY] = next_direntry::next_direntry;
+    nums[SyscallNumber::INIT_DRIVER] = init_driver::init_driver;
 
     nums
 });
@@ -71,10 +73,13 @@ pub fn syscall_handle(
     arg6: u64,
 ) -> u64 {
     debug!("Syscall: {code}");
-    unwind::backtrace();
-    debug!("Unwound stack");
+    // unwind::backtrace();
+    // debug!("Unwound stack");
     match SyscallNumber::try_from(code) {
-        Ok(code) => SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6),
+        Ok(code) => {
+            debug!("Syscall: {code:?}");
+            SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6)
+        },
         Err(e) => {
             warn!(
                 "Unknown syscall {code} ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6}) [error: {e:?}]"

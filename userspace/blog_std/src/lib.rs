@@ -100,11 +100,17 @@ pub fn next_direntry(fd: u64, entry: &mut DirEntry) -> Result<(), IOError> {
     Ok(())
 }
 
+/// Closes the fd
+pub fn init_driver(fd: u64) -> Result<(), IOError> {
+    u64_as_result(unsafe { syscalls::syscall_arg1(SyscallNumber::INIT_DRIVER, fd) })?;
+    Ok(())
+}
+
 pub fn print(s: &str) {
     let mut buf = s.as_bytes();
     while !buf.is_empty() {
         let bytes = write(1, buf).unwrap() as usize;
-        nop(bytes as u64);
+        // nop(bytes as u64);
         if let Some(s) = buf.get(bytes..) {
             buf = s;
         } else {

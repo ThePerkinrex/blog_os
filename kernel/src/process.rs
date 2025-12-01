@@ -5,10 +5,11 @@ use core::{
 };
 
 use alloc::sync::Arc;
+use api_utils::cglue::arc::{CArc, CArcSome};
 use blog_os_vfs::api::{
     IOError,
     file::{File, cglue_file::FileBox},
-    inode::INode,
+    inode::{INode, cglue_inode::INodeBox},
     path::Path,
 };
 use kernel_utils::{aligned_bytes::AlignedBytes, simple_slotmap::SimpleSlotmap};
@@ -69,14 +70,26 @@ pub enum ProcessStatus {
 // }
 
 pub struct OpenFile {
+    inode: Option<CArcSome<INodeBox<'static>>>,
     file: ManuallyDrop<FileBox<'static>>,
 }
 
-impl From<FileBox<'static>> for OpenFile {
-    fn from(file: FileBox<'static>) -> Self {
+impl OpenFile {
+    pub fn new(inode: CArcSome<INodeBox<'static>>, file: FileBox<'static>) -> Self {
         Self {
+            inode: Some(inode),
             file: ManuallyDrop::new(file),
         }
+    }
+    pub fn new_no_inode(file: FileBox<'static>) -> Self {
+        Self {
+            inode: None,
+            file: ManuallyDrop::new(file),
+        }
+    }
+
+    pub fn inode(&self) -> Option<&CArcSome<INodeBox<'static>>> {
+        self.inode.as_ref()
     }
 }
 

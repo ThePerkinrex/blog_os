@@ -12,8 +12,9 @@ fn open_high_level(path: &str) -> Result<u64, IOError> {
     get_current_process_info()
         .ok_or(IOError::NotFound)
         .and_then(|pinf| {
-            let file = VFS.write().get(&path)?.open()?;
-            let fd = Arc::new(RwLock::new(OpenFile::from(file)));
+            let inode = VFS.write().get(&path)?;
+            let file = inode.open()?;
+            let fd = Arc::new(RwLock::new(OpenFile::new(inode, file)));
             Ok(pinf.files().write().insert(fd) as u64)
         })
         .inspect(|fd| debug!("Opened with fd {fd}"))
