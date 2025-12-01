@@ -10,6 +10,7 @@ use num_enum::TryFromPrimitive;
 use fs::Stat;
 pub use path;
 use path::Path;
+use shared_fs::dirent::{DirEntry, DirEntryHeader};
 
 extern crate alloc;
 
@@ -88,6 +89,15 @@ pub fn stat(path: &Path) -> Result<Stat, IOError> {
     u64_as_result(unsafe { syscalls::syscall_arg3(SyscallNumber::STAT, ptr as u64, len, raw) })?;
 
     Ok(unsafe { stat.assume_init() })
+}
+
+pub fn next_direntry(fd: u64, entry: &mut DirEntry) -> Result<(), IOError> {
+    let ptr = core::ptr::from_mut(entry);
+
+    let ptr = ptr as *mut DirEntryHeader;
+
+    u64_as_result(unsafe { syscalls::syscall_arg2(SyscallNumber::NEXT_DIRENTRY, ptr as u64, fd) })?;
+    Ok(())
 }
 
 pub fn print(s: &str) {

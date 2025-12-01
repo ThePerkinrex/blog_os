@@ -49,7 +49,7 @@ enum_with_max! {
     #[derive(IntoPrimitive, TryFromPrimitive, Debug, Error)]
     pub enum IOError : u64 {
         #[error("Not found")]
-        NotFound = 0,
+        NotFound = 1,
         #[error("Operation not permitted")]
         OperationNotPermitted,
         #[error("Already exists")]

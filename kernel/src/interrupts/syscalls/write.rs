@@ -5,6 +5,8 @@ use x86_64::VirtAddr;
 use crate::multitask::get_current_process_info;
 
 fn write_high_level(fd: u64, buf: &[u8]) -> Result<u64, IOError> {
+    debug!("Writing buffer to fd {fd}");
+
     let file = get_current_process_info()
         .and_then(|pinf| pinf.files().read().get(fd as usize).cloned())
         .ok_or(IOError::NotFound)?;

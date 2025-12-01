@@ -1,8 +1,11 @@
 #![no_std]
+#![feature(ptr_metadata)]
 
-use core::ffi::CStr;
+extern crate alloc;
 
 pub use blog_os_device_api::DeviceId;
+
+pub mod dirent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
@@ -22,11 +25,4 @@ pub struct Stat {
     pub device: Option<DeviceId>,
     pub size: u64,
     pub file_type: FileType, // TODO more stuff
-}
-
-#[derive(Debug, PartialEq, Eq)]
-#[repr(C)]
-pub struct DirEntry {
-    namelen: usize,
-    name: CStr,
 }

@@ -1,13 +1,18 @@
 use blog_os_vfs::api::{IOError, file::File};
+use log::debug;
 
 use crate::multitask::get_current_process_info;
 
 fn close_high_level(fd: u64) -> Result<u64, IOError> {
+    debug!("Closing fd {fd}");
     let file = get_current_process_info()
         .and_then(|pinf| pinf.files().write().remove(fd as usize))
-        .ok_or(IOError::NotFound)?;
+        .ok_or(IOError::NotFound)
+        .inspect_err(|e| debug!("Finding fd resulted in error: {e}"))?;
 
-    file.write().close()?;
+    file.write()
+        .close()
+        .inspect_err(|e| debug!("Closing fd resulted in error: {e}"))?;
     Ok(0)
 }
 

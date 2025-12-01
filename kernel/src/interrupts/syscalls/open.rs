@@ -1,11 +1,13 @@
 use alloc::{string::String, sync::Arc};
 use blog_os_vfs::api::{IOError, inode::INode, path::PathBuf};
+use log::debug;
 use spin::lock_api::RwLock;
 use x86_64::VirtAddr;
 
 use crate::{fs::VFS, multitask::get_current_process_info, process::OpenFile};
 
 fn open_high_level(path: &str) -> Result<u64, IOError> {
+    debug!("Opening: {path}");
     let path = PathBuf::parse(path);
     get_current_process_info()
         .ok_or(IOError::NotFound)
@@ -14,6 +16,7 @@ fn open_high_level(path: &str) -> Result<u64, IOError> {
             let fd = Arc::new(RwLock::new(OpenFile::from(file)));
             Ok(pinf.files().write().insert(fd) as u64)
         })
+        .inspect(|fd| debug!("Opened with fd {fd}"))
 }
 
 pub fn open(path: u64, len: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
