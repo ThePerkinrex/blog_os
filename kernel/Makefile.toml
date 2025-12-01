@@ -10,7 +10,7 @@ script_runner = "@duckscript"
 #"glob_cp ../userspace/bin/* ./src/progs"
 script = '''
 arr = glob_array ../userspace/bin/*
-mkdir -p ../initrd/bin
+mkdir ../initrd/bin
 for bin in ${arr}
 	name = basename ${bin}
 	echo cp ${bin} ../initrd/bin/${name}
@@ -20,7 +20,7 @@ end
 cp ../initrd/bin/blog_os_init ../initrd/init
 
 arr = glob_array ../drivers/bin/*
-mkdir -p ../initrd/drivers
+mkdir ../initrd/drivers
 for bin in ${arr}
 	name = basename ${bin}
 	echo cp ${bin} ../initrd/drivers/${name}

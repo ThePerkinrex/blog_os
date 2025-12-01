@@ -1,7 +1,7 @@
 use core::{marker::PhantomData, ptr::NonNull};
 
 use api_utils::cglue;
-use blog_os_vfs::api::{
+use blog_os_vfs_api::{
     fs::{Filesystem, cglue_superblock::*},
     path::ffi::PathBufOpaqueRef,
 };

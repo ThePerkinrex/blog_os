@@ -86,6 +86,7 @@ dependencies = [
  "blog_os_vfs_api",
  "kernel-utils",
  "log",
+ "shared_fs",
  "slotmap",
 ]
 
@@ -99,6 +100,7 @@ dependencies = [
  "itertools 0.14.0",
  "kernel-utils",
  "path",
+ "shared_fs",
  "smallvec",
 ]
 
@@ -139,6 +141,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "const_fn"
+version = "0.4.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f8a2ca5ac02d09563609681103aada9e1777d54fc57a5acd7a41404f9c93b6e"
 
 [[package]]
 name = "cpio_reader"
@@ -395,10 +403,11 @@ name = "ramfs"
 version = "0.1.0"
 dependencies = [
  "api-utils",
- "blog_os-device",
- "blog_os_vfs",
+ "blog_os-device-api",
+ "blog_os_vfs_api",
  "lock_api",
  "log",
+ "shared_fs",
  "slotmap",
 ]
 
@@ -462,6 +471,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.109",
+]
+
+[[package]]
+name = "shared_fs"
+version = "0.1.0"
+dependencies = [
+ "blog_os-device-api",
 ]
 
 [[package]]
@@ -601,12 +617,13 @@ dependencies = [
 
 [[package]]
 name = "x86_64"
-version = "0.15.2"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f042214de98141e9c8706e8192b73f56494087cc55ebec28ce10f26c5c364ae"
+checksum = "f7841fa0098ceb15c567d93d3fae292c49e10a7662b4936d5f6a9728594555ba"
 dependencies = [
  "bit_field",
  "bitflags",
+ "const_fn",
  "rustversion",
  "volatile",
 ]

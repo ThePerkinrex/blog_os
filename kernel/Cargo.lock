@@ -120,6 +120,7 @@ dependencies = [
  "pic8259",
  "qemu-common",
  "ramfs",
+ "shared_fs",
  "slotmap",
  "smallvec",
  "spin",
@@ -152,23 +153,24 @@ dependencies = [
  "itertools 0.14.0",
  "kernel-utils",
  "path",
+ "shared_fs",
  "smallvec",
 ]
 
 [[package]]
 name = "bootloader-boot-config"
-version = "0.11.12"
+version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cfbe7f4a5d9843a9a310712e64691f3c474546f02bed7a53ed81775a681d18e"
+checksum = "8695f73dcd0377cabbc64df31924b92456fde56cb9c2ae217da242e3235a1564"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "bootloader-x86_64-common"
-version = "0.11.12"
+version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c46c7526b8c95019184a922a5622c91b4c72a44980d93836a14f35f1c63c7f6"
+checksum = "ae55aafcc2a6131d510ed061797f806b96147b8f054dc9d0d5201facc3389ab8"
 dependencies = [
  "bootloader-boot-config",
  "bootloader_api",
@@ -187,9 +189,9 @@ dependencies = [
 
 [[package]]
 name = "bootloader_api"
-version = "0.11.12"
+version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba1a4adcd36a49a08c4fb8c13c132fb1ea01a59681b305b46625095318328455"
+checksum = "9af2881e494cfadbfd715dc4dd0cd8ff1f3bab70bed96385da250b392f4d91fc"
 
 [[package]]
 name = "cfg-if"
@@ -249,6 +251,12 @@ name = "conquer-util"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e763eef8846b13b380f37dfecda401770b0ca4e56e95170237bd7c25c7db3582"
+
+[[package]]
+name = "const_fn"
+version = "0.4.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f8a2ca5ac02d09563609681103aada9e1777d54fc57a5acd7a41404f9c93b6e"
 
 [[package]]
 name = "cpio_reader"
@@ -558,10 +566,11 @@ name = "ramfs"
 version = "0.1.0"
 dependencies = [
  "api-utils",
- "blog_os-device",
- "blog_os_vfs",
+ "blog_os-device-api",
+ "blog_os_vfs_api",
  "lock_api",
  "log",
+ "shared_fs",
  "slotmap",
 ]
 
@@ -677,6 +686,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "shared_fs"
+version = "0.1.0"
+dependencies = [
+ "blog_os-device-api",
 ]
 
 [[package]]
@@ -977,12 +993,13 @@ dependencies = [
 
 [[package]]
 name = "x86_64"
-version = "0.15.2"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f042214de98141e9c8706e8192b73f56494087cc55ebec28ce10f26c5c364ae"
+checksum = "f7841fa0098ceb15c567d93d3fae292c49e10a7662b4936d5f6a9728594555ba"
 dependencies = [
  "bit_field",
  "bitflags 2.10.0",
+ "const_fn",
  "rustversion",
  "volatile",
 ]

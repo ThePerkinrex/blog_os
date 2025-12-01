@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-x86_64 = {version = "0.15.2", default-features = false}
+x86_64 = {version = "0.15.4", default-features = false}

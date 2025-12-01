@@ -1,4 +1,8 @@
-use blog_os_device_api::DeviceId;
+#![no_std]
+
+use core::ffi::CStr;
+
+pub use blog_os_device_api::DeviceId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
@@ -18,4 +22,11 @@ pub struct Stat {
     pub device: Option<DeviceId>,
     pub size: u64,
     pub file_type: FileType, // TODO more stuff
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct DirEntry {
+    namelen: usize,
+    name: CStr,
 }

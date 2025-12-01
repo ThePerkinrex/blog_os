@@ -5,10 +5,10 @@ edition = "2024"
 default-run = "blog_os_kernel"
 
 [dependencies]
-bootloader_api = "0.11.12"
-bootloader-x86_64-common = "0.11.12"
+bootloader_api = "0.11.13"
+bootloader-x86_64-common = "0.11.13"
 spin = "0.10.0"
-x86_64 = "0.15.2"
+x86_64 = "0.15.4"
 pic8259 = "0.11.0"
 qemu-common = {path = "../qemu-common"}
 kernel-utils = {path = "../kernel-libs/kernel-utils"}
@@ -39,6 +39,7 @@ kdriver-api ={ path = "../kernel-libs/kdriver-api"}
 thiserror = { version = "2.0.17", default-features = false }
 ramfs ={ path = "../kernel-libs/ramfs"}
 initcpio ={ path = "../kernel-libs/initcpio"}
+shared_fs ={ path = "../kernel-libs/shared_fs"}
 
 
 [[bin]]

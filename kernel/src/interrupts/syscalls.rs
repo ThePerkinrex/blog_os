@@ -17,9 +17,11 @@ mod brk;
 mod close;
 mod exit;
 mod flush;
+mod next_direntry;
 mod nop;
 mod open;
 mod read;
+mod stat;
 mod write;
 mod yield_syscall;
 
@@ -53,6 +55,8 @@ static SYSCALL_HANDLERS: Lazy<SyscallHandlers> = Lazy::new(|| {
     nums[SyscallNumber::OPEN] = open::open;
     nums[SyscallNumber::CLOSE] = close::close;
     nums[SyscallNumber::FLUSH] = flush::flush;
+    nums[SyscallNumber::STAT] = stat::stat;
+    nums[SyscallNumber::NEXT_DIRENTRY] = next_direntry::next_direntry;
 
     nums
 });

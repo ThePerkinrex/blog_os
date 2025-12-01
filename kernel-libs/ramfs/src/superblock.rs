@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use alloc::sync::Arc;
 use api_utils::cglue::{self, arc::CArc};
-use blog_os_vfs::api::{
+use blog_os_vfs_api::{
     fs::Superblock,
     inode::{FsINodeRef, cglue_inode::*},
 };

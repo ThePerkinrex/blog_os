@@ -62,7 +62,9 @@ enum_with_max! {
         CLOSE,
         FLUSH,
         INIT_DRIVER,
-        DELETE_DRIVER
+        DELETE_DRIVER,
+        STAT,
+        NEXT_DIRENTRY
     }
 }
 

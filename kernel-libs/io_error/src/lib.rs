@@ -54,5 +54,8 @@ enum_with_max! {
         OperationNotPermitted,
         #[error("Already exists")]
         AlreadyExists,
+        #[error("End of file")]
+        EOF,
+
     }
 }

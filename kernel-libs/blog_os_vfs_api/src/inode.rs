@@ -1,6 +1,7 @@
-use crate::{IOError, file::FileBox, stat::Stat};
+use crate::{IOError, file::FileBox};
 
 use api_utils::cglue;
+use shared_fs::Stat;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]

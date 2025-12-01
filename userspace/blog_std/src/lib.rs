@@ -1,12 +1,13 @@
 #![no_std]
 
-use core::{fmt::Write, panic::PanicInfo};
+use core::{fmt::Write, mem::MaybeUninit, panic::PanicInfo};
 
 use alloc::string::ToString;
 use blog_os_syscalls::SyscallNumber;
 use io_error::IOError;
 use num_enum::TryFromPrimitive;
 
+use fs::Stat;
 pub use path;
 use path::Path;
 
@@ -17,6 +18,8 @@ pub mod io;
 pub mod lock;
 pub mod memory;
 mod syscalls;
+
+pub mod fs;
 
 fn u64_as_result<E: TryFromPrimitive<Primitive = u64>>(x: u64) -> Result<u64, E> {
     let neg_err = (-(x as i64)) as u64;
@@ -70,6 +73,21 @@ pub fn close(fd: u64) -> Result<u64, IOError> {
 
 pub fn flush(fd: u64) -> Result<u64, IOError> {
     u64_as_result(unsafe { syscalls::syscall_arg1(SyscallNumber::FLUSH, fd) })
+}
+
+pub fn stat(path: &Path) -> Result<Stat, IOError> {
+    let string = path.to_string();
+    let bytes = string.as_bytes();
+    let raw = bytes.as_ptr() as u64;
+    let len = bytes.len() as u64;
+
+    let mut stat = MaybeUninit::<Stat>::zeroed();
+
+    let ptr = stat.as_mut_ptr();
+
+    u64_as_result(unsafe { syscalls::syscall_arg3(SyscallNumber::STAT, ptr as u64, len, raw) })?;
+
+    Ok(unsafe { stat.assume_init() })
 }
 
 pub fn print(s: &str) {

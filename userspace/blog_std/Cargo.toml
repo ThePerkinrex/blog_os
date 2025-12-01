@@ -11,6 +11,7 @@ talc = "4.4.3"
 lock_api = "0.4.14"
 num_enum = {version = "0.7.5", default-features = false}
 path = {path = "../../kernel-libs/path"}
+shared_fs = {path = "../../kernel-libs/shared_fs"}
 
 [lib]
 test = false

@@ -10,10 +10,10 @@ use blog_os_vfs::api::{
     file::{File, cglue_file::FileBox},
     inode::INode,
     path::Path,
-    stat::FileType,
 };
 use kernel_utils::{aligned_bytes::AlignedBytes, simple_slotmap::SimpleSlotmap};
 use log::{debug, info, warn};
+use shared_fs::FileType;
 use spin::lock_api::RwLock;
 use thiserror::Error;
 

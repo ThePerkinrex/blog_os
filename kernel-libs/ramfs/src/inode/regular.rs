@@ -1,12 +1,13 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
 use api_utils::cglue;
-use blog_os_device::api::DeviceId;
-use blog_os_vfs::api::{
+use blog_os_device_api::DeviceId;
+use blog_os_vfs_api::{
     IOError,
     file::{File, SeekMode, cglue_file::*},
     inode::{FsINodeRef, INode},
-    stat::Stat,
 };
+use shared_fs::{FileType, Stat};
+
 use lock_api::{RawRwLock, RwLock};
 
 pub struct RegularINode<R: RawRwLock + Send + Sync + 'static> {
@@ -30,7 +31,7 @@ impl<R: RawRwLock + Send + Sync> INode for RegularINode<R> {
         Ok(Stat {
             device: None,
             size: self.data.read().len() as u64,
-            file_type: blog_os_vfs::api::stat::FileType::RegularFile,
+            file_type: FileType::RegularFile,
         })
     }
 
@@ -54,6 +55,10 @@ impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
         let lock = self.data.read();
+
+        if self.cursor >= lock.len() {
+            return Err(IOError::EOF);
+        }
 
         let self_data = &lock[self.cursor..];
 

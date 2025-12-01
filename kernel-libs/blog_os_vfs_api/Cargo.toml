@@ -11,3 +11,4 @@ blog_os-device-api = {path = "../blog_os-device-api"}
 api-utils = {path = "../api-utils"}
 io_error = {path = "../io_error"}
 path = {path = "../path"}
+shared_fs = {path = "../shared_fs"}

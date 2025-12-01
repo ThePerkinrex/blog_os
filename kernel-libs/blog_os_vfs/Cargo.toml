@@ -8,3 +8,6 @@ kernel-utils ={ path = "../kernel-utils"}
 slotmap = { version = "1.0.7", default-features = false }
 blog_os_vfs_api = {path = "../blog_os_vfs_api"}
 log = "0.4.28"
+
+[dev-dependencies]
+shared_fs = {path = "../shared_fs"}

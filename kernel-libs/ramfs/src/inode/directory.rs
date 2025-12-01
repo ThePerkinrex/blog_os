@@ -1,13 +1,15 @@
+use core::ops::Bound;
+
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
 use api_utils::cglue;
-use blog_os_device::api::DeviceId;
-use blog_os_vfs::api::{
+use blog_os_device_api::DeviceId;
+use blog_os_vfs_api::{
     IOError,
     file::{File, SeekMode, cglue_file::*},
     inode::{FsINodeRef, INode, cglue_inode::*},
-    stat::Stat,
 };
 use lock_api::{RawRwLock, RwLock};
+use shared_fs::{FileType, Stat};
 use slotmap::Key;
 
 use crate::{
@@ -41,14 +43,15 @@ impl<R: RawRwLock + Send + Sync> INode for DirectoryINode<R> {
         Ok(Stat {
             device: None,
             size: self.entries.read().len() as u64,
-            file_type: blog_os_vfs::api::stat::FileType::Directory,
+            file_type: FileType::Directory,
         })
     }
 
     fn open(&self) -> Result<FileBox<'static>, IOError> {
         Ok(cglue::trait_obj!(DirectoryFile::<R> {
             entries: self.entries.clone(),
-            superblock: self.superblock.clone()
+            superblock: self.superblock.clone(),
+            current: None
         } as File))
     }
 }
@@ -56,6 +59,17 @@ impl<R: RawRwLock + Send + Sync> INode for DirectoryINode<R> {
 pub struct DirectoryFile<R: RawRwLock + Send + Sync + 'static> {
     entries: Arc<RwLock<R, BTreeMap<String, INodeKey>>>,
     superblock: Arc<SharedSuperblockData<R>>,
+    current: Option<String>,
+}
+
+impl<R: RawRwLock + Send + Sync + 'static> DirectoryFile<R> {
+    fn get_range(&self) -> (Bound<&str>, Bound<&str>) {
+        self.current
+            .as_deref()
+            .map_or((Bound::Unbounded, Bound::Unbounded), |s| {
+                (Bound::Excluded(s), Bound::Unbounded)
+            })
+    }
 }
 
 impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
@@ -127,6 +141,14 @@ impl<R: RawRwLock + Send + Sync> File for DirectoryFile<R> {
     }
 
     fn next_direntry(&mut self) -> Result<&str, IOError> {
-        todo!()
+        let range = self.get_range();
+        let lock = self.entries.read();
+        let Some((next_key, _)) = lock.range::<str, _>(range).next() else {
+            return Err(IOError::EOF);
+        };
+        let next_key = next_key.clone();
+        drop(lock);
+
+        Ok(self.current.insert(next_key))
     }
 }

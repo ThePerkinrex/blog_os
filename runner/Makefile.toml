@@ -2,7 +2,7 @@
 CARGO_MAKE_WORKSPACE_EMULATION = false
 
 [tasks.build]
-condition = { files_modified = { input = ["./src/**/*.rs"], output = ["./target/release/*"]}}
+condition = { files_modified = { input = ["./src/**/*.rs", "Cargo.toml"], output = ["./target/release/*"]}}
 description = "Build the runner executable"
 command = "cargo"
 args = ["build", "--release"]

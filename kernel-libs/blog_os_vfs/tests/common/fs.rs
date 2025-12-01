@@ -11,8 +11,8 @@ use blog_os_vfs_api::{
     fs::{Filesystem, cglue_superblock::*},
     inode::INode,
     path::ffi::PathBufOpaqueRef,
-    stat::Stat,
 };
+use shared_fs::Stat;
 
 enum CustomINode {
     Regular {
