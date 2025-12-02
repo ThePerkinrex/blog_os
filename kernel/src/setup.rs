@@ -1,7 +1,11 @@
 use addr2line::Context;
 use alloc::vec::Vec;
-use bootloader_api::{config::ApiVersion, info::TlsTemplate};
-use log::{info, trace, warn};
+use bootloader_api::{
+    config::ApiVersion,
+    info::{MemoryRegionKind, TlsTemplate},
+};
+use log::{debug, info, trace, warn};
+use qemu_common::KERNEL_START;
 use spin::Once;
 use x86_64::{
     VirtAddr,
@@ -144,6 +148,28 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     info!("Kernel size: {:x}", boot_info.kernel_len);
     info!("Ramdisk addr: {:x?}", boot_info.ramdisk_addr);
     info!("Ramdisk size: {:x}", boot_info.ramdisk_len);
+
+    debug!("Memory regions:");
+    let mut usable_bytes = 0;
+    let mut usable_kernel_bytes = 0;
+    for region in boot_info.memory_regions.iter() {
+        debug!(
+            " - {:?}: 0x{:X} - 0x{:X}",
+            region.kind, region.start, region.end
+        );
+        if region.kind == MemoryRegionKind::Usable {
+            usable_bytes += region.end - region.start;
+            if KERNEL_START.as_u64() <= region.end {
+                let start = KERNEL_START.as_u64().max(region.start);
+                usable_kernel_bytes += region.end - start
+            }
+        }
+    }
+    let usable_user_bytes = usable_bytes - usable_kernel_bytes;
+    info!("Usable memory summary:");
+    info!("Usable memory: {usable_bytes} bytes (0x{usable_bytes:X})");
+    info!("Usable kernel memory: {usable_kernel_bytes} bytes (0x{usable_kernel_bytes:X})");
+    info!("Usable user memory: {usable_user_bytes} bytes (0x{usable_user_bytes:X})");
 
     info!("Minimum init done. Setting up memory");
 

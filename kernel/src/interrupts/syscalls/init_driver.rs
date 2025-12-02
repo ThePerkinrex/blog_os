@@ -13,10 +13,8 @@ fn init_driver_high_level(fd: u64) -> Result<u64, IOError> {
 
     debug!("print {x}");
 
-
     debug!("init driver high level");
     debug!("Loading driver at fd {fd}");
-
 
     let file = get_current_process_info()
         .and_then(|pinf| pinf.files().write().remove(fd as usize))
@@ -27,7 +25,7 @@ fn init_driver_high_level(fd: u64) -> Result<u64, IOError> {
 
     let mut buf = Vec::new();
 
-    let mut temp = [0; 1024*128]; // read at most a page at a time
+    let mut temp = alloc::vec![0u8; 1024 * 128]; // 128 KiB on heap
 
     loop {
         match lock.read(&mut temp) {
@@ -43,6 +41,8 @@ fn init_driver_high_level(fd: u64) -> Result<u64, IOError> {
     lock.close()?;
 
     drop(lock);
+
+    debug!("Loaded bytes into memory, loading ELF");
 
     // Read file
 
@@ -73,7 +73,7 @@ fn init_driver_high_level(fd: u64) -> Result<u64, IOError> {
 }
 
 pub fn init_driver(fd: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
-    debug!("INIT DRIVER");
+    debug!("INIT DRIVER ({fd})");
     // let buf = unsafe {
     //     core::slice::from_raw_parts_mut(VirtAddr::new(buf).as_mut_ptr::<u8>(), len as usize)
     // };

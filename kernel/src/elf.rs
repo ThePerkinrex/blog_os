@@ -445,7 +445,7 @@ pub fn load_elf<S: SymbolResolver>(
         let flags = p.p_flags(LittleEndian);
         let flags = ElfPhSegmentFlags::from_bits_retain(flags);
         debug!(
-            "{:>20} {:>10?} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x}",
+            "{:>20} {:>20?} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x} {:>10x}",
             alloc::format!("{:?}", p_type),
             flags,
             offset,
@@ -492,7 +492,7 @@ pub fn load_elf<S: SymbolResolver>(
         );
         let pages = Page::<Size4KiB>::range_inclusive(
             Page::containing_address(vaddr),
-            Page::containing_address(vaddr + memsz),
+            Page::containing_address(vaddr + memsz - 1),
         );
         for p in pages {
             let mut page_flags = base_setup_flags;
@@ -525,7 +525,7 @@ pub fn load_elf<S: SymbolResolver>(
                 // if flags.contains(ElfPhSegmentFlags::R) {
                 //     page_flags |= PageTableFlags::USER_ACCESSIBLE
                 // }
-                // debug!("Mapping {p:?} with flags {page_flags:?}");
+                debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
                     info.page_table
@@ -537,7 +537,7 @@ pub fn load_elf<S: SymbolResolver>(
             }
         }
         let elf_start = VirtAddr::from_ptr(elf_contained.borrow_data().as_ptr()) + offset;
-        // debug!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
+        debug!("Copying from {elf_start:p} to {vaddr:p} {filesz:x} bytes");
         unsafe {
             core::ptr::copy_nonoverlapping(
                 elf_start.as_ptr::<u8>(),
@@ -617,7 +617,7 @@ pub fn load_elf<S: SymbolResolver>(
                     let addr = base_addr + addr;
                     let value = base_addr.as_u64().saturating_add_signed(reloc.addend());
 
-                    debug!("Setting {addr:p} to {value}");
+                    // debug!("Setting {addr:p} to {value}");
                     unsafe { addr.as_mut_ptr::<u64>().write(value) };
                 }
                 x => unimplemented!("{x:?}"),

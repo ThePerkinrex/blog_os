@@ -7,7 +7,7 @@ use alloc::{
 };
 use blog_os_device::api::bus::{Bus, cglue_bus::BusBox};
 use kdriver_api::{CLayout, KernelInterface};
-use log::info;
+use log::{debug, info};
 use object::{Object, ObjectSymbol};
 use spin::{Once, RwLock};
 use thiserror::Error;
@@ -158,10 +158,8 @@ impl KDriver {
                 if *e_type == EType::ET_DYN {
                     let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
 
-                    let pages = VirtAddr::new_truncate(size)
-                        .align_up(Size4KiB::SIZE)
-                        .as_u64()
-                        / Size4KiB::SIZE;
+                    let pages = size.div_ceil(Size4KiB::SIZE);
+                    debug!("Requesting {pages} pages for driver (0x{size:X} bytes)");
                     let alloc_reg = lock
                         .virt_region_allocator
                         .allocate_range(pages)

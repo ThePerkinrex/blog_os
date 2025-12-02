@@ -65,7 +65,11 @@ impl<R: RawRwLock + Send + Sync> File for RegularFile<R> {
 
         let bytes = self_data.len().min(buf.len());
 
-        debug!("Reading {bytes} bytes from the cursor: {} (len: {})", self.cursor, lock.len());
+        debug!(
+            "Reading {bytes} bytes from the cursor: {} (len: {})",
+            self.cursor,
+            lock.len()
+        );
 
         buf[..bytes].copy_from_slice(&self_data[..bytes]);
 

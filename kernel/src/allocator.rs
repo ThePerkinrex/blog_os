@@ -129,6 +129,8 @@ impl OomHandler for OomGrow {
             Page::range_inclusive(heap_start_page, heap_end_page)
         };
 
+        debug!("Page range: {page_range:?}");
+
         for page in page_range {
             let frame = kinf.frame_allocator.allocate_frame().ok_or(())?;
             let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;

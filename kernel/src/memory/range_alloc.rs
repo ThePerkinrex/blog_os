@@ -68,10 +68,10 @@ where
         self.initial_range.end = new_end;
     }
 
-    pub fn allocate_range(&mut self, length: T) -> Result<Range<T>, RangeAllocationError<T>> {
-        assert_ne!(length + length, length);
-        let length = length * self.alignment;
-        debug!("Allocating range with size {length:x?}");
+    pub fn allocate_range(&mut self, pages: T) -> Result<Range<T>, RangeAllocationError<T>> {
+        assert_ne!(pages + pages, pages);
+        let length = pages * self.alignment;
+        debug!("Allocating range with size {length:x?} ({pages:?} pages)");
         let mut best_fit: Option<(usize, Range<T>)> = None;
 
         // This is actually correct. With the trait bound as it is, we have

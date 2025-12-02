@@ -79,7 +79,7 @@ pub fn syscall_handle(
         Ok(code) => {
             debug!("Syscall: {code:?}");
             SYSCALL_HANDLERS[code](arg1, arg2, arg3, arg4, arg5, arg6)
-        },
+        }
         Err(e) => {
             warn!(
                 "Unknown syscall {code} ({arg1}, {arg2}, {arg3}, {arg4}, {arg5}, {arg6}) [error: {e:?}]"
