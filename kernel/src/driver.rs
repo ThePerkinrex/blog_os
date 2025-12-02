@@ -91,19 +91,21 @@ impl KernelInterface for Interface {
     }
 
     fn register_bus(&self, bus: BusBox<'static>) {
-        self.registered_buses.write().insert(bus.name().to_string());
+        let name = bus.name().to_string();
+        debug!("Registering bus {name:?}");
+        self.registered_buses.write().insert(name);
         BUS_REGISTRY.write().register(bus);
     }
 }
 
 impl Drop for Interface {
     fn drop(&mut self) {
-        for (&ptr, &layout) in self.allocs.read().iter() {
-            unsafe { alloc::alloc::dealloc(ptr.as_mut_ptr::<u8>(), layout) };
-        }
-
         for bus in self.registered_buses.read().iter() {
             BUS_REGISTRY.write().unregister(bus);
+        }
+
+        for (&ptr, &layout) in self.allocs.read().iter() {
+            unsafe { alloc::alloc::dealloc(ptr.as_mut_ptr::<u8>(), layout) };
         }
     }
 }

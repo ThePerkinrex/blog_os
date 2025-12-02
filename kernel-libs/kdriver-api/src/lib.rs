@@ -4,6 +4,10 @@ use core::alloc::{Layout, LayoutError};
 
 use blog_os_device_api::bus::cglue_bus::BusBox;
 
+pub use blog_os_device_api as device;
+
+pub use cglue;
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct CLayout {

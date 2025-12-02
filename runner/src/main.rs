@@ -228,6 +228,8 @@ fn main() {
             cmd.arg("-drive")
                 .arg(format!("if=pflash,format=raw,file={}", ovmf_vars.display()));
         }
+        cmd.arg("-m").arg("512M");
+
         cmd.arg("-drive")
             .arg(format!("format=raw,file={}", path.display()));
         cmd.arg("-device")

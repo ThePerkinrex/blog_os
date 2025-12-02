@@ -3,11 +3,13 @@ use core::slice::Iter;
 
 use alloc::collections::vec_deque::VecDeque;
 use bootloader_api::info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
+use humansize::DECIMAL;
+use log::{debug, warn};
 use x86_64::PhysAddr;
 use x86_64::{VirtAddr, structures::paging::PageTable};
 
 use x86_64::structures::paging::{
-    FrameAllocator, FrameDeallocator, OffsetPageTable, PhysFrame, Size4KiB,
+    FrameAllocator, FrameDeallocator, OffsetPageTable, PageSize, PhysFrame, Size4KiB,
 };
 
 pub mod multi_l4_paging;
@@ -68,6 +70,8 @@ pub struct BootInfoFrameAllocator {
     unused_unalloc: UnusedFramesIter,
     // Only initialized once the heap is up
     dealloc: Option<VecDeque<PhysFrame>>,
+    free_frames: usize,
+    log_count: usize,
 }
 
 impl BootInfoFrameAllocator {
@@ -87,16 +91,21 @@ impl BootInfoFrameAllocator {
             usable_regions.map::<_, fn(&MemoryRegion) -> Range<u64>>(|r| r.start..r.end);
         // transform to an iterator of frame start addresses
         let frame_addresses = addr_ranges
-            .flat_map::<_, fn(Range<u64>) -> core::iter::StepBy<Range<u64>>>(|r| r.step_by(4096));
+            .flat_map::<_, fn(Range<u64>) -> core::iter::StepBy<Range<u64>>>(|r| {
+                r.step_by(Size4KiB::SIZE as usize)
+            });
         // create `PhysFrame` types from the start addresses
         let unused_unalloc: UnusedFramesIter =
             frame_addresses.map::<_, fn(u64) -> PhysFrame>(|addr| {
                 PhysFrame::containing_address(PhysAddr::new(addr))
             });
+        let free_frames = unused_unalloc.clone().count();
 
         Self {
             unused_unalloc,
             dealloc: None,
+            free_frames,
+            log_count: 0,
         }
     }
 }
@@ -121,12 +130,28 @@ impl BootInfoFrameAllocator {
     }
 }
 
+const LOG_RATE: usize = 100;
+
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
         self.dealloc
             .as_mut()
             .and_then(VecDeque::pop_front)
             .or_else(|| self.unused_unalloc.next())
+            .inspect(|_| {
+                self.free_frames -= 1;
+                if self.log_count == 0 {
+                    debug!(
+                        "Alloc frame. Free frames: {} frames ({})",
+                        self.free_frames,
+                        humansize::SizeFormatter::new(
+                            self.free_frames as u64 * Size4KiB::SIZE,
+                            DECIMAL
+                        )
+                    )
+                }
+                self.log_count = (self.log_count + 1) % LOG_RATE;
+            })
     }
 }
 
@@ -134,6 +159,20 @@ impl FrameDeallocator<Size4KiB> for BootInfoFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
         if let Some(dealloc) = self.dealloc.as_mut() {
             dealloc.push_back(frame);
+            self.free_frames += 1;
+            if self.log_count == 0 {
+                debug!(
+                    "Dealloc frame. Free frames: {} frames ({})",
+                    self.free_frames,
+                    humansize::SizeFormatter::new(
+                        self.free_frames as u64 * Size4KiB::SIZE,
+                        DECIMAL
+                    )
+                )
+            }
+            self.log_count = (self.log_count + 1) % LOG_RATE;
+        } else {
+            warn!("Dealloc without heap, lost frame");
         }
     }
 }

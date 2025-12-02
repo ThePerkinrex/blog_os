@@ -1,6 +1,11 @@
 #![no_std]
 
+extern crate alloc;
+
+use alloc::string::String;
 use kdriver_api::{KernelInterface, cglue_kernelinterface::KernelInterfaceBox};
+
+pub use kdriver_api as api;
 
 unsafe extern "C" {
     unsafe static ID: u64;
@@ -26,8 +31,11 @@ unsafe impl core::alloc::GlobalAlloc for GlobalAllocator {
 #[global_allocator]
 static ALLOC: GlobalAllocator = GlobalAllocator;
 
-pub fn print(s: &str) {
-    interface().print(s);
+pub fn print(s: core::fmt::Arguments) {
+    use core::fmt::Write;
+    let mut string = String::new();
+    string.write_fmt(s).unwrap();
+    interface().print(&string);
 }
 
 // Required panic handler
@@ -38,3 +46,16 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
         core::hint::spin_loop();
     }
 }
+
+
+#[macro_export]
+macro_rules! _print {
+    ($($arg:tt)*) => ($crate::print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::_print!("\n"));
+    ($($arg:tt)*) => ($crate::_print!("{}\n", format_args!($($arg)*)));
+}
+

@@ -235,11 +235,11 @@ impl Drop for UserHeap {
 }
 
 pub struct LoadedElf<S: SymbolResolver> {
+    _symbol_resolver: ManuallyDrop<S>,
     load_offset: u64,
     elf: ElfWithDataAndDwarf,
     mapped_pages: BTreeMap<Page, ElfPhSegmentFlags>,
     highest_page: Option<Page>,
-    _symbol_resolver: S,
 }
 
 impl<S: SymbolResolver> core::fmt::Debug for LoadedElf<S> {
@@ -308,6 +308,9 @@ impl<S: SymbolResolver> LoadedElf<S> {
 
 impl<S: SymbolResolver> Drop for LoadedElf<S> {
     fn drop(&mut self) {
+        // drop resolver
+        unsafe { ManuallyDrop::drop(&mut self._symbol_resolver) };
+
         // Unload the stack
         let mut lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
         let mem = &mut *lock;
@@ -525,7 +528,7 @@ pub fn load_elf<S: SymbolResolver>(
                 // if flags.contains(ElfPhSegmentFlags::R) {
                 //     page_flags |= PageTableFlags::USER_ACCESSIBLE
                 // }
-                debug!("Mapping {p:?} with flags {page_flags:?}");
+                // debug!("Mapping {p:?} with flags {page_flags:?}");
                 let frame = info.frame_allocator.allocate_frame().expect("A frame");
                 unsafe {
                     info.page_table
@@ -579,7 +582,7 @@ pub fn load_elf<S: SymbolResolver>(
         for (addr, reloc) in elf.dynamic_relocations().into_iter().flatten() {
             match reloc.target() {
                 object::RelocationTarget::Symbol(symbol_index) => {
-                    // debug!("RELOC {addr:x} {reloc:?}");
+                    debug!("RELOC {addr:x} {reloc:?}");
                     // for sym in elf.symbols() {
                     //     debug!("SYM {:?} {:?}", sym.index(), sym.name());
                     // }
@@ -596,7 +599,7 @@ pub fn load_elf<S: SymbolResolver>(
                         .unwrap()
                         .symbol_by_index(symbol_index)
                         .unwrap();
-                    let value = resolver.resolve(symbol).unwrap();
+                    let value = resolver.resolve(symbol).unwrap_or_else(|| panic!("Expected a resolved symbol for {:?}", symbol.name()));
                     let addr = base_addr + addr;
 
                     // unsafe { core::ptr::copy(value.data.as_ptr(), addr.as_mut_ptr::<u8>(), value.data.len()) };
@@ -632,7 +635,7 @@ pub fn load_elf<S: SymbolResolver>(
         elf: elf_contained,
         mapped_pages,
         highest_page,
-        _symbol_resolver: resolver,
+        _symbol_resolver: ManuallyDrop::new(resolver),
     })
 }
 
