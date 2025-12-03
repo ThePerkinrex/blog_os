@@ -9,7 +9,7 @@ use qemu_common::KERNEL_START;
 use spin::Once;
 use x86_64::{
     VirtAddr,
-    structures::paging::{Mapper, Size4KiB},
+    structures::paging::{FrameDeallocator, Mapper, Size4KiB},
 };
 
 use crate::{
@@ -78,7 +78,7 @@ pub struct KernelInfo {
     /// The thread local storage (TLS) template of the kernel executable, if present.
     pub tls_template: Option<TlsTemplate>,
     /// Ramdisk address, if loaded
-    pub ramdisk_addr: Option<u64>,
+    pub ramdisk_addr: ReentrantMutex<Option<u64>>,
     /// Ramdisk image size, set to 0 if addr is None
     pub ramdisk_len: u64,
     /// Physical address of the kernel ELF in memory.
@@ -202,6 +202,8 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
     allocator::init_heap(alloc_kinf).expect("initialized heap");
     info!("Initialized heap");
 
+    alloc_kinf.lock().frame_allocator.heap_init();
+
     // unmap userspace pages. Should only be the old gdt mapping
     let mut alloc_kinf_lock = alloc_kinf.lock();
     #[allow(clippy::needless_collect)]
@@ -217,6 +219,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         let (frame, flush) = alloc_kinf_lock.page_table.unmap(page).expect("Unmap page");
         flush.flush();
         trace!(event = "unmap_user_pages", subevent = "after", page:?, frame:?; "Unmapped {page:?} from {frame:?}");
+        unsafe { alloc_kinf.lock().frame_allocator.deallocate_frame(frame) };
     }
     drop(alloc_kinf_lock);
 
@@ -275,7 +278,7 @@ pub fn setup(boot_info: &'static mut bootloader_api::BootInfo) {
         // recursive_index: boot_info.recursive_index.as_ref().copied(),
         rsdp_addr: boot_info.rsdp_addr.as_ref().copied(),
         tls_template: boot_info.tls_template.as_ref().copied(),
-        ramdisk_addr: boot_info.ramdisk_addr.as_ref().copied(),
+        ramdisk_addr: ReentrantMutex::new(boot_info.ramdisk_addr.as_ref().copied()),
         ramdisk_len: boot_info.ramdisk_len,
         kernel_len: boot_info.kernel_len,
         kernel_image_offset: boot_info.kernel_image_offset,

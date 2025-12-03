@@ -424,10 +424,10 @@ impl Mapper<Size4KiB> for PageTables {
         ),
         x86_64::structures::paging::mapper::UnmapError,
     > {
-        trace!(event = "unmap_page", current_frame:? = self.current_frame, page:?;
-            "Unmapping page: {page:?} ({:?})",
-            self.current_frame
-        );
+        // trace!(event = "unmap_page", current_frame:? = self.current_frame, page:?;
+        //     "Unmapping page: {page:?} ({:?})",
+        //     self.current_frame
+        // );
         self.current.unmap(page) // Nothing needs to be done, no cleanup is performed, if at kernel level, no p3 tables are removed, and at user level, it doesnt matter 
     }
 
