@@ -6,7 +6,7 @@ use gimli::{
 use log::{debug, error, info, trace, warn};
 use x86_64::{
     VirtAddr,
-    structures::paging::{PageSize, Size4KiB},
+    structures::paging::{PageSize, Size4KiB, Translate},
 };
 
 use crate::{
@@ -39,6 +39,7 @@ enum UnwinderError {
     NoUnwindInfo(u64),
     NoPcRegister,
     NoReturnAddr,
+    InvalidAddr,
 }
 
 pub struct ContextStore;
@@ -87,10 +88,13 @@ impl<'a> Unwinder<'a> {
 
     fn next(&mut self) -> Result<Option<CallFrame>, UnwinderError> {
         let pc = self.current_pc()?;
+        // debug!("Current pc: 0x{pc:X}");
         let unwindable = self.unwind.get(pc).ok_or(UnwinderError::NoUnwindInfo(pc))?;
+        // debug!("Found unwindable");
         let eh_info = unwindable
             .eh_info()
             .ok_or(UnwinderError::NoUnwindInfo(pc))?;
+        // debug!("Found got eh_info");
 
         // println!("Loaded eh_info");
 
@@ -170,7 +174,19 @@ impl<'a> Unwinder<'a> {
                         }
                     }
 
+                    let lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+
+                    if lock
+                        .page_table
+                        .translate_addr(VirtAddr::from_ptr(ptr))
+                        .is_none()
+                    {
+                        warn!("The saved register ({reg:?}) ptr is not mapped: {ptr:p}");
+                        return Err(UnwinderError::InvalidAddr);
+                    }
+
                     self.regs.set(reg, unsafe { ptr.read() } as u64)?;
+                    drop(lock);
                 }
                 _ => return Err(UnwinderError::UnimplementedRegisterRule),
             }
@@ -182,6 +198,16 @@ impl<'a> Unwinder<'a> {
         if let Some(i) = IH.get(&start) {
             debug!("IH: {i:?}");
             let saved_cs_ptr = (self.cfa) as *const u64;
+            let lock = KERNEL_INFO.get().unwrap().alloc_kinf.lock();
+            if lock
+                .page_table
+                .translate_addr(VirtAddr::from_ptr(saved_cs_ptr))
+                .is_none()
+            {
+                warn!("The saved CS ptr is not mapped: {saved_cs_ptr:p}");
+                return Err(UnwinderError::InvalidAddr);
+            }
+
             let saved_cs = unsafe { saved_cs_ptr.read() };
 
             debug!("Saved cs: {saved_cs:x} (CPL: {:x})", saved_cs & 0x3);
@@ -190,6 +216,14 @@ impl<'a> Unwinder<'a> {
             if cpl == 3 {
                 // Came from user mode → CPU pushed RSP
                 let saved_rsp_ptr = (self.cfa + 16) as *const u64;
+                if lock
+                    .page_table
+                    .translate_addr(VirtAddr::from_ptr(saved_rsp_ptr))
+                    .is_none()
+                {
+                    warn!("The saved RSP ptr is not mapped: {saved_rsp_ptr:p}");
+                    return Err(UnwinderError::InvalidAddr);
+                }
                 let saved_rsp = unsafe { saved_rsp_ptr.read() };
 
                 debug!("Interrupt return to ring3, saved RSP = {saved_rsp:x}");
@@ -201,6 +235,7 @@ impl<'a> Unwinder<'a> {
                 // TODO is this correct?
                 debug!("Interrupt return to ring0, no saved RSP");
             }
+            drop(lock);
         }
 
         // println!("Updated regs: {:x?}", self.regs);
@@ -213,6 +248,8 @@ impl<'a> Unwinder<'a> {
         self.regs.set_pc(pc);
         self.regs.set_stack_ptr(self.cfa);
         // println!("Set regs");
+
+        debug!("PC: 0x{pc:X}; RSP: 0x{:X}", self.cfa);
 
         Ok(Some(CallFrame { pc, sp: self.cfa }))
     }

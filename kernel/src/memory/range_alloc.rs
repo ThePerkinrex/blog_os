@@ -125,7 +125,7 @@ where
 
     pub fn free_range(&mut self, range: Range<T>) {
         assert!(range.start < range.end);
-        debug!("Freeing range {range:x?}");
+        // debug!("Freeing range {range:x?}");
         // Expand managed domain if necessary
         if range.start < self.initial_range.start {
             self.initial_range.start = range.start;
@@ -388,7 +388,7 @@ pub fn init_region_allocator<const N: usize, S: PageSize>(
         .skip_while(|(_, start, _)| *start < range_end)
         .take(N)
     {
-        info!("Including range: {start:x}-{end:x}");
+        // info!("Including range: {start:x}-{end:x}");
         allocator.free_range(start..end);
     }
 

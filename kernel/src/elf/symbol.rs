@@ -4,12 +4,12 @@ use alloc::boxed::Box;
 use api_utils::cglue::{self, trait_obj};
 use kdriver_api::cglue_kernelinterface::*;
 use log::debug;
-use object::ObjectSymbol;
+use object::{Object, ObjectSymbol};
 use slotmap::{KeyData, SlotMap};
 use spin::{Lazy, RwLock};
 use x86_64::VirtAddr;
 
-use crate::driver::Interface;
+use crate::{driver::Interface, setup::KERNEL_INFO};
 
 #[derive(Debug)]
 pub struct SymbolData<'a> {
@@ -23,6 +23,12 @@ impl<'a> SymbolData<'a> {
     }
     pub fn new_ptr<T>(data: *const T) -> Self {
         let data = VirtAddr::from_ptr(data);
+        Self {
+            data,
+            _marker: PhantomData,
+        }
+    }
+    pub const fn new_addr(data: VirtAddr) -> Self {
         Self {
             data,
             _marker: PhantomData,
@@ -110,7 +116,16 @@ impl SymbolResolver for KDriverResolver {
                 Some(SymbolData::new_ref(data))
             }
             Ok("get_interface") => Some(SymbolData::new_ptr(get_interface as *const ())),
-            _ => None,
+            _ => {
+                let kinf = KERNEL_INFO.get().unwrap();
+                kinf.kernel_elf
+                    .symbol_by_name_bytes(symbol.name_bytes().ok()?)
+                    .map(|s| {
+                        SymbolData::new_addr(VirtAddr::new_truncate(
+                            s.address() + kinf.kernel_image_offset,
+                        ))
+                    })
+            }
         }
     }
 }

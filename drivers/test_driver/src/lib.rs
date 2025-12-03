@@ -5,7 +5,6 @@ extern crate kdriver_std;
 
 use core::ffi::CStr;
 
-
 #[unsafe(no_mangle)]
 pub static NAME: &CStr = c"aaaa";
 #[unsafe(no_mangle)]

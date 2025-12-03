@@ -263,6 +263,7 @@ impl<S: SymbolResolver> LoadedElf<S> {
                 info!("Loaded DWARF for process");
 
                 let c = Context::from_dwarf(dwarf)
+                    .inspect(|_| debug!("Built context"))
                     .inspect_err(|e| warn!("{e:?}"))
                     .ok()
                     .map(ReentrantMutex::new)
@@ -599,7 +600,9 @@ pub fn load_elf<S: SymbolResolver>(
                         .unwrap()
                         .symbol_by_index(symbol_index)
                         .unwrap();
-                    let value = resolver.resolve(symbol).unwrap_or_else(|| panic!("Expected a resolved symbol for {:?}", symbol.name()));
+                    let value = resolver.resolve(symbol).unwrap_or_else(|| {
+                        panic!("Expected a resolved symbol for {:?}", symbol.name())
+                    });
                     let addr = base_addr + addr;
 
                     // unsafe { core::ptr::copy(value.data.as_ptr(), addr.as_mut_ptr::<u8>(), value.data.len()) };

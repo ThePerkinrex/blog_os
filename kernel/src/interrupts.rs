@@ -447,6 +447,28 @@ extern "x86-interrupt" fn page_fault_handler(
                 }
                 crate::stack::GuardPageInfo::Unknown => log::info!("[KSTACKS] Unknown access"),
             }
+
+            #[allow(clippy::significant_drop_in_scrutinee)]
+            match stack_alloc
+                .lock()
+                .detect_guard_page_access(stack_frame.stack_pointer, s)
+            {
+                crate::stack::GuardPageInfo::CurrentStackOverflow => {
+                    log::info!("[KSTACKS] RSP in current kernel task stack guard page")
+                }
+                crate::stack::GuardPageInfo::CurrentStack => {
+                    log::info!("[KSTACKS] RSP in current kernel task stack")
+                }
+                crate::stack::GuardPageInfo::OtherGuardPage(idx, alloc) => {
+                    log::info!(
+                        "[KSTACKS] RSP in other stack guard page (idx: {idx}, alloc: {alloc})"
+                    )
+                }
+                crate::stack::GuardPageInfo::OtherStack(idx, alloc) => {
+                    log::info!("[KSTACKS] RSP in other stack (idx: {idx}, alloc: {alloc})")
+                }
+                crate::stack::GuardPageInfo::Unknown => log::info!("[KSTACKS] Unknown RSP"),
+            }
         } else {
             log::info!(
                 "[KSTACKS] Addr was err or stack was not present: {addr:?}, {:?}",

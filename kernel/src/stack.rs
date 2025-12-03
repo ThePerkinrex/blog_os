@@ -9,14 +9,14 @@ use x86_64::{
 
 use crate::memory::range_alloc::RangeAllocator;
 
-const STACK_PAGES: usize = 8; // 4KiB * 8 = 32KiB stacks
+const STACK_PAGES: usize = 16; // 4KiB * 16 = 64KiB stacks
 
 type SlabBitmapBase = u64;
 
 const SLAB_BITMAP_ENTRIES: usize = 4;
 const ENTRY_BITS: usize = SlabBitmapBase::BITS as usize;
 const SLAB_STACKS: usize = ENTRY_BITS * SLAB_BITMAP_ENTRIES; // 64 * 4 = 256
-const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 32KiB = 8MiB
+const SLAB_PAGES: usize = SLAB_STACKS * STACK_PAGES; // 256 * 64KiB = 16MiB
 
 // const KERNEL_STACK_REGION_START: VirtAddr = VirtAddr::new_truncate(0xFFFF_FE00_0000_0000);
 
