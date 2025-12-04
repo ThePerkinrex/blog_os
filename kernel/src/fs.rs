@@ -13,6 +13,8 @@ use x86_64::{
 
 use crate::setup::KERNEL_INFO;
 
+pub mod sysfs;
+
 pub static VFS: Lazy<RwLock<VFS>> = Lazy::new(|| RwLock::new(VFS::new()));
 
 pub fn init_ramfs() {
