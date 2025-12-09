@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-pub mod bus;
+// pub mod bus;
 pub mod class;
 pub mod config;
 pub mod id;

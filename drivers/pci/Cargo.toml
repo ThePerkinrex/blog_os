@@ -12,3 +12,5 @@ crate-type = ["cdylib"]
 [dependencies]
 kdriver_std = {path = "../../kernel-libs/kdriver_std"}
 blog_os-pci = {path = "../../kernel-libs/blog_os-pci"}
+api-utils = {path = "../../kernel-libs/api-utils"}
+blog_os-device-api = {path = "../../kernel-libs/blog_os-device-api"}

@@ -7,7 +7,7 @@ use blog_os_device_api::bus::{
     Bus, cglue_busdevicedriver::*, cglue_busdeviceid::*, cglue_busdevicemetadata::*,
 };
 
-use crate::{
+use blog_os_pci::{
     BUS_NAME,
     config::{PciCommonHeader, PciHeaderPCIPCIBridge},
     id::PciId,

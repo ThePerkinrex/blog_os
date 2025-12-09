@@ -210,6 +210,8 @@ dependencies = [
 name = "pci"
 version = "0.1.0"
 dependencies = [
+ "api-utils",
+ "blog_os-device-api",
  "blog_os-pci",
  "kdriver_std",
 ]

@@ -3,13 +3,17 @@
 #[macro_use]
 extern crate kdriver_std;
 
+extern crate alloc;
+
+mod bus;
+
 use core::ffi::CStr;
 
-use blog_os_pci::bus::PciBus;
 use kdriver_std::{
     api::{KernelInterface, cglue, device::bus::cglue_bus::*},
     interface,
 };
+use bus::PciBus;
 
 #[unsafe(no_mangle)]
 pub static NAME: &CStr = c"pci";
