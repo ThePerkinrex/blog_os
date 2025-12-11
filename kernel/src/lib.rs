@@ -20,13 +20,13 @@ use blog_os_vfs::api::{
 // use blog_os_pci::bus::PciBus;
 use log::{debug, info};
 use qemu_common::QemuExitCode;
-use spin::lock_api::RwLock;
+use spin::{Lazy, lock_api::RwLock};
 
 use crate::{
     fs::VFS,
     process::{
         OpenFile, load,
-        stdio::{StdIn, stderr, stdout},
+        stdio::{StdIn, StdInData, stderr, stdout},
     },
     setup::KERNEL_INFO,
 };
@@ -51,6 +51,8 @@ pub mod rand;
 pub mod setup;
 pub mod stack;
 pub mod unwind;
+
+static STDIN: Lazy<Arc<RwLock<StdInData>>> = Lazy::new(|| Arc::new(RwLock::new(StdInData::default())));
 
 pub fn kernel_main() -> ! {
     // let addresses = [
@@ -142,7 +144,7 @@ pub fn kernel_main() -> ! {
     p.files()
         .write()
         .insert(Arc::new(RwLock::new(OpenFile::new_no_inode(
-            cglue::trait_obj!(StdIn as File),
+            cglue::trait_obj!(StdIn::new(STDIN.clone()) as File),
         ))));
     p.files()
         .write()

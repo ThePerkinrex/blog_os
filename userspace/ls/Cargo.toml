@@ -1,0 +1,12 @@
+[package]
+name = "ls"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+blog_std = {path = "../blog_std"}
+
+[[bin]]
+name="ls"
+test=false
+bench=false

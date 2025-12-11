@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc, vec::Vec};
 use blog_os_device::api::DeviceId;
 use blog_os_vfs::api::{
     IOError,
@@ -6,16 +6,59 @@ use blog_os_vfs::api::{
     inode::FsINodeRef,
 };
 use log::{error, info};
+use spin::lock_api::RwLock;
 
-pub struct StdIn;
+
+#[derive(Debug, Default)]
+pub struct StdInData {
+    buffer: Vec<u8>,
+    eof: bool
+}
+
+impl StdInData {
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
+    }
+    
+    pub const fn buffer_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.buffer
+    }
+}
+
+#[derive(Debug)]
+pub struct StdIn {
+    data: Arc<RwLock<StdInData>>
+}
+
+impl StdIn {
+    pub const fn new(data: Arc<RwLock<StdInData>>) -> Self {
+        Self { data }
+    }
+}
+
+
 
 impl File for StdIn {
     fn close(&mut self) -> Result<(), IOError> {
+        self.data.write().eof = true;
         Ok(())
     }
 
-    fn read(&mut self, _buf: &mut [u8]) -> Result<usize, IOError> {
-        todo!()
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
+        if self.data.read().eof {
+            return Err(IOError::EOF)
+        }
+
+        let mut lock = self.data.write();
+        
+        let bytes = buf.len().min(lock.buffer.len());
+
+        let next = lock.buffer.split_off(bytes);
+        let read = core::mem::replace(&mut lock.buffer, next);
+
+        buf[..bytes].copy_from_slice(&read);
+
+        Ok(bytes)
     }
 
     fn write(&mut self, _buf: &[u8]) -> Result<usize, IOError> {
