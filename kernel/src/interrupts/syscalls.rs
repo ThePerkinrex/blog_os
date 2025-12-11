@@ -6,11 +6,8 @@ use log::{debug, info, warn};
 use spin::Lazy;
 
 use crate::{
-    multitask::{
-        change_current_process_info, get_current_process_info, task_exit, task_switch_safe,
-    },
+    multitask::{change_current_process_info, get_current_process_info, task_exit, task_switch},
     process::ProcessStatus,
-    unwind,
 };
 
 mod brk;
@@ -112,5 +109,5 @@ pub extern "C" fn syscall_tail() {
 
     drop(current_pinf);
     x86_64::instructions::interrupts::enable();
-    task_switch_safe();
+    task_switch();
 }

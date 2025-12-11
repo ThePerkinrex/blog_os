@@ -1,0 +1,309 @@
+use core::{ptr, sync::atomic::AtomicBool};
+
+use alloc::{
+    borrow::Cow,
+    collections::BTreeSet,
+    sync::{Arc, Weak},
+};
+use log::{debug, info, trace, warn};
+use spin::{
+    Lazy, Once,
+    lock_api::{Mutex, RwLock},
+};
+use x86_64::{VirtAddr, registers::control::Cr3};
+
+use crate::{
+    KERNEL_INFO,
+    multitask::{
+        Context, TaskControlBlock, TaskId,
+        switching::{SwitchData, task_switch_safe},
+    },
+    process::ProcessInfo,
+    rand::uuid_v4,
+};
+
+pub struct RoundRobinData {
+    /// Weak pointer to the next task in the run queue.
+    next_task: Weak<TaskControlBlock<Self>>,
+    /// Task scheduled for deallocation.
+    dealloc: Option<Arc<TaskControlBlock<Self>>>,
+}
+
+/// Tracks whether the scheduler has been initialized.
+static INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+/// Global set of runnable tasks.
+static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock<RoundRobinData>>>>> = Lazy::new(|| {
+    INITIALIZED.store(true, core::sync::atomic::Ordering::Release);
+
+    // Create the initial 'init' task.
+    #[allow(clippy::mutable_key_type)] // The ordering is not mutable
+    let mut set = BTreeSet::new();
+    set.insert(Arc::new_cyclic(|w| TaskControlBlock {
+        id: uuid_v4(),
+        name: "init".into(),
+        context: Mutex::new(Context {
+            stack_pointer: VirtAddr::zero(),
+            cr3: Cr3::read(),
+            stack: None,
+            process_info: None,
+            scheduler_data: RoundRobinData {
+                next_task: w.clone(),
+                dealloc: None,
+            },
+        }),
+    }));
+
+    Mutex::new(set)
+});
+
+/// The currently running task.
+static CURRENT_TASK: Lazy<RwLock<Arc<TaskControlBlock<RoundRobinData>>>> =
+    Lazy::new(|| RwLock::new(TASKS.lock().first().unwrap().clone()));
+
+/// Returns the currently active task.
+pub fn get_current_task() -> Arc<TaskControlBlock<RoundRobinData>> {
+    CURRENT_TASK.read().clone()
+}
+
+fn round_robin_switch_fn() -> SwitchData<RoundRobinData> {
+    let mut current_arc_guard = CURRENT_TASK.write();
+    let current_arc = current_arc_guard.clone();
+    debug!("Locking current tcb");
+    let current_tcb = current_arc.context.lock();
+    debug!("Locked current tcb");
+
+    // Upgrade next_task Weak → Arc
+    let next_arc: Arc<_> = current_tcb
+        .scheduler_data
+        .next_task
+        .upgrade()
+        .expect("next task has been dropped");
+
+    if Arc::ptr_eq(&current_arc, &next_arc) {
+        info!("Called task switch on a cyclic task, returning");
+        return SwitchData {
+            current: current_arc.clone(),
+            next: current_arc.clone(),
+        };
+    }
+
+    info!(
+        "Switching from {} ({}) to {} ({})",
+        current_arc.name, current_arc.id, next_arc.name, next_arc.id
+    );
+
+    // Update global current task pointer
+    *current_arc_guard = next_arc.clone();
+    drop(current_arc_guard);
+    drop(current_tcb);
+
+    SwitchData {
+        current: current_arc,
+        next: next_arc,
+    }
+}
+
+pub fn task_switch() {
+    task_switch_safe(round_robin_switch_fn);
+}
+
+/// Creates a new task whose `next_task` points back to itself.
+fn create_cyclic_task<S: Into<Cow<'static, str>>>(
+    entry: extern "C" fn(),
+    name: S,
+) -> Arc<TaskControlBlock<RoundRobinData>> {
+    let _ = TASKS.is_locked();
+    let _ = CURRENT_TASK.is_locked();
+
+    let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
+
+    // Prepare the initial stack frame so that switching into it causes `entry` to run.
+    let mut stack_ptr = stack.top().as_mut_ptr::<*const ()>();
+
+    let words = [
+        ptr::null(), // rbp
+        ptr::null(), // rbx
+        ptr::null(), // r12
+        ptr::null(), // r13
+        ptr::null(), // r14
+        ptr::null(), // r15
+        entry as *const (),
+        task_exit as *const (),
+    ];
+
+    for w in words.into_iter().rev() {
+        stack_ptr = unsafe { stack_ptr.sub(1) };
+        trace!("{stack_ptr:p}: {w:p}");
+        unsafe { core::ptr::write_volatile(stack_ptr, w) };
+    }
+
+    let name = name.into();
+    info!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
+
+    Arc::new_cyclic(|weak_self| TaskControlBlock {
+        name,
+        id: uuid_v4(),
+        context: Mutex::new(Context {
+            stack_pointer: VirtAddr::from_ptr(stack_ptr),
+            cr3: Cr3::read(),
+            stack: Some(stack),
+            process_info: None,
+            scheduler_data: RoundRobinData {
+                next_task: Weak::clone(weak_self),
+                dealloc: None,
+            },
+        }),
+    })
+}
+
+/// Public task creation function; inserts the task after the current one.
+pub fn create_task(entry: extern "C" fn(), name: &'static str) {
+    let tcb = create_cyclic_task(entry, name);
+
+    {
+        let mut tasks = TASKS.lock();
+        let current = CURRENT_TASK.read().clone();
+        tasks.insert(tcb.clone());
+        drop(tasks);
+
+        // Fix linked list
+        let mut cur_tcb = current.context.lock();
+        let old_next = cur_tcb.scheduler_data.next_task.clone();
+        cur_tcb.scheduler_data.next_task = Arc::downgrade(&tcb);
+        drop(cur_tcb);
+        let mut new_tcb = tcb.context.lock();
+        new_tcb.scheduler_data.next_task = old_next;
+    }
+
+    info!("Task creation finished");
+}
+
+/// Special task for performing cleanup of dead tasks.
+static TASK_DEALLOC: Once<Arc<TaskControlBlock<RoundRobinData>>> = Once::new();
+
+/// Initializes the deallocation task.
+pub fn init() {
+    let dealloc = create_cyclic_task(task_dealloc, "dealloc");
+    TASKS.lock().insert(dealloc.clone());
+    TASK_DEALLOC.call_once(|| dealloc);
+}
+
+/// Marks the current task for deallocation and switches to the
+/// deallocation task.
+pub extern "C" fn task_exit() -> ! {
+    info!("Ending task");
+    let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
+    let current = CURRENT_TASK.read();
+
+    let old_next = {
+        let mut cur = current.context.lock();
+        let old = cur.scheduler_data.next_task.clone();
+        cur.scheduler_data.next_task = Arc::downgrade(dealloc);
+        old
+    };
+
+    {
+        let mut del = dealloc.context.lock();
+        del.scheduler_data.next_task = old_next;
+        del.scheduler_data.dealloc = Some(current.clone());
+    }
+
+    drop(current);
+
+    info!("Switching to dealloc");
+    task_switch();
+    unreachable!();
+}
+
+/// Task dedicated to freeing task resources.
+extern "C" fn task_dealloc() {
+    loop {
+        if let Some(dealloc_ptr) = TASK_DEALLOC.get() {
+            let mut dealloc_ptr_lock = dealloc_ptr.context.lock();
+            if let Some(dealloc_task_ptr) = dealloc_ptr_lock.scheduler_data.dealloc.take() {
+                let mut dealloc_task_lock = dealloc_task_ptr.context.lock();
+
+                info!(
+                    "Cleaning up {} ({})",
+                    dealloc_task_ptr.name, dealloc_task_ptr.id
+                );
+
+                let mut tasks = TASKS.lock();
+                tasks.remove(&dealloc_task_ptr);
+                info!("Removed task from list");
+
+                // Redirect tasks that pointed to the now-dead task
+                for t in tasks.iter() {
+                    if t != dealloc_ptr {
+                        let mut lock = t.context.lock();
+                        if lock
+                            .scheduler_data
+                            .next_task
+                            .ptr_eq(&Arc::downgrade(&dealloc_task_ptr))
+                        {
+                            debug!("{} ({}) pointed to this task, rerouting", t.name, t.id);
+                            lock.scheduler_data.next_task =
+                                dealloc_ptr_lock.scheduler_data.next_task.clone();
+                        }
+                    }
+                }
+
+                drop(tasks);
+                drop(dealloc_ptr_lock);
+
+                // Free the stack
+                if let Some(stack) = dealloc_task_lock.stack.take() {
+                    let info = KERNEL_INFO.get().unwrap();
+                    unsafe { info.free_stack(stack) };
+                }
+            } else {
+                drop(dealloc_ptr_lock);
+                info!("Nothing to clean up");
+            }
+        } else {
+            warn!("Dealloc not initialized");
+        }
+
+        task_switch();
+    }
+}
+
+/// Sets process metadata for the current task.
+pub fn set_current_process_info(process_info: ProcessInfo) {
+    let arc = CURRENT_TASK.read().clone();
+    arc.context.lock().process_info = Some(process_info);
+}
+
+/// Mutably modifies the current task's process info.
+#[allow(clippy::significant_drop_tightening)]
+pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U) -> U {
+    let lock = CURRENT_TASK.read();
+    let p = &mut lock.context.lock().process_info;
+    f(p)
+}
+
+/// Returns a copy of the current task's process info.
+pub fn get_current_process_info() -> Option<ProcessInfo> {
+    CURRENT_TASK.read().context.lock().process_info.clone()
+}
+
+/// Attempts to get process info; returns None if scheduler not initialized.
+pub fn try_get_current_process_info() -> Option<ProcessInfo> {
+    if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
+        CURRENT_TASK
+            .try_read()
+            .and_then(|x| x.context.try_lock()?.process_info.clone())
+    } else {
+        None
+    }
+}
+
+/// Returns the ID of the current task.
+pub fn get_current_task_id() -> TaskId {
+    if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
+        CURRENT_TASK.try_read().map(|x| x.id)
+    } else {
+        None
+    }
+}

@@ -11,19 +11,12 @@ use core::panic::PanicInfo;
 
 use alloc::sync::Arc;
 use api_utils::cglue;
-use blog_os_vfs::api::{
-    file::{File, cglue_file::*},
-    inode::INode,
-    path::PathBuf,
-};
-// use blog_os_device::api::bus::{Bus, BusDeviceDriver};
-// use blog_os_pci::bus::PciBus;
+use blog_os_vfs::api::{file::cglue_file::*, path::PathBuf};
 use log::{debug, info};
 use qemu_common::QemuExitCode;
 use spin::{Lazy, lock_api::RwLock};
 
 use crate::{
-    fs::VFS,
     process::{
         OpenFile, load,
         stdio::{StdIn, StdInData, stderr, stdout},
@@ -52,7 +45,8 @@ pub mod setup;
 pub mod stack;
 pub mod unwind;
 
-static STDIN: Lazy<Arc<RwLock<StdInData>>> = Lazy::new(|| Arc::new(RwLock::new(StdInData::default())));
+static STDIN: Lazy<Arc<RwLock<StdInData>>> =
+    Lazy::new(|| Arc::new(RwLock::new(StdInData::default())));
 
 pub fn kernel_main() -> ! {
     // let addresses = [
@@ -191,7 +185,7 @@ pub extern "C" fn switch_loop() {
         info!("SWITCH LOOP - Waiting");
         x86_64::instructions::interrupts::enable_and_hlt();
         info!("SWITCH LOOP - Switching");
-        multitask::task_switch_safe();
+        multitask::task_switch();
     }
 }
 

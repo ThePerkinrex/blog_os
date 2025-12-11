@@ -83,7 +83,7 @@ struct OomGrow {
 }
 
 const GROW_PAGES: u64 = 1024;
-const GROW_SIZE: u64 = GROW_PAGES * Size4KiB::SIZE;
+// const GROW_SIZE: u64 = GROW_PAGES * Size4KiB::SIZE;
 
 impl OomHandler for OomGrow {
     fn handle_oom(talc: &mut Talc<Self>, layout: core::alloc::Layout) -> Result<(), ()> {

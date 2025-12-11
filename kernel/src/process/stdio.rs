@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc, vec::Vec};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use blog_os_device::api::DeviceId;
 use blog_os_vfs::api::{
     IOError,
@@ -8,18 +8,17 @@ use blog_os_vfs::api::{
 use log::{error, info};
 use spin::lock_api::RwLock;
 
-
 #[derive(Debug, Default)]
 pub struct StdInData {
     buffer: Vec<u8>,
-    eof: bool
+    eof: bool,
 }
 
 impl StdInData {
     pub fn buffer(&self) -> &[u8] {
         &self.buffer
     }
-    
+
     pub const fn buffer_mut(&mut self) -> &mut Vec<u8> {
         &mut self.buffer
     }
@@ -27,7 +26,7 @@ impl StdInData {
 
 #[derive(Debug)]
 pub struct StdIn {
-    data: Arc<RwLock<StdInData>>
+    data: Arc<RwLock<StdInData>>,
 }
 
 impl StdIn {
@@ -35,8 +34,6 @@ impl StdIn {
         Self { data }
     }
 }
-
-
 
 impl File for StdIn {
     fn close(&mut self) -> Result<(), IOError> {
@@ -46,11 +43,11 @@ impl File for StdIn {
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, IOError> {
         if self.data.read().eof {
-            return Err(IOError::EOF)
+            return Err(IOError::EOF);
         }
 
         let mut lock = self.data.write();
-        
+
         let bytes = buf.len().min(lock.buffer.len());
 
         let next = lock.buffer.split_off(bytes);

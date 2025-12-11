@@ -7,7 +7,8 @@ use x86_64::{
 };
 
 use crate::{
-    _print, STDIN, gdt, hlt_loop, interrupts, multitask, process::get_process_kernel_stack_top, setup::KERNEL_INFO, unwind::backtrace
+    _print, STDIN, gdt, hlt_loop, interrupts, multitask, process::get_process_kernel_stack_top,
+    setup::KERNEL_INFO, unwind::backtrace,
 };
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -570,7 +571,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         match key {
             DecodedKey::Unicode(character) => {
                 debug!("CHAR: {}", character);
-                let mut buf = [0;4];
+                let mut buf = [0; 4];
                 let s: &str = character.encode_utf8(&mut buf);
                 STDIN.write().buffer_mut().extend_from_slice(s.as_bytes());
             }

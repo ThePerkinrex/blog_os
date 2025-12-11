@@ -5,7 +5,7 @@ use core::{
 };
 
 use alloc::sync::Arc;
-use api_utils::cglue::arc::{CArc, CArcSome};
+use api_utils::cglue::arc::CArcSome;
 use blog_os_vfs::api::{
     IOError,
     file::{File, cglue_file::FileBox},
@@ -75,20 +75,20 @@ pub struct OpenFile {
 }
 
 impl OpenFile {
-    pub fn new(inode: CArcSome<INodeBox<'static>>, file: FileBox<'static>) -> Self {
+    pub const fn new(inode: CArcSome<INodeBox<'static>>, file: FileBox<'static>) -> Self {
         Self {
             inode: Some(inode),
             file: ManuallyDrop::new(file),
         }
     }
-    pub fn new_no_inode(file: FileBox<'static>) -> Self {
+    pub const fn new_no_inode(file: FileBox<'static>) -> Self {
         Self {
             inode: None,
             file: ManuallyDrop::new(file),
         }
     }
 
-    pub fn inode(&self) -> Option<&CArcSome<INodeBox<'static>>> {
+    pub const fn inode(&self) -> Option<&CArcSome<INodeBox<'static>>> {
         self.inode.as_ref()
     }
 }
