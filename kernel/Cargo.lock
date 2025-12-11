@@ -115,6 +115,7 @@ dependencies = [
  "lock_api",
  "log",
  "num-traits",
+ "num_enum",
  "object",
  "ouroboros",
  "pc-keyboard",

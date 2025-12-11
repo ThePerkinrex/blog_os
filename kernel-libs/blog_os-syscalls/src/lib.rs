@@ -2,8 +2,7 @@
 
 use core::num::TryFromIntError;
 
-use num_enum::TryFromPrimitiveError;
-pub use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
+pub use num_enum::{IntoPrimitive, TryFromPrimitive, TryFromPrimitiveError};
 
 macro_rules! enum_with_max {
     (
