@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use sval::Value;
 use uuid::Uuid;
 
-use crate::multitask::TaskId;
+use crate::multitask::task::TaskId;
 
 #[derive(Value)]
 #[sval(transparent)]

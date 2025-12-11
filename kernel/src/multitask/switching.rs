@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use log::{debug, info};
 use x86_64::{VirtAddr, instructions::interrupts, registers::control::Cr3};
 
-use crate::{multitask::TaskControlBlock, setup::KERNEL_INFO};
+use crate::{multitask::task::TaskControlBlock, setup::KERNEL_INFO};
 
 /// Naked assembly function that performs the actual register + stack switching.
 #[unsafe(naked)]

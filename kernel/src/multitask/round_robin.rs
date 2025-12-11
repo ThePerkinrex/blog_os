@@ -1,11 +1,11 @@
-use core::{ptr, sync::atomic::AtomicBool};
+use core::sync::atomic::AtomicBool;
 
 use alloc::{
     borrow::Cow,
     collections::BTreeSet,
     sync::{Arc, Weak},
 };
-use log::{debug, info, trace, warn};
+use log::{debug, info, warn};
 use spin::{
     Lazy, Once,
     lock_api::{Mutex, RwLock},
@@ -15,10 +15,10 @@ use x86_64::{VirtAddr, registers::control::Cr3};
 use crate::{
     KERNEL_INFO,
     multitask::{
-        Context, TaskControlBlock, TaskId,
-        switching::{SwitchData, task_switch_safe},
+        switching::SwitchData,
+        task::{self, Context, TaskControlBlock},
+        task_switch,
     },
-    process::ProcessInfo,
     rand::uuid_v4,
 };
 
@@ -61,12 +61,7 @@ static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock<RoundRobinData>>>>> = Laz
 static CURRENT_TASK: Lazy<RwLock<Arc<TaskControlBlock<RoundRobinData>>>> =
     Lazy::new(|| RwLock::new(TASKS.lock().first().unwrap().clone()));
 
-/// Returns the currently active task.
-pub fn get_current_task() -> Arc<TaskControlBlock<RoundRobinData>> {
-    CURRENT_TASK.read().clone()
-}
-
-fn round_robin_switch_fn() -> SwitchData<RoundRobinData> {
+pub fn switch_fn() -> SwitchData<RoundRobinData> {
     let mut current_arc_guard = CURRENT_TASK.write();
     let current_arc = current_arc_guard.clone();
     debug!("Locking current tcb");
@@ -104,57 +99,23 @@ fn round_robin_switch_fn() -> SwitchData<RoundRobinData> {
     }
 }
 
-pub fn task_switch() {
-    task_switch_safe(round_robin_switch_fn);
-}
-
-/// Creates a new task whose `next_task` points back to itself.
 fn create_cyclic_task<S: Into<Cow<'static, str>>>(
     entry: extern "C" fn(),
     name: S,
 ) -> Arc<TaskControlBlock<RoundRobinData>> {
-    let _ = TASKS.is_locked();
-    let _ = CURRENT_TASK.is_locked();
-
-    let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
-
-    // Prepare the initial stack frame so that switching into it causes `entry` to run.
-    let mut stack_ptr = stack.top().as_mut_ptr::<*const ()>();
-
-    let words = [
-        ptr::null(), // rbp
-        ptr::null(), // rbx
-        ptr::null(), // r12
-        ptr::null(), // r13
-        ptr::null(), // r14
-        ptr::null(), // r15
-        entry as *const (),
-        task_exit as *const (),
-    ];
-
-    for w in words.into_iter().rev() {
-        stack_ptr = unsafe { stack_ptr.sub(1) };
-        trace!("{stack_ptr:p}: {w:p}");
-        unsafe { core::ptr::write_volatile(stack_ptr, w) };
-    }
-
-    let name = name.into();
-    info!("Allocated stack (sp {stack_ptr:p}) for task {name:?}");
-
-    Arc::new_cyclic(|weak_self| TaskControlBlock {
+    task::create_cyclic_task(
+        entry,
         name,
-        id: uuid_v4(),
-        context: Mutex::new(Context {
-            stack_pointer: VirtAddr::from_ptr(stack_ptr),
-            cr3: Cr3::read(),
-            stack: Some(stack),
-            process_info: None,
-            scheduler_data: RoundRobinData {
-                next_task: Weak::clone(weak_self),
-                dealloc: None,
-            },
-        }),
-    })
+        task_exit,
+        || {
+            let _ = TASKS.is_locked();
+            let _ = CURRENT_TASK.is_locked();
+        },
+        |weak_self| RoundRobinData {
+            next_task: Weak::clone(weak_self),
+            dealloc: None,
+        },
+    )
 }
 
 /// Public task creation function; inserts the task after the current one.
@@ -269,40 +230,14 @@ extern "C" fn task_dealloc() {
     }
 }
 
-/// Sets process metadata for the current task.
-pub fn set_current_process_info(process_info: ProcessInfo) {
-    let arc = CURRENT_TASK.read().clone();
-    arc.context.lock().process_info = Some(process_info);
+/// Returns the currently active task.
+pub fn get_current_task() -> Arc<TaskControlBlock<RoundRobinData>> {
+    CURRENT_TASK.read().clone()
 }
 
-/// Mutably modifies the current task's process info.
-#[allow(clippy::significant_drop_tightening)]
-pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U) -> U {
-    let lock = CURRENT_TASK.read();
-    let p = &mut lock.context.lock().process_info;
-    f(p)
-}
-
-/// Returns a copy of the current task's process info.
-pub fn get_current_process_info() -> Option<ProcessInfo> {
-    CURRENT_TASK.read().context.lock().process_info.clone()
-}
-
-/// Attempts to get process info; returns None if scheduler not initialized.
-pub fn try_get_current_process_info() -> Option<ProcessInfo> {
+pub fn try_get_current_task() -> Option<Arc<TaskControlBlock<RoundRobinData>>> {
     if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
-        CURRENT_TASK
-            .try_read()
-            .and_then(|x| x.context.try_lock()?.process_info.clone())
-    } else {
-        None
-    }
-}
-
-/// Returns the ID of the current task.
-pub fn get_current_task_id() -> TaskId {
-    if INITIALIZED.load(core::sync::atomic::Ordering::Acquire) {
-        CURRENT_TASK.try_read().map(|x| x.id)
+        CURRENT_TASK.try_read().map(|x| x.clone())
     } else {
         None
     }
