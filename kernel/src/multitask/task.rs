@@ -109,3 +109,13 @@ pub(super) fn create_cyclic_task<S: Into<Cow<'static, str>>, Data>(
         }),
     })
 }
+
+/// # Safety
+/// THe task being freed must not be the current one
+pub(super) unsafe fn free_task<Data>(task: Arc<TaskControlBlock<Data>>) {
+    let mut lock = task.context.lock();
+    if let Some(stack) = lock.stack.take() {
+        let info = KERNEL_INFO.get().unwrap();
+        unsafe { info.free_stack(stack) };
+    }
+}

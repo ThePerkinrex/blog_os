@@ -13,10 +13,9 @@ use spin::{
 use x86_64::{VirtAddr, registers::control::Cr3};
 
 use crate::{
-    KERNEL_INFO,
     multitask::{
         switching::SwitchData,
-        task::{self, Context, TaskControlBlock},
+        task::{self, Context, TaskControlBlock, free_task},
         task_switch,
     },
     rand::uuid_v4,
@@ -183,8 +182,6 @@ extern "C" fn task_dealloc() {
         if let Some(dealloc_ptr) = TASK_DEALLOC.get() {
             let mut dealloc_ptr_lock = dealloc_ptr.context.lock();
             if let Some(dealloc_task_ptr) = dealloc_ptr_lock.scheduler_data.dealloc.take() {
-                let mut dealloc_task_lock = dealloc_task_ptr.context.lock();
-
                 info!(
                     "Cleaning up {} ({})",
                     dealloc_task_ptr.name, dealloc_task_ptr.id
@@ -213,11 +210,7 @@ extern "C" fn task_dealloc() {
                 drop(tasks);
                 drop(dealloc_ptr_lock);
 
-                // Free the stack
-                if let Some(stack) = dealloc_task_lock.stack.take() {
-                    let info = KERNEL_INFO.get().unwrap();
-                    unsafe { info.free_stack(stack) };
-                }
+                unsafe { free_task(dealloc_task_ptr) };
             } else {
                 drop(dealloc_ptr_lock);
                 info!("Nothing to clean up");

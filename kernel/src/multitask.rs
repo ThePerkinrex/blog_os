@@ -17,8 +17,10 @@ use round_robin::switch_fn;
 pub use round_robin::task_exit;
 pub use round_robin::try_get_current_task;
 
+const fn do_nothing() {}
+
 pub fn task_switch() {
-    switching::task_switch_safe(switch_fn);
+    switching::task_switch_safe(switch_fn, do_nothing);
 }
 
 /// Returns the ID of the current task.
