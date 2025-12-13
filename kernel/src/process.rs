@@ -17,13 +17,14 @@ use log::{debug, info, warn};
 use shared_fs::FileType;
 use spin::lock_api::RwLock;
 use thiserror::Error;
+use x86_64::VirtAddr;
 
 use crate::{
     KERNEL_INFO,
     elf::{ElfHeader, ElfLoadError, LoadedProgram, load_user_program},
     fs::VFS,
     memory::multi_l4_paging::PageTableToken,
-    multitask::{get_current_task, set_current_process_info},
+    multitask::{get_current_task, set_current_process_info, try_get_current_task},
     priviledge::jmp_to_usermode,
     rand::uuid_v4,
 };
@@ -262,14 +263,16 @@ impl ProcessInfo {
 }
 
 /// Uses the task stack if possible
-pub extern "C" fn get_process_kernel_stack_top() -> u64 {
-    let tcb = get_current_task();
+pub extern "C" fn get_task_kernel_stack_top() -> VirtAddr {
+    let Some(tcb) = try_get_current_task() else {
+        return VirtAddr::zero();
+    };
 
     let mut ctx = tcb.context.lock();
 
     let stack = ctx.stack.get_or_insert_with(|| {
         let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
-        info!("Created a new stack for the process: {stack:?}");
+        info!("Created a new stack for the task: {stack:?}");
         stack
     });
 
@@ -277,7 +280,7 @@ pub extern "C" fn get_process_kernel_stack_top() -> u64 {
 
     drop(ctx);
 
-    stack.as_u64()
+    stack
 }
 
 #[derive(Debug, Error)]

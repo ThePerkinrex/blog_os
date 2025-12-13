@@ -158,6 +158,9 @@ pub extern "C" fn task_exit() -> ! {
 
     let old_next = {
         let mut cur = current.context.lock();
+        if cur.scheduler_data.next_task.ptr_eq(&Arc::downgrade(&current)) {
+            panic!("Ending the only task. This task is cyclic")
+        }
         let old = cur.scheduler_data.next_task.clone();
         cur.scheduler_data.next_task = Arc::downgrade(dealloc);
         old

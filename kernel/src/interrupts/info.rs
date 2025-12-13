@@ -15,7 +15,7 @@ pub enum Interrupt {
     Timer,      // Often mapped to IRQ 0, or Vector 32 (0x20) after PIC remapping
     Keyboard,   // Often mapped to IRQ 1, or Vector 33 (0x21) after PIC remapping
     SystemCall, // Typically for software interrupts like int 0x80
-    SystemCallTail,
+    InterruptTail,
 }
 
 pub static IH: Lazy<BTreeMap<VirtAddr, Interrupt>> = Lazy::new(|| {
@@ -53,8 +53,8 @@ pub static IH: Lazy<BTreeMap<VirtAddr, Interrupt>> = Lazy::new(|| {
         Interrupt::SystemCall,
     );
     map.insert(
-        VirtAddr::from_ptr(naked_syscall_tail as *const ()),
-        Interrupt::SystemCallTail,
+        VirtAddr::from_ptr(stub::interrupt_tail as *const ()),
+        Interrupt::InterruptTail,
     );
 
     map
