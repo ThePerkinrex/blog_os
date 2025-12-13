@@ -89,29 +89,30 @@ pub fn syscall_handle(
 }
 
 pub extern "C" fn syscall_tail() {
-    // debug!("SYSCALL TAIL");
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        // debug!("SYSCALL TAIL");
 
-    if let Some(current_pinf) = try_get_current_process_info() {
-        // Process info must be there if a syscall was made.
+        if let Some(current_pinf) = try_get_current_process_info() {
+            // Process info must be there if a syscall was made.
 
-        if let ProcessStatus::Ending(code) = current_pinf.status() {
-            info!("Process ending with code: {code}");
-            change_current_process_info(|p| p.take()); // This process is no longer associated with the task
-            let program = current_pinf.program().clone();
+            if let ProcessStatus::Ending(code) = current_pinf.status() {
+                info!("Process ending with code: {code}");
+                change_current_process_info(|p| p.take()); // This process is no longer associated with the task
+                let program = current_pinf.program().clone();
+                drop(current_pinf);
+
+                debug!("Strong count: {}", Arc::strong_count(&program));
+                debug!("Weak count: {}", Arc::weak_count(&program));
+
+                let program = Arc::into_inner(program).expect("No more than one ref");
+                drop(program);
+
+                task_exit();
+            }
+
             drop(current_pinf);
-
-            debug!("Strong count: {}", Arc::strong_count(&program));
-            debug!("Weak count: {}", Arc::weak_count(&program));
-
-            let program = Arc::into_inner(program).expect("No more than one ref");
-            drop(program);
-
-            x86_64::instructions::interrupts::enable();
-            task_exit();
         }
-
-        drop(current_pinf);
-    }
+        task_switch();
+    });
     x86_64::instructions::interrupts::enable();
-    task_switch();
 }

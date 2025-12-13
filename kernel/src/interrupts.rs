@@ -8,9 +8,8 @@ use x86_64::{
 
 use crate::{
     _print, STDIN, gdt, hlt_loop,
-    interrupts::{self, stub::InterruptContext},
+    interrupts::stub::InterruptContext,
     multitask,
-    process::get_task_kernel_stack_top,
     setup::KERNEL_INFO,
     unwind::{backtrace, backtrace_sp_ip},
 };

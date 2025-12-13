@@ -63,9 +63,9 @@ static CURRENT_TASK: Lazy<RwLock<Arc<TaskControlBlock<RoundRobinData>>>> =
 pub fn switch_fn() -> SwitchData<RoundRobinData> {
     let mut current_arc_guard = CURRENT_TASK.write();
     let current_arc = current_arc_guard.clone();
-    debug!("Locking current tcb");
+    // debug!("Locking current tcb");
     let current_tcb = current_arc.context.lock();
-    debug!("Locked current tcb");
+    // debug!("Locked current tcb");
 
     // Upgrade next_task Weak → Arc
     let next_arc: Arc<_> = current_tcb
@@ -109,6 +109,7 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
         || {
             let _ = TASKS.is_locked();
             let _ = CURRENT_TASK.is_locked();
+            debug!("Creating task. loaded current_task");
         },
         |weak_self| RoundRobinData {
             next_task: Weak::clone(weak_self),
@@ -146,45 +147,49 @@ static TASK_DEALLOC: Once<Arc<TaskControlBlock<RoundRobinData>>> = Once::new();
 
 /// Initializes the deallocation task.
 pub fn init() {
+    info!("Initializing mustitasking");
     x86_64::instructions::interrupts::without_interrupts(|| {
         let dealloc = create_cyclic_task(task_dealloc, "dealloc");
         TASKS.lock().insert(dealloc.clone());
         TASK_DEALLOC.call_once(|| dealloc);
-    })
+        info!("Initialized mustitasking");
+    });
 }
 
 /// Marks the current task for deallocation and switches to the
 /// deallocation task.
 pub extern "C" fn task_exit() -> ! {
-    info!("Ending task");
-    let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
-    let current = CURRENT_TASK.read();
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        info!("Ending task");
+        let dealloc = TASK_DEALLOC.get().expect("Initialized dealloc");
+        let current = CURRENT_TASK.read();
 
-    let old_next = {
-        let mut cur = current.context.lock();
-        if cur
-            .scheduler_data
-            .next_task
-            .ptr_eq(&Arc::downgrade(&current))
+        let old_next = {
+            let mut cur = current.context.lock();
+            if cur
+                .scheduler_data
+                .next_task
+                .ptr_eq(&Arc::downgrade(&current))
+            {
+                panic!("Ending the only task. This task is cyclic")
+            }
+            let old = cur.scheduler_data.next_task.clone();
+            cur.scheduler_data.next_task = Arc::downgrade(dealloc);
+            old
+        };
+
         {
-            panic!("Ending the only task. This task is cyclic")
+            let mut del = dealloc.context.lock();
+            del.scheduler_data.next_task = old_next;
+            del.scheduler_data.dealloc = Some(current.clone());
         }
-        let old = cur.scheduler_data.next_task.clone();
-        cur.scheduler_data.next_task = Arc::downgrade(dealloc);
-        old
-    };
 
-    {
-        let mut del = dealloc.context.lock();
-        del.scheduler_data.next_task = old_next;
-        del.scheduler_data.dealloc = Some(current.clone());
-    }
+        drop(current);
 
-    drop(current);
-
-    info!("Switching to dealloc");
-    task_switch();
-    unreachable!();
+        info!("Switching to dealloc");
+        task_switch();
+        unreachable!();
+    })
 }
 
 /// Task dedicated to freeing task resources.
