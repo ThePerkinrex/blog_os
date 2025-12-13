@@ -6,7 +6,9 @@ use log::{debug, info, warn};
 use spin::Lazy;
 
 use crate::{
-    multitask::{change_current_process_info, get_current_process_info, task_exit, task_switch},
+    multitask::{
+        change_current_process_info, task_exit, task_switch, try_get_current_process_info,
+    },
     process::ProcessStatus,
 };
 
@@ -87,27 +89,29 @@ pub fn syscall_handle(
 }
 
 pub extern "C" fn syscall_tail() {
-    debug!("SYSCALL TAIL");
+    // debug!("SYSCALL TAIL");
 
-    let current_pinf = get_current_process_info().unwrap(); // Process info must be there if a syscall was made.
+    if let Some(current_pinf) = try_get_current_process_info() {
+        // Process info must be there if a syscall was made.
 
-    if let ProcessStatus::Ending(code) = current_pinf.status() {
-        info!("Process ending with code: {code}");
-        change_current_process_info(|p| p.take()); // This process is no longer associated with the task
-        let program = current_pinf.program().clone();
+        if let ProcessStatus::Ending(code) = current_pinf.status() {
+            info!("Process ending with code: {code}");
+            change_current_process_info(|p| p.take()); // This process is no longer associated with the task
+            let program = current_pinf.program().clone();
+            drop(current_pinf);
+
+            debug!("Strong count: {}", Arc::strong_count(&program));
+            debug!("Weak count: {}", Arc::weak_count(&program));
+
+            let program = Arc::into_inner(program).expect("No more than one ref");
+            drop(program);
+
+            x86_64::instructions::interrupts::enable();
+            task_exit();
+        }
+
         drop(current_pinf);
-
-        debug!("Strong count: {}", Arc::strong_count(&program));
-        debug!("Weak count: {}", Arc::weak_count(&program));
-
-        let program = Arc::into_inner(program).expect("No more than one ref");
-        drop(program);
-
-        x86_64::instructions::interrupts::enable();
-        task_exit();
     }
-
-    drop(current_pinf);
     x86_64::instructions::interrupts::enable();
     task_switch();
 }

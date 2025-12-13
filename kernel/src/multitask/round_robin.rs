@@ -75,7 +75,7 @@ pub fn switch_fn() -> SwitchData<RoundRobinData> {
         .expect("next task has been dropped");
 
     if Arc::ptr_eq(&current_arc, &next_arc) {
-        info!("Called task switch on a cyclic task, returning");
+        // info!("Called task switch on a cyclic task, returning");
         return SwitchData {
             current: current_arc.clone(),
             next: current_arc.clone(),
@@ -119,24 +119,26 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
 
 /// Public task creation function; inserts the task after the current one.
 pub fn create_task(entry: extern "C" fn(), name: &'static str) {
-    let tcb = create_cyclic_task(entry, name);
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        let tcb = create_cyclic_task(entry, name);
 
-    {
-        let mut tasks = TASKS.lock();
-        let current = CURRENT_TASK.read().clone();
-        tasks.insert(tcb.clone());
-        drop(tasks);
+        {
+            let mut tasks = TASKS.lock();
+            let current = CURRENT_TASK.read().clone();
+            tasks.insert(tcb.clone());
+            drop(tasks);
 
-        // Fix linked list
-        let mut cur_tcb = current.context.lock();
-        let old_next = cur_tcb.scheduler_data.next_task.clone();
-        cur_tcb.scheduler_data.next_task = Arc::downgrade(&tcb);
-        drop(cur_tcb);
-        let mut new_tcb = tcb.context.lock();
-        new_tcb.scheduler_data.next_task = old_next;
-    }
+            // Fix linked list
+            let mut cur_tcb = current.context.lock();
+            let old_next = cur_tcb.scheduler_data.next_task.clone();
+            cur_tcb.scheduler_data.next_task = Arc::downgrade(&tcb);
+            drop(cur_tcb);
+            let mut new_tcb = tcb.context.lock();
+            new_tcb.scheduler_data.next_task = old_next;
+        }
 
-    info!("Task creation finished");
+        info!("Task creation finished");
+    });
 }
 
 /// Special task for performing cleanup of dead tasks.
@@ -144,9 +146,11 @@ static TASK_DEALLOC: Once<Arc<TaskControlBlock<RoundRobinData>>> = Once::new();
 
 /// Initializes the deallocation task.
 pub fn init() {
-    let dealloc = create_cyclic_task(task_dealloc, "dealloc");
-    TASKS.lock().insert(dealloc.clone());
-    TASK_DEALLOC.call_once(|| dealloc);
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        let dealloc = create_cyclic_task(task_dealloc, "dealloc");
+        TASKS.lock().insert(dealloc.clone());
+        TASK_DEALLOC.call_once(|| dealloc);
+    })
 }
 
 /// Marks the current task for deallocation and switches to the
@@ -158,7 +162,11 @@ pub extern "C" fn task_exit() -> ! {
 
     let old_next = {
         let mut cur = current.context.lock();
-        if cur.scheduler_data.next_task.ptr_eq(&Arc::downgrade(&current)) {
+        if cur
+            .scheduler_data
+            .next_task
+            .ptr_eq(&Arc::downgrade(&current))
+        {
             panic!("Ending the only task. This task is cyclic")
         }
         let old = cur.scheduler_data.next_task.clone();

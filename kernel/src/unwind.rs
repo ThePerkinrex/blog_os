@@ -293,6 +293,19 @@ fn single_backtrace_line(frame: CallFrame, unwind: &Unwinder<'_>) -> Result<(), 
 }
 
 pub fn backtrace() {
+
+    let aprox_pc: u64;
+    let sp: u64;
+    unsafe {
+        core::arch::asm!("
+            lea {pc}, [rip]
+            mov {sp}, rsp
+            ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, options(nomem,nostack));
+    }
+    backtrace_sp_ip(sp, aprox_pc);
+}
+
+pub fn backtrace_sp_ip(sp: u64, pc: u64) {
     let kinf = KERNEL_INFO.get().unwrap();
     let mut unwind_table = UnwindTable::default();
     unwind_table.push_ref(kinf, "kernel");
@@ -300,21 +313,9 @@ pub fn backtrace() {
     if let Some(pinf) = try_get_current_process_info() {
         unwind_table.push_owned(pinf.program().clone(), "process");
     }
-
-    let aprox_pc: u64;
-    let sp: u64;
-    let fp: u64;
-    unsafe {
-        core::arch::asm!("
-            lea {pc}, [rip]
-            mov {sp}, rsp
-            mov {fp}, rbp
-            ", pc = lateout(reg) aprox_pc, sp = lateout(reg) sp, fp = lateout(reg) fp, options(nomem,nostack));
-    }
-    debug!("Current pc: {aprox_pc:x}");
-    let mut register_set = RegisterSet::new(aprox_pc);
+    debug!("Current pc: {pc:x}");
+    let mut register_set = RegisterSet::new(pc);
     register_set.set_stack_ptr(sp);
-    register_set.set(X86_64::RBP, fp).unwrap();
     let mut unwind = Unwinder::new(unwind_table, register_set);
     debug!("Created unwinder");
     loop {
