@@ -1,6 +1,17 @@
-use x86_64::structures::idt::InterruptStackFrame;
+use x86_64::{
+    VirtAddr,
+    registers::{
+        rflags,
+        segmentation::{CS, SS, Segment},
+    },
+    structures::idt::InterruptStackFrame,
+};
 
-use crate::{gdt, interrupts::{int_80_handler, syscalls}, process::get_process_kernel_stack_top};
+use crate::{
+    gdt,
+    interrupts::{int_80_handler, syscalls},
+    process::get_process_kernel_stack_top,
+};
 
 const SAVED_REG_COUNT: u64 = 12; // RBP RCX, RDX, RSI, RDI, R8, R9, R10, R11, R12, R13, RAX
 const SAVED_BYTES: u64 = SAVED_REG_COUNT * core::mem::size_of::<u64>() as u64;
@@ -15,24 +26,24 @@ struct InterruptContext {
     pub r12: u64,
     pub r11: u64,
     pub r10: u64,
-    pub r9:  u64,
-    pub r8:  u64,
+    pub r9: u64,
+    pub r8: u64,
     pub rdi: u64,
     pub rsi: u64,
     pub rdx: u64,
     pub rcx: u64,
     pub rbp: u64,
-
     // Pushed by CPU (iret frame)
     // pub rip: u64,
     // pub cs: u64,
     // pub rflags: u64,
     // pub rsp: u64,
     // pub ss: u64,
+    pub frame: InterruptStackFrame,
 }
 
 #[unsafe(naked)]
-extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn naked_interrupt_handler(_stack_frame: InterruptStackFrame) {
     core::arch::naked_asm!(
         "
         .cfi_startproc              // Start DWARF frame info
@@ -97,29 +108,26 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
 
         // The stack is now the Task Kernel Stack and perfectly aligned.
         mov rdi, rsp                 // first arg: &mut InterruptContext
-		mov rsi, {handler}           // second arg: handler
+        mov rsi, {handler}           // second arg: ContextHandler
 
         // Call interrupt_entry()
-        call {interrupt_entry}
+        call {interrupt}
 
+        // mov rax,rsp
+        // push {zero}
+        // push rax
+        // pushfq                         /* push RFLAGS */
+        // // call {kernel_selector}
+        // //push rax                       /* push kernel CS (typical selector = 0x08) */
+        // mov rax,cs
+        // push rax
+        // // Load RIP-relative address of naked_syscall_tail into RAX
+        // lea rax, [rip + {naked_syscall_tail}]
         
+        // // Push it on the stack (RIP-relative, PIE-safe)
+        // push rax
 
-
-        mov rax,rsp
-        push {zero}
-        push rax
-        pushfq                         /* push RFLAGS */
-        // call {kernel_selector}
-        //push rax                       /* push kernel CS (typical selector = 0x08) */
-        mov rax,cs
-        push rax
-        // Load RIP-relative address of naked_syscall_tail into RAX
-        lea rax, [rip + {naked_syscall_tail}]
-        
-        // Push it on the stack (RIP-relative, PIE-safe)
-        push rax
-
-        iretq                           /* returns to kernel_resume at CPL=0 */
+        // iretq                           /* returns to kernel_resume at CPL=0 */
         
         .cfi_endproc
 
@@ -144,8 +152,8 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
         // // Return from interrupt — RAX still holds the return value from test_handler()
         // iretq
         ",
+        interrupt = sym interrupt_handle,
         handler = sym interrupt_test_handler,
-        interrupt_entry = sym interrupt_entry,
         get_stack_top = sym get_process_kernel_stack_top,
         frame_size = const TOTAL_FRAME_BYTES,
         saved_bytes = const SAVED_BYTES,
@@ -156,15 +164,56 @@ extern "x86-interrupt" fn naked_int_80_handler(_stack_frame: InterruptStackFrame
     );
 }
 
-pub type ContextHandler = extern "C" fn(&InterruptContext) -> u64;
+pub type ContextHandler = extern "C" fn(&mut InterruptContext);
 
-extern "C" fn interrupt_entry(ctx: &mut InterruptContext, handler: ContextHandler) {
-	ctx.rax = handler(ctx);
+extern "C" fn interrupt_test_handler(ctx: &mut InterruptContext) {
+    ctx.rax = 0;
 }
 
+extern "C" fn interrupt_handle(ctx: &mut InterruptContext, handle: ContextHandler) -> ! {
+    let rsp: u64;
+    unsafe {
+        core::arch::asm!("mov {reg},rsp", reg = lateout(reg) rsp);
+    }
+    handle(ctx);
+    let cs = CS::get_reg();
+    let ss = SS::get_reg();
+    let rflags = rflags::read();
+    let tail_frame = InterruptStackFrame::new(
+        VirtAddr::from_ptr(interrupt_tail as *const u8),
+        cs,
+        rflags,
+        VirtAddr::new_truncate(rsp),
+        ss,
+    );
+    unsafe { core::arch::asm!("mov rdi, {frame}", frame = in(reg) ctx) }
+    unsafe { tail_frame.iretq() }
+}
 
-extern "C" fn interrupt_test_handler(ctx: &InterruptContext) -> u64 {
-	0
+extern "C" fn interrupt_tail(ctx: &mut InterruptContext) -> ! {
+	// TODO do something
+
+
+    // Restore registers
+    unsafe {
+        core::arch::asm!(
+            // No actual instructions needed, just tell the compiler which registers to load
+            "mov rbp,{rbp}",
+            in("rax") ctx.rax,
+            in("r13") ctx.r13,
+            in("r12") ctx.r12,
+            in("r11") ctx.r11,
+            in("r10") ctx.r10,
+            in("r9")  ctx.r9,
+            in("r8")  ctx.r8,
+            in("rdi") ctx.rdi,
+            in("rsi") ctx.rsi,
+            in("rdx") ctx.rdx,
+            in("rcx") ctx.rcx,
+            rbp = in(reg) ctx.rbp
+        );
+    }
+    unsafe { ctx.frame.iretq() }
 }
 
 /// # Safety
