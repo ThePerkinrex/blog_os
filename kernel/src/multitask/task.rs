@@ -3,6 +3,7 @@ use alloc::{
     sync::{Arc, Weak},
 };
 use core::{hash::Hash, ptr};
+use log::info;
 use spin::lock_api::Mutex;
 use uuid::Uuid;
 use x86_64::{
@@ -74,6 +75,8 @@ pub(super) fn create_cyclic_task<S: Into<Cow<'static, str>>, Data>(
 ) -> Arc<TaskControlBlock<Data>> {
     load();
 
+    let name = name.into();
+    info!("Creating task stack for {name}");
     let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
 
     // Prepare the initial stack frame so that switching into it causes `entry` to run.
@@ -90,12 +93,11 @@ pub(super) fn create_cyclic_task<S: Into<Cow<'static, str>>, Data>(
         task_exit as *const (),
     ];
 
+    info!("Preparing stack data");
     for w in words.into_iter().rev() {
         stack_ptr = unsafe { stack_ptr.sub(1) };
         unsafe { core::ptr::write_volatile(stack_ptr, w) };
     }
-
-    let name = name.into();
 
     Arc::new_cyclic(|weak_self| TaskControlBlock {
         name,

@@ -88,7 +88,7 @@ pub fn syscall_handle(
     }
 }
 
-pub extern "C" fn syscall_tail() {
+pub extern "C" fn syscall_tail() -> bool {
     x86_64::instructions::interrupts::without_interrupts(|| {
         // debug!("SYSCALL TAIL");
 
@@ -112,7 +112,6 @@ pub extern "C" fn syscall_tail() {
 
             drop(current_pinf);
         }
-        task_switch();
-    });
-    x86_64::instructions::interrupts::enable();
+        task_switch()
+    })
 }

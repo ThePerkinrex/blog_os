@@ -272,7 +272,7 @@ pub extern "C" fn get_task_kernel_stack_top() -> VirtAddr {
 
     let stack = ctx.stack.get_or_insert_with(|| {
         let stack = KERNEL_INFO.get().unwrap().create_stack().expect("A stack");
-        info!("Created a new stack for the task: {stack:?}");
+        info!("Created a new stack for the task {}: {stack:?}", tcb.name);
         stack
     });
 

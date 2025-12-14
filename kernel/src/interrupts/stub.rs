@@ -1,3 +1,4 @@
+use log::debug;
 use x86_64::{
     VirtAddr,
     registers::{
@@ -6,25 +7,24 @@ use x86_64::{
     },
 };
 
-use crate::
-    interrupts::syscalls::syscall_tail
-;
+use crate::interrupts::syscalls::syscall_tail;
 
 // const SAVED_REG_COUNT: u64 = 10; // RBP RCX, RDX, RSI, RDI, R8, R9, R10, R11, RAX
 // const SAVED_BYTES: u64 = SAVED_REG_COUNT * core::mem::size_of::<u64>() as u64;
 // const IRET_FRAME_BYTES: u64 = 5 * core::mem::size_of::<u64>() as u64; // SS, RSP, RFLAGS, CS, RIP
 // const TOTAL_FRAME_BYTES: u64 = SAVED_BYTES + IRET_FRAME_BYTES; // 15 * 8 = 120 bytes (0x78)
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct SavedRegisters {
-	pub stack_top: VirtAddr,
+    pub stack_top: VirtAddr,
     pub rax: u64,
     pub rdi: u64,
-	pub rbx: u64,
-	pub r15: u64,
-	pub r14: u64,
-	pub r13: u64,
-	pub r12: u64,
+    pub rbx: u64,
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
     pub r11: u64,
     pub r10: u64,
     pub r9: u64,
@@ -35,10 +35,11 @@ pub struct SavedRegisters {
     pub rbp: u64,
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct InterruptContext {
     // Pushed by software (your pushes)
-	pub registers: SavedRegisters,
+    pub registers: SavedRegisters,
     // Pushed by CPU (iret frame)
     // pub rip: u64,
     // pub cs: u64,
@@ -204,22 +205,21 @@ macro_rules! interrupt_with_tail {
 //         call {get_stack_top}
 // 		push rax // stack top
 
-
 // 		// if RAX is 0, no stack switch must happen, jump to the handler
 // 		test rax, rax
 // 		jz  .no_stack_switch
-        
-//         // RAX now holds the Task Kernel Stack Top address. 
+
+//         // RAX now holds the Task Kernel Stack Top address.
 
 //         // 3. Perform the stack switch and copy.
 //         //    Calculate the new stack pointer (RAX - total frame size)
 //         sub rax, {frame_size}
-        
+
 //         // Copy preparation: RDI=dest, RSI=source, RCX=count
 //         mov rdi, rax          // Destination: new RSP after switch (bottom of data)
 //         mov rsi, rsp          // Source: current RSP (bottom of data)
 //         mov rcx, {qword_count} // Total QWords to copy (13 QWords)
-        
+
 //         // Set the new stack pointer *before* copying
 //         mov rsp, rax          // **Stack Switch occurs here!**
 
@@ -227,7 +227,7 @@ macro_rules! interrupt_with_tail {
 //         rep movsq             // Copy the entire stack frame and saved regs to the new stack
 
 // .no_stack_switch:
-        
+
 //         mov rbp,rsp
 //         add rbp,{saved_bytes}
 //         sub rbp,8
@@ -239,7 +239,7 @@ macro_rules! interrupt_with_tail {
 
 //         // Call interrupt_entry()
 //         call {interrupt}
-        
+
 //         .cfi_endproc
 //         ",
 //         interrupt = sym interrupt_handle,
@@ -273,48 +273,52 @@ pub extern "C" fn interrupt_handle(ctx: &mut InterruptContext, handle: ContextHa
         VirtAddr::new_truncate(rsp),
         ss,
     );
+    // debug!("HANDLER: {rflags:x?}");
     // unsafe { core::arch::asm!("mov rdi, {frame}", frame = in(reg) ctx) }
     // unsafe { tail_frame.iretq() }
-	unsafe {
+    unsafe {
         core::arch::asm!(
             // Restore registers (reverse order not required for movs)
-			// Pushes before movs because it may use registers needed for the movs
-			"push {frame_ss:r}",
-			"push {frame_sp}",
-			"push {frame_rflags}",
-			"push {frame_cs:r}",
-			"push {frame_ip}",
-            // "mov rdi, rdi", rdi should be ctx 
-			"iretq",
+            // Pushes before movs because it may use registers needed for the movs
+            "push {frame_ss:r}",
+            "push {frame_sp}",
+            "push {frame_rflags}",
+            "push {frame_cs:r}",
+            "push {frame_ip}",
+            // "mov rdi, rdi", rdi should be ctx
+            "iretq",
 
             // ctx.registers base
             in("rdi") ctx,
-			frame_ss = in(reg) tail_frame.stack_segment.0,
-			frame_sp = in(reg) tail_frame.stack_pointer.as_u64(),
-			frame_rflags = in(reg) tail_frame.cpu_flags.bits(),
-			frame_cs = in(reg) tail_frame.code_segment.0,
-			frame_ip = in(reg) tail_frame.instruction_pointer.as_u64(),
-			options(noreturn)
+            frame_ss = in(reg) tail_frame.stack_segment.0,
+            frame_sp = in(reg) tail_frame.stack_pointer.as_u64(),
+            frame_rflags = in(reg) tail_frame.cpu_flags.bits(),
+            frame_cs = in(reg) tail_frame.code_segment.0,
+            frame_ip = in(reg) tail_frame.instruction_pointer.as_u64(),
+            options(noreturn)
         );
     }
 }
 
 pub extern "C" fn interrupt_tail(ctx: &mut InterruptContext) -> ! {
-	if !ctx.registers.stack_top.is_null() { // If we didnt change stacks, there was no task stack - no multitasking possible
-		syscall_tail();
-	}
+    if !ctx.registers.stack_top.is_null() {
+        // If we didnt change stacks, there was no task stack - no multitasking possible
+        if !syscall_tail() {
 
+            // debug!("interrupt tail: {:x?}", ctx.frame.cpu_flags);
+        }
+    }
 
     // Restore registers
     unsafe {
         core::arch::asm!(
             // Restore registers (reverse order not required for movs)
-			// Pushes before movs because it may use registers needed for the movs
-			"push {frame_ss:r}",
-			"push {frame_sp}",
-			"push {frame_rflags}",
-			"push {frame_cs:r}",
-			"push {frame_ip}",
+            // Pushes before movs because it may use registers needed for the movs
+            "push {frame_ss:r}",
+            "push {frame_sp}",
+            "push {frame_rflags}",
+            "push {frame_cs:r}",
+            "push {frame_ip}",
             "mov rax, [rdi + 8*1]",
             "mov rbx, [rdi + 8*3]",
             "mov r15, [rdi + 8*4]",
@@ -330,17 +334,16 @@ pub extern "C" fn interrupt_tail(ctx: &mut InterruptContext) -> ! {
             "mov rcx, [rdi + 8*14]",
             "mov rbp, [rdi + 8*15]",
             "mov rdi, [rdi + 8*2]", // as were using rdi, restore it last
-			"iretq",
+            "iretq",
 
             // ctx.registers base
             in("rdi") &ctx.registers,
-			frame_ss = in(reg) ctx.frame.stack_segment.0,
-			frame_sp = in(reg) ctx.frame.stack_pointer.as_u64(),
-			frame_rflags = in(reg) ctx.frame.cpu_flags.bits(),
-			frame_cs = in(reg) ctx.frame.code_segment.0,
-			frame_ip = in(reg) ctx.frame.instruction_pointer.as_u64(),
-			options(noreturn)
+            frame_ss = in(reg) ctx.frame.stack_segment.0,
+            frame_sp = in(reg) ctx.frame.stack_pointer.as_u64(),
+            frame_rflags = in(reg) ctx.frame.cpu_flags.bits(),
+            frame_cs = in(reg) ctx.frame.code_segment.0,
+            frame_ip = in(reg) ctx.frame.instruction_pointer.as_u64(),
+            options(noreturn)
         );
     }
 }
-

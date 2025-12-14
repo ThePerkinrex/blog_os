@@ -26,6 +26,7 @@ pub struct RoundRobinData {
     next_task: Weak<TaskControlBlock<Self>>,
     /// Task scheduled for deallocation.
     dealloc: Option<Arc<TaskControlBlock<Self>>>,
+    time: usize,
 }
 
 /// Tracks whether the scheduler has been initialized.
@@ -49,6 +50,7 @@ static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock<RoundRobinData>>>>> = Laz
             scheduler_data: RoundRobinData {
                 next_task: w.clone(),
                 dealloc: None,
+                time: 0,
             },
         }),
     }));
@@ -60,11 +62,23 @@ static TASKS: Lazy<Mutex<BTreeSet<Arc<TaskControlBlock<RoundRobinData>>>>> = Laz
 static CURRENT_TASK: Lazy<RwLock<Arc<TaskControlBlock<RoundRobinData>>>> =
     Lazy::new(|| RwLock::new(TASKS.lock().first().unwrap().clone()));
 
+const TIME_LIMIT: usize = 100;
+
 pub fn switch_fn() -> SwitchData<RoundRobinData> {
     let mut current_arc_guard = CURRENT_TASK.write();
     let current_arc = current_arc_guard.clone();
     // debug!("Locking current tcb");
-    let current_tcb = current_arc.context.lock();
+    let mut current_tcb = current_arc.context.lock();
+
+    if current_tcb.scheduler_data.time < TIME_LIMIT {
+        current_tcb.scheduler_data.time += 1;
+        return SwitchData {
+            current: current_arc.clone(),
+            next: current_arc.clone(),
+        };
+    }
+    current_tcb.scheduler_data.time = 0;
+
     // debug!("Locked current tcb");
 
     // Upgrade next_task Weak → Arc
@@ -75,7 +89,7 @@ pub fn switch_fn() -> SwitchData<RoundRobinData> {
         .expect("next task has been dropped");
 
     if Arc::ptr_eq(&current_arc, &next_arc) {
-        // info!("Called task switch on a cyclic task, returning");
+        info!("Called task switch on a cyclic task, returning");
         return SwitchData {
             current: current_arc.clone(),
             next: current_arc.clone(),
@@ -114,6 +128,7 @@ fn create_cyclic_task<S: Into<Cow<'static, str>>>(
         |weak_self| RoundRobinData {
             next_task: Weak::clone(weak_self),
             dealloc: None,
+            time: 0,
         },
     )
 }

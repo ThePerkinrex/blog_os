@@ -293,7 +293,6 @@ fn single_backtrace_line(frame: CallFrame, unwind: &Unwinder<'_>) -> Result<(), 
 }
 
 pub fn backtrace() {
-
     let aprox_pc: u64;
     let sp: u64;
     unsafe {

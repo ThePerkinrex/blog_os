@@ -39,11 +39,11 @@ pub struct SwitchData<Data> {
 /// # Safety
 /// Performs a raw context switch between tasks.
 /// Interrupts MUST be disabled.
-unsafe fn task_switch<Data>(switch_fn: fn() -> SwitchData<Data>, after_switch: fn()) {
+unsafe fn task_switch<Data>(switch_fn: fn() -> SwitchData<Data>, after_switch: fn()) -> bool {
     let SwitchData { current, next } = switch_fn();
 
     if Arc::ptr_eq(&current, &next) {
-        return;
+        return false;
     }
 
     debug!("Locking current tcb");
@@ -92,9 +92,10 @@ unsafe fn task_switch<Data>(switch_fn: fn() -> SwitchData<Data>, after_switch: f
     debug!("Next sp: {next_sp_ptr:p}");
 
     after_switch();
+    true
 }
 
 /// Safe wrapper around `task_switch`, ensuring interrupts are disabled.
-pub fn task_switch_safe<Data>(switch_fn: fn() -> SwitchData<Data>, after_switch: fn()) {
-    interrupts::without_interrupts(|| unsafe { task_switch(switch_fn, after_switch) });
+pub fn task_switch_safe<Data>(switch_fn: fn() -> SwitchData<Data>, after_switch: fn()) -> bool {
+    interrupts::without_interrupts(|| unsafe { task_switch(switch_fn, after_switch) })
 }

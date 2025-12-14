@@ -19,8 +19,8 @@ pub use round_robin::try_get_current_task;
 
 const fn do_nothing() {}
 
-pub fn task_switch() {
-    switching::task_switch_safe(switch_fn, do_nothing);
+pub fn task_switch() -> bool {
+    switching::task_switch_safe(switch_fn, do_nothing)
 }
 
 /// Returns the ID of the current task.

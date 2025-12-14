@@ -142,8 +142,6 @@ extern "C" fn int_80_handler(ctx: &mut InterruptContext) {
 
 interrupt_with_tail!(extern "x86-interrupt" fn naked_timer_interrupt_handler(InterruptStackFrame) => timer_interrupt_handler);
 
-
-
 extern "C" fn timer_interrupt_handler(_context: &mut InterruptContext) {
     _print!(".");
     // TODO advance a number
@@ -335,7 +333,10 @@ extern "x86-interrupt" fn general_protection_fault_handler(
         "EXCEPTION: GENERAL PROTECTION FAULT ({error_code:x} = {code:?})\n{:#?}",
         stack_frame
     );
-    backtrace_sp_ip(stack_frame.stack_pointer.as_u64(), stack_frame.instruction_pointer.as_u64());
+    backtrace_sp_ip(
+        stack_frame.stack_pointer.as_u64(),
+        stack_frame.instruction_pointer.as_u64(),
+    );
     panic!()
 }
 
