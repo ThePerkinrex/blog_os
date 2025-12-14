@@ -11,13 +11,13 @@ mod scheduler;
 pub mod lock;
 
 // pub use round_robin::create_task;
-pub use scheduler::create_task;
-pub use scheduler::locking_get_current_task;
-pub use scheduler::try_get_current_task;
-pub use scheduler::task_exit;
-pub use scheduler::init;
-use scheduler::switch_fn;
 use scheduler::after_switch;
+pub use scheduler::create_task;
+pub use scheduler::init;
+pub use scheduler::locking_get_current_task;
+use scheduler::switch_fn;
+pub use scheduler::task_exit;
+pub use scheduler::try_get_current_task;
 
 // pub use round_robin::get_current_task;
 // pub use round_robin::init;
@@ -52,7 +52,12 @@ pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U)
 
 /// Returns a copy of the current task's process info.
 pub fn get_current_process_info() -> Option<ProcessInfo> {
-    locking_get_current_task().unwrap().context.lock().process_info.clone()
+    locking_get_current_task()
+        .unwrap()
+        .context
+        .lock()
+        .process_info
+        .clone()
 }
 
 /// Attempts to get process info; returns None if scheduler not initialized.

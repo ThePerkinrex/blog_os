@@ -18,7 +18,8 @@ use x86_64::{VirtAddr, registers::control::Cr3};
 use crate::{
     multitask::{
         switching::SwitchData,
-        task::{Context, TaskControlBlock, create_cyclic_task, free_task}, task_switch,
+        task::{Context, TaskControlBlock, create_cyclic_task, free_task},
+        task_switch,
     },
     rand::uuid_v4,
 };
@@ -182,7 +183,10 @@ impl Scheduler {
             let last = core::mem::replace(&mut *current, next);
             let no_switch = Arc::ptr_eq(&last, &current);
 
-            debug!("Replacing {} ({}) with {} ({})", last.name, last.id, current.name, current.id);
+            debug!(
+                "Replacing {} ({}) with {} ({})",
+                last.name, last.id, current.name, current.id
+            );
             drop(current);
             let last_weak = Arc::downgrade(&last);
             *self.last.write() = last_weak;
@@ -233,9 +237,10 @@ pub fn switch_fn() -> SwitchData<SchedulerData> {
     if !not_ready {
         scheduler.tick();
     }
-    if not_ready || scheduler
-        .needs_reschedule
-        .load(core::sync::atomic::Ordering::Acquire)
+    if not_ready
+        || scheduler
+            .needs_reschedule
+            .load(core::sync::atomic::Ordering::Acquire)
     {
         scheduler.reschedule(); // Last is written always on reschedule
         let current = scheduler.last.read().upgrade().unwrap();
