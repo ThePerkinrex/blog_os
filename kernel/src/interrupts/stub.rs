@@ -1,4 +1,3 @@
-use log::debug;
 use x86_64::{
     VirtAddr,
     registers::{

@@ -24,7 +24,7 @@ use crate::{
     elf::{ElfHeader, ElfLoadError, LoadedProgram, load_user_program},
     fs::VFS,
     memory::multi_l4_paging::PageTableToken,
-    multitask::{get_current_task, set_current_process_info, try_get_current_task},
+    multitask::{set_current_process_info, try_get_current_task},
     priviledge::jmp_to_usermode,
     rand::uuid_v4,
 };
