@@ -180,6 +180,8 @@ impl Scheduler {
 
             let mut current = self.current.write();
             let last = core::mem::replace(&mut *current, next);
+            let no_switch = Arc::ptr_eq(&last, &current);
+
             debug!("Replacing {} ({}) with {} ({})", last.name, last.id, current.name, current.id);
             drop(current);
             let last_weak = Arc::downgrade(&last);
@@ -191,7 +193,7 @@ impl Scheduler {
 
             if dying || sleeping {
                 self.sleeping.write().insert(last.id, last);
-            } else {
+            } else if !no_switch {
                 ready.insert(last);
             }
         } else {
