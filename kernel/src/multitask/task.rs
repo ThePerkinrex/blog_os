@@ -19,6 +19,7 @@ pub type TaskId = Option<Uuid>;
 
 /// A Task Control Block (TCB) stores everything needed to manage and switch
 /// between tasks. This includes the task's ID, name, and its CPU context.
+#[derive(Debug)]
 pub struct TaskControlBlock<Data> {
     /// Unique identifier for the task.
     pub id: Uuid,
@@ -53,6 +54,7 @@ impl<Data> Hash for TaskControlBlock<Data> {
 
 /// CPU execution context of a task.
 /// Contains all information needed to resume execution.
+#[derive(Debug)]
 pub struct Context<Data> {
     /// Saved stack pointer (rsp).
     pub(super) stack_pointer: VirtAddr,

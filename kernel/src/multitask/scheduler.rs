@@ -8,9 +8,9 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
     sync::{Arc, Weak},
 };
-use log::info;
+use log::{debug, info};
 use spin::{
-    Lazy, Once,
+    Once,
     lock_api::{Mutex, RwLock},
 };
 use x86_64::{VirtAddr, registers::control::Cr3};
@@ -18,11 +18,12 @@ use x86_64::{VirtAddr, registers::control::Cr3};
 use crate::{
     multitask::{
         switching::SwitchData,
-        task::{self, Context, TaskControlBlock, create_cyclic_task, free_task}, task_switch,
+        task::{Context, TaskControlBlock, create_cyclic_task, free_task}, task_switch,
     },
     rand::uuid_v4,
 };
 
+#[derive(Debug)]
 pub struct SchedulerData {
     dying: bool,
     sleeping: bool,
@@ -52,7 +53,8 @@ const HALF_RANGE: Wrapping<usize> = Wrapping((usize::MAX / 2) + 1);
 
 impl Scheduler {
     fn new() -> Self {
-        let init = Arc::new_cyclic(|w| TaskControlBlock {
+        info!("Initializing scheduler");
+        let init = Arc::new_cyclic(|_| TaskControlBlock {
             id: uuid_v4(),
             name: "init".into(),
             context: Mutex::new(Context {
@@ -70,6 +72,7 @@ impl Scheduler {
             }),
         });
         let init_weak = Arc::downgrade(&init);
+        info!("Initialized scheduler");
         Self {
             current: RwLock::new(init),
             last: RwLock::new(init_weak),
@@ -103,6 +106,7 @@ impl Scheduler {
     }
 
     fn reschedule(&self) {
+        info!("Reschedule");
         let mut ready = self.ready.write();
 
         let current = self.current.read().clone();
@@ -146,6 +150,7 @@ impl Scheduler {
         } else {
             Some((current, current_deadline))
         };
+        debug!("Current task: not_ready: {not_ready} // {soonest_deadline:?}");
         for t in ready.iter() {
             let mut ctx = t.context.lock();
 
@@ -165,6 +170,7 @@ impl Scheduler {
 
             drop(ctx);
         }
+        debug!("Soonest deadline is some? {:?}", soonest_deadline.is_some());
 
         self.needs_reschedule
             .store(false, core::sync::atomic::Ordering::Release);
@@ -174,6 +180,7 @@ impl Scheduler {
 
             let mut current = self.current.write();
             let last = core::mem::replace(&mut *current, next);
+            debug!("Replacing {} ({}) with {} ({})", last.name, last.id, current.name, current.id);
             drop(current);
             let last_weak = Arc::downgrade(&last);
             *self.last.write() = last_weak;
@@ -196,7 +203,7 @@ impl Scheduler {
     }
 
     fn create_task<S: Into<Cow<'static, str>>>(&self, entry: extern "C" fn(), name: S) {
-        let task = task::create_cyclic_task(
+        let task = create_cyclic_task(
             entry,
             name,
             task_exit,
@@ -216,8 +223,15 @@ impl Scheduler {
 
 pub fn switch_fn() -> SwitchData<SchedulerData> {
     let scheduler = get_scheduler();
-    scheduler.tick();
-    if scheduler
+    let not_ready = {
+        let current = scheduler.current.read().clone();
+        let current_ctx = current.context.lock();
+        current_ctx.scheduler_data.dying || current_ctx.scheduler_data.sleeping
+    };
+    if !not_ready {
+        scheduler.tick();
+    }
+    if not_ready || scheduler
         .needs_reschedule
         .load(core::sync::atomic::Ordering::Acquire)
     {

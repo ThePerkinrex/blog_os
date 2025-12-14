@@ -10,17 +10,25 @@ mod scheduler;
 /// Low-level lock implementation for tasks.
 pub mod lock;
 
-pub use round_robin::create_task;
-pub use round_robin::get_current_task;
-pub use round_robin::init;
-use round_robin::switch_fn;
-pub use round_robin::task_exit;
-pub use round_robin::try_get_current_task;
+// pub use round_robin::create_task;
+pub use scheduler::create_task;
+pub use scheduler::locking_get_current_task;
+pub use scheduler::try_get_current_task;
+pub use scheduler::task_exit;
+pub use scheduler::init;
+use scheduler::switch_fn;
+use scheduler::after_switch;
+
+// pub use round_robin::get_current_task;
+// pub use round_robin::init;
+// use round_robin::switch_fn;
+// pub use round_robin::task_exit;
+// pub use round_robin::try_get_current_task;
 
 const fn do_nothing() {}
 
 pub fn task_switch() -> bool {
-    switching::task_switch_safe(switch_fn, do_nothing)
+    switching::task_switch_safe(switch_fn, after_switch)
 }
 
 /// Returns the ID of the current task.
@@ -30,21 +38,21 @@ pub fn get_current_task_id() -> TaskId {
 
 /// Sets process metadata for the current task.
 pub fn set_current_process_info(process_info: ProcessInfo) {
-    let arc = get_current_task();
+    let arc = locking_get_current_task().unwrap();
     arc.context.lock().process_info = Some(process_info);
 }
 
 /// Mutably modifies the current task's process info.
 #[allow(clippy::significant_drop_tightening)]
 pub fn change_current_process_info<U>(f: impl Fn(&mut Option<ProcessInfo>) -> U) -> U {
-    let lock = get_current_task();
+    let lock = locking_get_current_task().unwrap();
     let p = &mut lock.context.lock().process_info;
     f(p)
 }
 
 /// Returns a copy of the current task's process info.
 pub fn get_current_process_info() -> Option<ProcessInfo> {
-    get_current_task().context.lock().process_info.clone()
+    locking_get_current_task().unwrap().context.lock().process_info.clone()
 }
 
 /// Attempts to get process info; returns None if scheduler not initialized.

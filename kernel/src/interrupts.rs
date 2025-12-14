@@ -209,7 +209,7 @@ extern "x86-interrupt" fn page_fault_handler(
 
     backtrace();
 
-    let current_task_arc = multitask::get_current_task();
+    let current_task_arc = multitask::locking_get_current_task().unwrap();
     let current_task = current_task_arc.context.lock();
 
     let addr = Cr2::read();
