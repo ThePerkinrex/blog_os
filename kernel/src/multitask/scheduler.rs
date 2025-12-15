@@ -13,6 +13,7 @@ use spin::{
     Once,
     lock_api::{Mutex, RwLock},
 };
+use uuid::Uuid;
 use x86_64::{VirtAddr, registers::control::Cr3};
 
 use crate::{
@@ -274,6 +275,27 @@ pub fn after_switch() {
             }
             unsafe { free_task(last) };
         }
+    }
+}
+
+pub fn go_to_sleep() {
+    let scheduler = get_scheduler();
+    scheduler
+        .current
+        .read()
+        .context
+        .lock()
+        .scheduler_data
+        .sleeping = true;
+    task_switch();
+}
+
+pub fn wake(id: &Uuid) {
+    let scheduler = get_scheduler();
+    let mut sleeping = scheduler.sleeping.write();
+    let mut waking = scheduler.waking.write();
+    if let Some(task) = sleeping.remove(id) {
+        waking.push_back(task);
     }
 }
 

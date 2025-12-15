@@ -18,6 +18,8 @@ pub use scheduler::locking_get_current_task;
 use scheduler::switch_fn;
 pub use scheduler::task_exit;
 pub use scheduler::try_get_current_task;
+pub use scheduler::go_to_sleep;
+pub use scheduler::wake;
 
 // pub use round_robin::get_current_task;
 // pub use round_robin::init;
@@ -25,7 +27,6 @@ pub use scheduler::try_get_current_task;
 // pub use round_robin::task_exit;
 // pub use round_robin::try_get_current_task;
 
-const fn do_nothing() {}
 
 pub fn task_switch() -> bool {
     switching::task_switch_safe(switch_fn, after_switch)
