@@ -49,7 +49,7 @@ fn get_scheduler<'a>() -> &'a Scheduler {
     SCHED.call_once(Scheduler::new)
 }
 
-const SLICE: Wrapping<usize> = Wrapping(10_000);
+const SLICE: Wrapping<usize> = Wrapping(250); // 500 ticks
 // This constant represents 2^(BITS - 1) for a usize.
 const HALF_RANGE: Wrapping<usize> = Wrapping((usize::MAX / 2) + 1);
 
@@ -85,13 +85,14 @@ impl Scheduler {
         }
     }
 
-    fn tick(&self) {
-        let current = self.current.read().clone();
-        let mut ctx = current.context.lock();
+    fn tick(&self) {        
+        let current = self.current.try_read().unwrap().clone();
+        let mut ctx = current.context.try_lock().unwrap();
         ctx.scheduler_data.vruntime += 1;
         let vruntime = ctx.scheduler_data.vruntime;
         let deadline = ctx.scheduler_data.deadline;
         drop(ctx);
+        // info!("tick2");
 
         // 2. Implement the modular comparison: Is vruntime >= deadline?
         // We use wrapping_sub and check if the difference is <= half the maximum value.
@@ -105,21 +106,22 @@ impl Scheduler {
             self.needs_reschedule
                 .store(true, core::sync::atomic::Ordering::Relaxed);
         }
+        // info!("tick4");
     }
 
     fn reschedule(&self) {
         info!("Reschedule");
-        let mut ready = self.ready.write();
+        let mut ready = self.ready.try_write().unwrap();
 
-        let current = self.current.read().clone();
-        let current_ctx = current.context.lock();
+        let current = self.current.try_read().unwrap().clone();
+        let current_ctx = current.context.try_lock().unwrap();
 
         // get the accumulated priority of all ready processes
         let mut total_priority: NonZeroUsize = current_ctx.scheduler_data.priority;
         let mut minimum_vruntime: Wrapping<usize> = current_ctx.scheduler_data.vruntime;
         drop(current_ctx);
         for t in ready.iter() {
-            let ctx = t.context.lock();
+            let ctx = t.context.try_lock().unwrap();
             total_priority = total_priority.saturating_add(ctx.scheduler_data.priority.get());
             minimum_vruntime = if ctx.scheduler_data.vruntime - minimum_vruntime < HALF_RANGE {
                 minimum_vruntime
@@ -129,9 +131,9 @@ impl Scheduler {
             drop(ctx);
         }
 
-        let mut waking = self.waking.write();
+        let mut waking = self.waking.try_write().unwrap();
         while let Some(task) = waking.pop_back() {
-            let mut ctx = task.context.lock();
+            let mut ctx = task.context.try_lock().unwrap();
             total_priority = total_priority.saturating_add(ctx.scheduler_data.priority.get());
             ctx.scheduler_data.vruntime = minimum_vruntime;
             drop(ctx);
@@ -140,7 +142,8 @@ impl Scheduler {
         drop(waking);
 
         // Compute the deadline for each ready process = vruntime + SLICE * (priority / total_priority)
-        let mut current_ctx = current.context.lock();
+        let mut current_ctx = current.context.try_lock().unwrap();
+        let current_vruntime = current_ctx.scheduler_data.vruntime;
         current_ctx.scheduler_data.deadline = current_ctx.scheduler_data.vruntime
             + (SLICE * Wrapping(current_ctx.scheduler_data.priority.get()))
                 / Wrapping(total_priority.get());
@@ -154,7 +157,7 @@ impl Scheduler {
         };
         debug!("Current task: not_ready: {not_ready} // {soonest_deadline:?}");
         for t in ready.iter() {
-            let mut ctx = t.context.lock();
+            let mut ctx = t.context.try_lock().unwrap();
 
             ctx.scheduler_data.deadline = ctx.scheduler_data.vruntime
                 + (SLICE * Wrapping(ctx.scheduler_data.priority.get()))
@@ -180,7 +183,7 @@ impl Scheduler {
         if let Some(next) = soonest_deadline.map(|(a, _)| a) {
             ready.remove(&next);
 
-            let mut current = self.current.write();
+            let mut current = self.current.try_write().unwrap();
             let last = core::mem::replace(&mut *current, next);
             let no_switch = Arc::ptr_eq(&last, &current);
 
@@ -190,20 +193,20 @@ impl Scheduler {
             );
             drop(current);
             let last_weak = Arc::downgrade(&last);
-            *self.last.write() = last_weak;
-            let ctx = last.context.lock();
+            *self.last.try_write().unwrap() = last_weak;
+            let ctx = last.context.try_lock().unwrap();
             let dying = ctx.scheduler_data.dying;
             let sleeping = ctx.scheduler_data.sleeping;
             drop(ctx);
 
             if dying || sleeping {
-                self.sleeping.write().insert(last.id, last);
+                self.sleeping.try_write().unwrap().insert(last.id, last);
             } else if !no_switch {
                 ready.insert(last);
             }
         } else {
             // TODO sleeping task
-            todo!("No next task")
+            todo!("No next task, last_vruntime: {current_vruntime}")
         }
 
         drop(ready);
@@ -231,8 +234,8 @@ impl Scheduler {
 pub fn switch_fn() -> SwitchData<SchedulerData> {
     let scheduler = get_scheduler();
     let not_ready = {
-        let current = scheduler.current.read().clone();
-        let current_ctx = current.context.lock();
+        let current = scheduler.current.try_read().unwrap().clone();
+        let current_ctx = current.context.try_lock().unwrap();
         current_ctx.scheduler_data.dying || current_ctx.scheduler_data.sleeping
     };
     if !not_ready {
@@ -244,11 +247,11 @@ pub fn switch_fn() -> SwitchData<SchedulerData> {
             .load(core::sync::atomic::Ordering::Acquire)
     {
         scheduler.reschedule(); // Last is written always on reschedule
-        let current = scheduler.last.read().upgrade().unwrap();
-        let next = scheduler.current.read().clone();
+        let current = scheduler.last.try_read().unwrap().upgrade().unwrap();
+        let next = scheduler.current.try_read().unwrap().clone();
         SwitchData { current, next }
     } else {
-        let current = scheduler.current.read().clone();
+        let current = scheduler.current.try_read().unwrap().clone();
         SwitchData {
             next: current.clone(),
             current,
@@ -259,16 +262,16 @@ pub fn switch_fn() -> SwitchData<SchedulerData> {
 pub fn after_switch() {
     // Should the last task die?
     let scheduler = get_scheduler();
-    let mut last_lock = scheduler.last.write();
+    let mut last_lock = scheduler.last.try_write().unwrap();
     if let Some(last) = last_lock.upgrade() {
-        let ctx = last.context.lock();
+        let ctx = last.context.try_lock().unwrap();
         let dying = ctx.scheduler_data.dying;
         drop(ctx);
 
         if dying {
             *last_lock = Weak::new();
             drop(last_lock);
-            drop(scheduler.sleeping.write().remove(&last.id));
+            drop(scheduler.sleeping.try_write().unwrap().remove(&last.id));
             // the only ref remaining must be my ref
             if Arc::strong_count(&last) > 1 {
                 panic!("More than one ref to dying task. This shouldnt have happened")
@@ -315,7 +318,7 @@ pub extern "C" fn task_exit() -> ! {
     info!("Ending task");
 
     let current = get_scheduler().current.read().clone();
-    current.context.lock().scheduler_data.dying = true;
+    current.context.try_lock().unwrap().scheduler_data.dying = true;
 
     info!("Switching out of dying task");
     task_switch();
