@@ -40,7 +40,19 @@ struct Scheduler {
     ready: RwLock<BTreeSet<Arc<TaskControlBlock<SchedulerData>>>>,
     sleeping: RwLock<BTreeMap<uuid::Uuid, Arc<TaskControlBlock<SchedulerData>>>>,
     waking: RwLock<VecDeque<Arc<TaskControlBlock<SchedulerData>>>>,
+    wait_task: Arc<TaskControlBlock<SchedulerData>>,
     needs_reschedule: AtomicBool,
+}
+
+
+extern "C" fn wait() {
+    loop {
+        get_scheduler().needs_reschedule.store(true, core::sync::atomic::Ordering::Release);
+        x86_64::instructions::hlt();
+    }
+}
+extern "C" fn wait_exit() -> ! {
+    panic!("Unreachable")
 }
 
 static SCHED: Once<Scheduler> = Once::new();
@@ -82,6 +94,19 @@ impl Scheduler {
             sleeping: Default::default(),
             waking: Default::default(),
             needs_reschedule: Default::default(),
+            wait_task: create_cyclic_task(
+            wait,
+            "wait",
+            wait_exit,
+            || {},
+            |_| SchedulerData {
+                dying: false,
+                sleeping: false,
+                priority: NonZeroUsize::new(1).unwrap(),
+                vruntime: core::num::Wrapping(0),
+                deadline: core::num::Wrapping(0),
+            },
+        )
         }
     }
 
@@ -143,7 +168,7 @@ impl Scheduler {
 
         // Compute the deadline for each ready process = vruntime + SLICE * (priority / total_priority)
         let mut current_ctx = current.context.try_lock().unwrap();
-        let current_vruntime = current_ctx.scheduler_data.vruntime;
+        // let current_vruntime = current_ctx.scheduler_data.vruntime;
         current_ctx.scheduler_data.deadline = current_ctx.scheduler_data.vruntime
             + (SLICE * Wrapping(current_ctx.scheduler_data.priority.get()))
                 / Wrapping(total_priority.get());
@@ -180,33 +205,32 @@ impl Scheduler {
         self.needs_reschedule
             .store(false, core::sync::atomic::Ordering::Release);
 
-        if let Some(next) = soonest_deadline.map(|(a, _)| a) {
-            ready.remove(&next);
+        let next = soonest_deadline.map(|(a, _)| a).unwrap_or_else(|| self.wait_task.clone());
 
-            let mut current = self.current.try_write().unwrap();
-            let last = core::mem::replace(&mut *current, next);
-            let no_switch = Arc::ptr_eq(&last, &current);
+        ready.remove(&next);
 
-            debug!(
-                "Replacing {} ({}) with {} ({})",
-                last.name, last.id, current.name, current.id
-            );
-            drop(current);
-            let last_weak = Arc::downgrade(&last);
-            *self.last.try_write().unwrap() = last_weak;
-            let ctx = last.context.try_lock().unwrap();
-            let dying = ctx.scheduler_data.dying;
-            let sleeping = ctx.scheduler_data.sleeping;
-            drop(ctx);
+        let mut current = self.current.try_write().unwrap();
+        let last = core::mem::replace(&mut *current, next);
+        let no_switch = Arc::ptr_eq(&last, &current);
 
-            if dying || sleeping {
-                self.sleeping.try_write().unwrap().insert(last.id, last);
-            } else if !no_switch {
-                ready.insert(last);
-            }
-        } else {
-            // TODO sleeping task
-            todo!("No next task, last_vruntime: {current_vruntime}")
+        debug!(
+            "Replacing {} ({}) with {} ({})",
+            last.name, last.id, current.name, current.id
+        );
+        drop(current);
+        let last_weak = Arc::downgrade(&last);
+        *self.last.try_write().unwrap() = last_weak;
+        let ctx = last.context.try_lock().unwrap();
+        let dying = ctx.scheduler_data.dying;
+        let sleeping = ctx.scheduler_data.sleeping;
+        drop(ctx);
+
+        if Arc::ptr_eq(&last, &self.wait_task) {
+            // Nothing
+        } else if dying || sleeping {
+            self.sleeping.try_write().unwrap().insert(last.id, last);
+        } else if !no_switch {
+            ready.insert(last);
         }
 
         drop(ready);

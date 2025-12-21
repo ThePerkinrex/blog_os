@@ -16,6 +16,7 @@ mod device;
 mod driver;
 mod proc;
 mod root;
+mod const_dir;
 
 pub struct SysFs;
 
@@ -73,3 +74,6 @@ impl Superblock for SysFsSuperblock {
 
     fn unmount(self) {}
 }
+
+const A: usize = 3;
+
